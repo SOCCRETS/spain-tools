@@ -1,4 +1,3 @@
-
 // api/claim.js
 // Claims a directory name and stores the config (webhook, type, etc.) in Redis.
 // Also notifies your Telegram on every new claim.
