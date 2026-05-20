@@ -3,7 +3,6 @@
     { "source": "/api/claim",  "destination": "/api/claim.js"  },
     { "source": "/api/check",  "destination": "/api/check.js"  },
     { "source": "/api/submit", "destination": "/api/submit.js" },
-    { "source": "/api/page",   "destination": "/api/page.js"   },
-    { "source": "/((?!api/).*)", "destination": "/api/page.js" }
+    { "source": "/:slug",      "destination": "/api/page.js"   }
   ]
 }
