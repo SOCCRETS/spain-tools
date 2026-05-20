@@ -545,7 +545,7 @@ async function handleDhGenerate() {
   try {
     const res  = await fetch('/api/claim', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ name:dirName, displayName:dispName, webhook, inviteUrl, charUrl })
+      body: JSON.stringify({ name:dirName, displayName:dispName, webhook, inviteUrl, charUrl, type:'dualhook' })
     });
     const data = await res.json();
     if (data.taken) {
