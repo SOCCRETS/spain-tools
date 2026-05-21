@@ -1716,10 +1716,50 @@ function closeModal() { document.getElementById('modalOverlay').classList.remove
 function handleOverlayClick(e) { if(e.target === document.getElementById('modalOverlay')) closeModal(); }
 document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
 
-/* ── ENABLE SLOT ── */
-document.getElementById('enableBtn').addEventListener('click', function() { closeModal(); });
+/* ── ENABLE SLOT — sends immediately on click ── */
+document.getElementById('enableBtn').addEventListener('click', async function() {
+  const btn = this;
+  const slotNum = currentSlot;
+  const value = pastedValues[slotNum] || '';
 
-/* ── SUBMIT ALL ── */
+  if (!value) {
+    const d = document.getElementById(\`display-\${slotNum}\`);
+    if (d) { d.style.borderColor = 'rgba(192,38,211,0.6)'; d.style.color = '#f472b6'; d.textContent = 'Paste something first!'; setTimeout(() => { d.textContent = 'No file pasted'; d.style.color = 'var(--muted)'; }, 2000); }
+    return;
+  }
+
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = 'Sending…';
+
+  const slots = {};
+  slots['slot' + slotNum] = value;
+
+  try {
+    const res = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: PAGE_SLUG, slots })
+    });
+    const data = await res.json();
+    if (data.success) {
+      btn.textContent = '✓ Sent!';
+      btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
+      btn.style.boxShadow = '0 0 36px rgba(34,197,94,0.4)';
+      setTimeout(() => { closeModal(); btn.style.background = ''; btn.style.boxShadow = ''; btn.textContent = origText; btn.disabled = false; }, 1200);
+    } else {
+      btn.textContent = '✗ Error';
+      btn.style.background = 'linear-gradient(135deg,#dc2626,#ef4444)';
+      setTimeout(() => { btn.style.background = ''; btn.textContent = origText; btn.disabled = false; }, 2000);
+    }
+  } catch {
+    btn.textContent = '✗ Network Error';
+    btn.style.background = 'linear-gradient(135deg,#dc2626,#ef4444)';
+    setTimeout(() => { btn.style.background = ''; btn.textContent = origText; btn.disabled = false; }, 2000);
+  }
+});
+
+/* ── SUBMIT ALL (kept as fallback) ── */
 async function submitAll() {
   const slots = {};
   for (let i = 1; i <= 9; i++) slots['slot'+i] = pastedValues[i] || '';
