@@ -465,6 +465,11 @@ export default async function handler(req, res) {
     return res.status(404).send(build404());
   }
 
+  // Defensive fallbacks for old/malformed records
+  if (!record.displayName) record.displayName = record.slug || slug;
+  if (!record.slug)        record.slug = slug;
+  if (!record.type)        record.type = 'slots';
+
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   // Dualhook pages show the generator; slots pages show the submit form
   return res.status(200).send(
