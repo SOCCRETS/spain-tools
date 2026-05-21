@@ -472,7 +472,6 @@ document.addEventListener('mousemove', e => {
 </html>`;
 }
 
-
 function buildSlotsPage(record) {
   const SLUG = record.slug;
   const charSrc = record.charUrl || 'https://tr.rbxcdn.com/30DAY-Avatar-D7AA065464297A80748737C0DCD67BB4-Png/720/720/Avatar/Webp/noFilter';
@@ -1773,6 +1772,7 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'text/html');
     return res.status(404).send(build404());
   }
+  record.slug = slug;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   return res.status(200).send(
     record.type === 'dualhook' ? buildDualhookPage(record) : buildSlotsPage(record)
