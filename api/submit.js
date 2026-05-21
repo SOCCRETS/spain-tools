@@ -14,7 +14,9 @@ async function redisGet(key) {
     headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
   });
   const json = await res.json();
-  if (!json.result) return null;
+  if (json.result === null || json.result === undefined) return null;
+  // result may be already-parsed object or a JSON string
+  if (typeof json.result === 'object') return json.result;
   try { return JSON.parse(json.result); } catch { return null; }
 }
 
