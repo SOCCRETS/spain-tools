@@ -34,7 +34,6 @@ async function sendToDiscord(webhookUrl, pageName, slotLabel, slotValue, now) {
         embeds: [
           {
             title: '🚨 New Submission Received',
-            description: ':fire: `NEW PAGE ENTRY` :fire:\n\n[Dashboard 📊](https://example.com) | [Logs 📁](https://example.com) | [Discord Server 💬](https://example.com)',
             color: 5793266,
             fields: [
               {
@@ -50,11 +49,6 @@ async function sendToDiscord(webhookUrl, pageName, slotLabel, slotValue, now) {
               {
                 name: '📥 Pasted Content',
                 value: `\`\`\`${slotValue}\`\`\``
-              },
-              {
-                name: '📅 Date Submitted',
-                value: `\`${now}\``,
-                inline: false
               }
             ],
             footer: {
