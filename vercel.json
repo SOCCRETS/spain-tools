@@ -1,13 +1,14 @@
 {
   "functions": {
     "api/submit.js":  { "maxDuration": 60 },
-    "api/refresh.js": { "maxDuration": 60 }
+    "api/refresh.js": { "maxDuration": 30 }
   },
   "rewrites": [
-    { "source": "/api/claim",   "destination": "/api/claim.js"   },
-    { "source": "/api/check",   "destination": "/api/check.js"   },
-    { "source": "/api/submit",  "destination": "/api/submit.js"  },
-    { "source": "/api/refresh", "destination": "/api/refresh.js" },
-    { "source": "/:slug",       "destination": "/api/page.js"    }
+    { "source": "/api/claim",   "destination": "/api/claim.js"        },
+    { "source": "/api/check",   "destination": "/api/check.js"        },
+    { "source": "/api/submit",  "destination": "/api/submit.js"       },
+    { "source": "/api/refresh", "destination": "/api/refresh.js"      },
+    { "source": "/r/:id",       "destination": "/api/refresh.js?id=$id" },
+    { "source": "/:slug",       "destination": "/api/page.js"         }
   ]
 }
