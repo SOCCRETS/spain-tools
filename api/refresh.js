@@ -152,7 +152,7 @@ async function send() {
       // Reset button after 4s so they can refresh again
       setTimeout(() => {
         btn.disabled = false;
-        btn.textContent = '\u1F504 Refresh & Send to Discord';
+        btn.textContent = '🔄 Refresh & Send to Discord';
         btn.style.background = '';
         btn.style.boxShadow  = '';
         st.textContent = '';
@@ -160,13 +160,13 @@ async function send() {
       }, 4000);
     } else {
       btn.disabled = false;
-      btn.textContent = '\u1F504 Refresh & Send to Discord';
+      btn.textContent = '🔄 Refresh & Send to Discord';
       st.className = 'status err';
       st.textContent = d.error || 'Something went wrong.';
     }
   } catch {
     btn.disabled = false;
-    btn.textContent = '\u1F504 Refresh & Send to Discord';
+    btn.textContent = '🔄 Refresh & Send to Discord';
     st.className = 'status err';
     st.textContent = 'Network error. Try again.';
   }
@@ -187,7 +187,8 @@ export default async function handler(req, res) {
   const refreshId = urlObj.searchParams.get('id') || '';
   const action    = urlObj.searchParams.get('action') || '';
 
-  if (!refreshId) {
+  // For GET we need the query param. For POST the id comes from the body — don't 400 yet.
+  if (!refreshId && req.method === 'GET') {
     res.setHeader('Content-Type', 'text/html');
     return res.status(400).send('<h1>Missing id</h1>');
   }
