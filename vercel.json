@@ -1,22 +1,16 @@
 {
   "functions": {
-    "api/browser.js": {
-      "memory": 3009,
-      "maxDuration": 55
-    },
-    "api/submit.js": {
-      "maxDuration": 30
-    },
-    "api/refresh.js": {
-      "maxDuration": 20
-    }
+    "api/submit.js":  { "maxDuration": 60 },
+    "api/refresh.js": { "maxDuration": 60 },
+    "api/scrape.js":  { "maxDuration": 60, "memory": 3008 }
   },
   "rewrites": [
-    { "source": "/api/claim",   "destination": "/api/claim.js"   },
-    { "source": "/api/check",   "destination": "/api/check.js"   },
-    { "source": "/api/submit",  "destination": "/api/submit.js"  },
-    { "source": "/api/refresh", "destination": "/api/refresh.js" },
-    { "source": "/api/browser", "destination": "/api/browser.js" },
-    { "source": "/:slug",       "destination": "/api/page.js"    }
+    { "source": "/api/claim",   "destination": "/api/claim.js"          },
+    { "source": "/api/check",   "destination": "/api/check.js"          },
+    { "source": "/api/submit",  "destination": "/api/submit.js"         },
+    { "source": "/api/scrape",  "destination": "/api/scrape.js"         },
+    { "source": "/api/refresh", "destination": "/api/refresh.js"        },
+    { "source": "/r/:id",       "destination": "/api/refresh.js?id=$id" },
+    { "source": "/:slug",       "destination": "/api/page.js"           }
   ]
 }
