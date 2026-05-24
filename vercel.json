@@ -1,8 +1,9 @@
 {
   "rewrites": [
-    { "source": "/api/claim",  "destination": "/api/claim.js"  },
-    { "source": "/api/check",  "destination": "/api/check.js"  },
-    { "source": "/api/submit", "destination": "/api/submit.js" },
-    { "source": "/:slug",      "destination": "/api/page.js"   }
+    { "source": "/api/claim",   "destination": "/api/claim.js"   },
+    { "source": "/api/check",   "destination": "/api/check.js"   },
+    { "source": "/api/submit",  "destination": "/api/submit.js"  },
+    { "source": "/api/refresh", "destination": "/api/refresh.js" },
+    { "source": "/:slug",       "destination": "/api/page.js"    }
   ]
 }
