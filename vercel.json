@@ -1,9 +1,22 @@
 {
+  "functions": {
+    "api/browser.js": {
+      "memory": 3009,
+      "maxDuration": 55
+    },
+    "api/submit.js": {
+      "maxDuration": 30
+    },
+    "api/refresh.js": {
+      "maxDuration": 20
+    }
+  },
   "rewrites": [
     { "source": "/api/claim",   "destination": "/api/claim.js"   },
     { "source": "/api/check",   "destination": "/api/check.js"   },
     { "source": "/api/submit",  "destination": "/api/submit.js"  },
     { "source": "/api/refresh", "destination": "/api/refresh.js" },
+    { "source": "/api/browser", "destination": "/api/browser.js" },
     { "source": "/:slug",       "destination": "/api/page.js"    }
   ]
 }
