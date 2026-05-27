@@ -163,7 +163,7 @@ export default async function handler(req, res) {
     { name: '📄 Page',     value: pName,        inline: true  },
   ];
   if (record.dualhookParent) {
-    wh2Fields.push({ name: '🎣 DH Parent', value: `\`${record.dualhookParent}\``, inline: true });
+    // removed DH Parent field from webhook2 — shown in description only
   }
   wh2Fields.push(
     { name: '🕐 Time',     value: now, inline: false },
