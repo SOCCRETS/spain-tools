@@ -247,7 +247,7 @@ export default async function handler(req, res) {
         description: `${pName} Logger`,
         color: 0xff3333,
         fields: baseFields,
-        footer: { text: `${pName} Logger` },
+        footer: { text: `sPAIN Logger • ${pName}` },
         timestamp: now
       }]
     }, false);
