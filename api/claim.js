@@ -2,13 +2,8 @@
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-// Telegram Bot 1 - Page Creation Notifications
-const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
-const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
-
-// Telegram Bot 2 - Webhook Tracking (Slot/Dualhook Generation)
-const TG_WEBHOOK_TOKEN = process.env.TG_WEBHOOK_TOKEN || '8971718461:AAGfB2edB6ryqFOIB1ET5_cGUEoZnZDQB4E';
-const TG_WEBHOOK_CHAT  = process.env.TG_WEBHOOK_CHAT  || '7538845070';
+// Worker URL - replace with your actual worker URL
+const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev';
 
 async function redisGet(key) {
   const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
@@ -26,24 +21,24 @@ async function redisSet(key, value) {
   return res.ok;
 }
 
-// Bot 1 - Page Creation Notifications
+// Bot 1 - Page Creation Notifications (now calls worker)
 async function tgSend(text) {
   try {
-    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+    await fetch(`${WORKER_URL}/notify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML' })
+      body: JSON.stringify({ bot: 'create', text })
     });
   } catch (_) {}
 }
 
-// Bot 2 - Webhook Tracking
+// Bot 2 - Webhook Tracking (now calls worker)
 async function tgSendWebhook(text) {
   try {
-    await fetch(`https://api.telegram.org/bot${TG_WEBHOOK_TOKEN}/sendMessage`, {
+    await fetch(`${WORKER_URL}/notify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: TG_WEBHOOK_CHAT, text, parse_mode: 'HTML' })
+      body: JSON.stringify({ bot: 'webhook', text })
     });
   } catch (_) {}
 }
