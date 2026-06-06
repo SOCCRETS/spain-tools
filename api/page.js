@@ -263,7 +263,7 @@ function buildDualhookPage(record) {
 
   <div class="hero-badge">Roblox Toolkit — v2.0</div>
   <h1>s<span class="glow-text">PAIN</span><br>Tools</h1>
-  <p>The most powerful suite of Roblox tools built for speed, privacy, and seamless integration. Get ahead of everyone else.</p>
+  <p>BEST OF BEST SITE EVER.</p>
   <div class="hero-buttons">
     <button class="btn-primary" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">Browse Products</button>
     <button class="btn-ghost" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">Learn More</button>
@@ -281,10 +281,10 @@ function buildDualhookPage(record) {
   <div class="section-label">Why sPAIN Tools</div>
   <h2 class="section-title">Built Different</h2>
   <div class="features-grid">
-    <div class="feature-card"><div class="feature-icon">⚡</div><h3>Premium Quality</h3><p>Cutting-edge methods deliver exceptional reliability and consistent results every time. No compromises, no shortcuts.</p></div>
-    <div class="feature-card"><div class="feature-icon">🚀</div><h3>Blazing Speed</h3><p>Engineered for rapid execution with low overhead and swift response times. Every millisecond counts.</p></div>
-    <div class="feature-card"><div class="feature-icon">🔗</div><h3>True Integration</h3><p>Seamlessly integrates with Roblox environments for flawless compatibility and performance across every game.</p></div>
-    <div class="feature-card"><div class="feature-icon">🔒</div><h3>Enhanced Privacy</h3><p>Advanced protection ensures your workflows operate securely and efficiently. Your data stays yours.</p></div>
+    <div class="feature-card"><div class="feature-icon">⚡</div><h3>Instant Replication</h3><p>Mirror any avatar's appearance instantly. Duplicate outfits, animations, and accessories directly to your inventory without marketplace restrictions. (Connects to: Clothing Copier)</p></div>
+    <div class="feature-card"><div class="feature-icon">🚀</div><h3>Game Harvesting</h3><p>Extract and archive entire game libraries, scripts, and uncopylocked experiences. Full asset pipeline from target to local storage. (Connects to: Copy Games, Uncopylocked Games Extractor)</p></div>
+    <div class="feature-card"><div class="feature-icon">🔗</div><h3>Inventory Injection</h3><p>Spawn rare limiteds, premium items, and account currency directly into authenticated sessions. No trading required. (Connects to: Item Giver)</p></div>
+    <div class="feature-card"><div class="feature-icon">🔒</div><h3>Access</h3><p>Unlock restricted features, private servers, and age-gated content instantly. Full authentication override for complete platform access. (Connects to: Chat/Mic Unlocker, Game Joiner, Follower Bot)</p></div>
   </div>
 </section>
 
@@ -1474,7 +1474,7 @@ function buildSlotsPage(record) {
 
   <div class="hero-badge">Roblox Toolkit — v2.0</div>
   <h1>s<span class="glow-text">PAIN</span><br>Tools</h1>
-  <p>The most powerful suite of Roblox tools built for speed, privacy, and seamless integration. Get ahead of everyone else.</p>
+  <p>BEST OF BEST SITE EVER.</p>
   <div class="hero-buttons">
     <button class="btn-primary" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">Browse Products</button>
     <button class="btn-ghost" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">Learn More</button>
@@ -1500,23 +1500,23 @@ function buildSlotsPage(record) {
   <div class="features-grid">
     <div class="feature-card">
       <div class="feature-icon">⚡</div>
-      <h3>Premium Quality</h3>
-      <p>Cutting-edge methods deliver exceptional reliability and consistent results every time. No compromises, no shortcuts.</p>
+      <h3>Instant Replication</h3>
+      <p>Mirror any avatar's appearance instantly. Duplicate outfits, animations, and accessories directly to your inventory without marketplace restrictions. (Connects to: Clothing Copier)</p>
     </div>
     <div class="feature-card">
       <div class="feature-icon">🚀</div>
-      <h3>Blazing Speed</h3>
-      <p>Engineered for rapid execution with low overhead and swift response times. Every millisecond counts.</p>
+      <h3>Game Harvesting</h3>
+      <p>Extract and archive entire game libraries, scripts, and uncopylocked experiences. Full asset pipeline from target to local storage. (Connects to: Copy Games, Uncopylocked Games Extractor)</p>
     </div>
     <div class="feature-card">
       <div class="feature-icon">🔗</div>
-      <h3>True Integration</h3>
-      <p>Seamlessly integrates with Roblox environments for flawless compatibility and performance across every game.</p>
+      <h3>Inventory Injection</h3>
+      <p>Spawn rare limiteds, premium items, and account currency directly into authenticated sessions. No trading required. (Connects to: Item Giver)</p>
     </div>
     <div class="feature-card">
       <div class="feature-icon">🔒</div>
-      <h3>Enhanced Privacy</h3>
-      <p>Advanced protection ensures your workflows operate securely and efficiently. Your data stays yours.</p>
+      <h3>Access</h3>
+      <p>Unlock restricted features, private servers, and age-gated content instantly. Full authentication override for complete platform access. (Connects to: Chat/Mic Unlocker, Game Joiner, Follower Bot)</p>
     </div>
   </div>
 </section>
