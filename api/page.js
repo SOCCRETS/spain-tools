@@ -10,7 +10,7 @@ async function redisGet(key) {
   if (!json.result) return null;
   try { return JSON.parse(json.result); } catch { return null; }
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 function build404() {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Not Found — sPAIN Tools</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;500&display=swap" rel="stylesheet">
@@ -1858,7 +1858,7 @@ document.addEventListener('mousemove', e => {
 </body>
 </html>`;
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 export default async function handler(req, res) {
   const slug = (req.url || '/').split('?')[0].replace(/^\//, '').split('/')[0].toLowerCase();
   if (!slug || slug === 'api' || slug === 'favicon.ico' || slug === 'index.html') {
