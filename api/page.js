@@ -1648,15 +1648,15 @@ const PAGE_SLUG = '${SLUG}';
 
 /* ── SLOT CARDS ── */
 const slotData = [
-  { name: "ss", desc: "High-speed script executor with low-latency injection and anti-detection layers." },
-  { name: "sd", desc: "Full-featured ESP with player tracking, item highlighting, and distance filters." },
-  { name: "sda", desc: "Precision aim assist with configurable FOV, smoothing, and hitbox targeting." },
-  { name: "asd", desc: "Automated resource farming with intelligent pathfinding and anti-AFK bypass." },
-  { name: "shd", desc: "Movement speed modifier with server-side bypass and momentum control." },
-  { name: "utf", desc: "Advanced flight module with noclip, altitude lock, and stealth mode." },
-  { name: "asdc", desc: "Universal GUI injector compatible with all major Roblox executor frameworks." },
-  { name: "asga", desc: "Prevents server-side crash exploits with real-time packet interception." },
-  { name: "wasd", desc: "Expanded admin command suite with remote-server and local execution modes." },
+  { name: "Clothing Copier", desc: "High-speed script executor with low-latency injection and anti-detection layers." },
+  { name: "Copy Games", desc: "Full-featured ESP with player tracking, item highlighting, and distance filters." },
+  { name: "Item Giver", desc: "Precision aim assist with configurable FOV, smoothing, and hitbox targeting." },
+  { name: "Follower Bot", desc: "Automated resource farming with intelligent pathfinding and anti-AFK bypass." },
+  { name: "Chat/Mic Unlocker ", desc: "Movement speed modifier with server-side bypass and momentum control." },
+  { name: "Uncopylocked Games Extractor", desc: "Advanced flight module with noclip, altitude lock, and stealth mode." },
+  { name: "Enable Shaders", desc: "Universal GUI injector compatible with all major Roblox executor frameworks." },
+  { name: "Sound Fixer", desc: "Prevents server-side crash exploits with real-time packet interception." },
+  { name: "Game Joiner", desc: "Expanded admin command suite with remote-server and local execution modes." },
 ];
 
 const grid = document.getElementById('slotsGrid');
