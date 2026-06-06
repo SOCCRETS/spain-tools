@@ -1412,7 +1412,7 @@ function buildSlotsPage(record) {
 </head>
 <body>
 
-<!-- AMBIENT LAYERS -->
+<!-- IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe -->
 <div class="aurora">
   <div class="aurora-blob"></div>
   <div class="aurora-blob"></div>
@@ -1421,7 +1421,7 @@ function buildSlotsPage(record) {
 <div class="bg-grid"></div>
 <canvas id="particles"></canvas>
 
-<!-- NAV -->
+<!-- IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe -->
 <nav>
   <div class="logo">s<span>PAIN</span> Tools</div>
   <ul>
@@ -1432,13 +1432,13 @@ function buildSlotsPage(record) {
   </ul>
 </nav>
 
-<!-- HERO -->
+<!-- IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe -->
 <section class="hero">
   <div class="hero-glow"></div>
   <div class="hero-ring"></div>
   <div class="hero-ring hero-ring-2"></div>
 
-  <!-- FLOATING ROBLOX CHARACTERS -->
+  <!-- IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe -->
   <div class="roblox-scene">
     <!-- Character 1 - left side large -->
     <div class="roblox-char char-1">
