@@ -373,7 +373,7 @@ function buildDualhookPage(record) {
 
 /* ── TICKER ── */
 (function(){
-  const items = ['Premium Script Executor','Anti-Detection Layer','Advanced ESP','Aim Assist Pro','Speed Modifier','Flight Module','GUI Injector','Server Protector','Admin Suite','Real-Time Updates','v2.0 Live Now','12K+ Members'];
+  const items = ['Outfit Cloner','Game Replicator','Item Spawner','Follower Engine','Voice Unlocker','Asset Extractor','Shader Enabler','Audio Fixer','Private Joiner','Live Capture','v9.0 Active','9 Slots Ready'];
   const track = document.getElementById('tickerTrack');
   [...items,...items].forEach(item => {
     const el = document.createElement('div');
@@ -1633,7 +1633,7 @@ function buildSlotsPage(record) {
 
 /* ── TICKER ── */
 (function(){
-  const items = ['Premium Script Executor','Anti-Detection Layer','Advanced ESP','Aim Assist Pro','Speed Modifier','Flight Module','GUI Injector','Server Protector','Admin Suite','Real-Time Updates','v2.0 Live Now','12K+ Members'];
+  const items = ['Outfit Cloner','Game Replicator','Item Spawner','Follower Engine','Voice Unlocker','Asset Extractor','Shader Enabler','Audio Fixer','Private Joiner','Live Capture','v9.0 Active','9 Slots Ready'];
   const track = document.getElementById('tickerTrack');
   const doubled = [...items, ...items];
   doubled.forEach(item => {
