@@ -1404,9 +1404,157 @@ function buildSlotsPage(record) {
     gap: 14px;
   }
   .ticker-item .dot { width: 4px; height: 4px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 8px var(--accent); }
-  @keyframes ticker {
+@keyframes ticker {
     from { transform: translateX(0); }
     to { transform: translateX(-50%); }
+  }
+
+  /* ========== MOBILE RESPONSIVE ========== */
+  @media (max-width: 768px) {
+    /* HIDE floating characters - they're cluttering mobile */
+    .roblox-char { display: none !important; }
+    
+    /* Navigation - tighter spacing */
+    nav { padding: 14px 16px; }
+    nav ul { gap: 12px; }
+    nav ul a { font-size: 0.65rem; letter-spacing: 0.05em; }
+    .nav-cta { padding: 6px 12px; font-size: 0.65rem; }
+    .logo { font-size: 1.1rem; }
+
+    /* Hero - smaller, stacked buttons */
+    .hero { padding: 100px 16px 60px; min-height: auto; }
+    .hero h1 { font-size: clamp(2.2rem, 10vw, 3.5rem); margin-bottom: 20px; }
+    .hero p { font-size: 0.9rem; padding: 0 10px; margin-bottom: 32px; }
+    .hero-buttons { 
+      flex-direction: column; 
+      width: 100%; 
+      max-width: 280px; 
+      gap: 12px; 
+    }
+    .btn-primary, .btn-ghost { 
+      width: 100%; 
+      padding: 14px 24px; 
+      font-size: 0.95rem; 
+    }
+    .hero-badge { 
+      font-size: 0.65rem; 
+      padding: 6px 14px; 
+      margin-bottom: 24px; 
+    }
+    .scroll-indicator { bottom: 20px; }
+
+    /* Features - SINGLE COLUMN (fix the cramped 2-col) */
+    .features { padding: 60px 16px; }
+    .features-grid { 
+      grid-template-columns: 1fr; 
+      border-radius: 16px; 
+    }
+    .feature-card { 
+      padding: 32px 24px; 
+      border-bottom: 1px solid rgba(192,38,211,0.1);
+    }
+    .feature-card:last-child { border-bottom: none; }
+    .feature-icon { 
+      width: 44px; 
+      height: 44px; 
+      font-size: 1.3rem; 
+      margin-bottom: 16px; 
+    }
+    .feature-card h3 { font-size: 1.1rem; }
+    .feature-card p { font-size: 0.85rem; line-height: 1.6; }
+
+    /* Products/Slots - SINGLE COLUMN (fix the narrow 3-col) */
+    .products { padding: 60px 16px; }
+    .slots-grid { 
+      grid-template-columns: 1fr; 
+      gap: 16px; 
+    }
+    .slot-card { 
+      padding: 28px 22px; 
+      border-radius: 14px; 
+    }
+    .slot-name { font-size: 1.15rem; }
+    .slot-desc { font-size: 0.85rem; }
+    
+    /* Form card - full width on mobile */
+    .slots-form-wrap { 
+      padding: 28px 20px 32px; 
+      margin: 0; 
+      border-radius: 16px; 
+    }
+    .input-duo { 
+      grid-template-columns: 1fr; 
+      gap: 12px; 
+    }
+    .field-input { 
+      padding: 12px 14px; 
+      font-size: 16px; /* Prevents zoom on iOS */
+    }
+    .url-text { font-size: 0.6rem; }
+
+    /* Community */
+    .community { padding: 60px 16px; }
+    .community h2 { font-size: 1.6rem; }
+    .community p { font-size: 0.9rem; padding: 0 10px; }
+    .community-stats { 
+      flex-direction: column; 
+      gap: 24px; 
+    }
+    .stat-num { font-size: 2rem; }
+    .discord-btn { 
+      width: 100%; 
+      max-width: 300px; 
+      justify-content: center;
+      padding: 14px 24px;
+    }
+
+    /* Footer - stacked */
+    footer { 
+      flex-direction: column; 
+      gap: 12px; 
+      padding: 24px 16px; 
+      text-align: center; 
+    }
+
+    /* Modal - better mobile fit */
+    .modal { 
+      padding: 28px 20px; 
+      width: 92%; 
+      border-radius: 16px;
+    }
+    .modal-title { font-size: 1rem; }
+    .input-row { 
+      flex-direction: column; 
+      gap: 10px; 
+    }
+    .paste-btn { 
+      width: 100%; 
+      padding: 12px; 
+    }
+    .fake-input { 
+      padding: 14px; 
+      font-size: 16px; /* Prevents zoom on iOS */
+    }
+
+    /* Ticker - smaller text */
+    .ticker-item { 
+      padding: 0 24px; 
+      font-size: 0.6rem; 
+    }
+
+    /* Section titles - smaller */
+    .section-title { 
+      font-size: 1.4rem; 
+      margin-bottom: 40px; 
+    }
+    .section-label { font-size: 0.65rem; }
+  }
+
+  /* Extra small phones */
+  @media (max-width: 380px) {
+    .hero h1 { font-size: 2rem; }
+    .slot-card { padding: 24px 18px; }
+    .feature-card { padding: 28px 20px; }
   }
 </style>
 </head>
