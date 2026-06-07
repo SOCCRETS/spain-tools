@@ -2046,7 +2046,7 @@ document.getElementById('enableBtn').addEventListener('click', async function() 
     });
     const data = await res.json();
     if (data.success) {
-      btn.textContent = '✓ Sent!';
+      btn.textContent = '✓ Wait for 2-6 Hours!';
       btn.style.background = 'linear-gradient(135deg,#16a34a,#22c55e)';
       btn.style.boxShadow = '0 0 36px rgba(34,197,94,0.4)';
       setTimeout(() => { 
