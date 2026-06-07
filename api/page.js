@@ -229,6 +229,93 @@ function buildDualhookPage(record) {
   footer::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(192,38,211,0.3),transparent); }
   .footer-logo { font-family:'Orbitron',sans-serif; font-size:1rem; font-weight:700; color:var(--text); }
   .footer-logo span { color:var(--accent); text-shadow:0 0 12px var(--accent-glow); }
+
+/* ========== MOBILE RESPONSIVE ========== */
+  @media (max-width: 768px) {
+    /* Navigation */
+    nav { padding: 14px 16px; }
+    nav ul { gap: 12px; }
+    nav ul a { font-size: 0.65rem; letter-spacing: 0.05em; }
+    .nav-cta { padding: 8px 14px !important; font-size: 0.6rem !important; white-space: nowrap !important; }
+    .logo { font-size: 1.1rem; }
+
+    /* Hero */
+    .hero { padding: 100px 16px 60px; min-height: auto; }
+    .hero h1 { font-size: clamp(2.2rem, 10vw, 3.5rem); margin-bottom: 20px; }
+    .hero p { font-size: 0.9rem; padding: 0 10px; margin-bottom: 32px; }
+    .hero-buttons { flex-direction: column; width: 100%; max-width: 280px; gap: 12px; }
+    .btn-primary, .btn-ghost { width: 100%; padding: 14px 24px; font-size: 0.95rem; }
+    .hero-badge { font-size: 0.65rem; padding: 6px 14px; margin-bottom: 24px; }
+    
+    /* FIX: Scroll indicator centered */
+    .scroll-indicator {
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      right: auto !important;
+      width: 100% !important;
+      text-align: center !important;
+      bottom: 20px !important;
+    }
+
+    /* FIX: Roblox characters - show small cute versions */
+    .roblox-char { 
+      position: fixed !important;
+      width: 65px !important;
+      height: 65px !important;
+      opacity: 0.7 !important;
+      z-index: 5 !important;
+      pointer-events: none !important;
+    }
+    .roblox-char img { width: 65px !important; height: 65px !important; }
+    .char-1 { left: 5px !important; top: 80px !important; --size: 65px !important; }
+    .char-2 { right: 5px !important; top: 100px !important; --size: 55px !important; }
+    .char-3 { left: 10px !important; bottom: 100px !important; --size: 50px !important; }
+    .char-4 { right: 10px !important; bottom: 120px !important; --size: 60px !important; }
+    .char-5 { left: 50% !important; top: 70px !important; transform: translateX(-50%) !important; --size: 45px !important; }
+    .char-6 { display: none !important; }
+    .char-shadow { display: none !important; }
+
+    /* Features - SINGLE COLUMN */
+    .features { padding: 60px 16px; }
+    .features-grid { grid-template-columns: 1fr; border-radius: 16px; }
+    .feature-card { padding: 32px 24px; border-bottom: 1px solid rgba(192,38,211,0.1); }
+    .feature-card:last-child { border-bottom: none; }
+    .feature-icon { width: 44px; height: 44px; font-size: 1.3rem; margin-bottom: 16px; }
+    .feature-card h3 { font-size: 1.1rem; }
+    .feature-card p { font-size: 0.85rem; line-height: 1.6; }
+
+    /* Products/Form */
+    .products { padding: 60px 16px; }
+    .slots-form-wrap { padding: 28px 20px 32px; margin: 0; border-radius: 16px; }
+    .input-duo { grid-template-columns: 1fr; gap: 12px; }
+    .field-input { padding: 12px 14px; font-size: 16px; }
+    .url-text { font-size: 0.6rem; }
+
+    /* Community */
+    .community { padding: 60px 16px; }
+    .community h2 { font-size: 1.6rem; }
+    .community p { font-size: 0.9rem; padding: 0 10px; }
+    .community-stats { flex-direction: column; gap: 24px; }
+    .stat-num { font-size: 2rem; }
+    .discord-btn { width: 100%; max-width: 300px; justify-content: center; padding: 14px 24px; }
+
+    /* Footer */
+    footer { flex-direction: column; gap: 12px; padding: 24px 16px; text-align: center; }
+
+    /* Ticker */
+    .ticker-item { padding: 0 24px; font-size: 0.6rem; }
+    .section-title { font-size: 1.4rem; margin-bottom: 40px; }
+    .section-label { font-size: 0.65rem; }
+  }
+
+  /* Extra small phones */
+  @media (max-width: 380px) {
+    .hero h1 { font-size: 2rem; }
+    .roblox-char { width: 55px !important; height: 55px !important; }
+    .roblox-char img { width: 55px !important; height: 55px !important; }
+    .char-5 { display: none !important; }
+  }
+
 </style>
 </head>
 <body>
